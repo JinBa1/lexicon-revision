@@ -3,4 +3,8 @@ uvicorn[standard]
 chromadb
 sentence-transformers
 pymupdf
-torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+requests
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch
+torchvision
+torchaudio
