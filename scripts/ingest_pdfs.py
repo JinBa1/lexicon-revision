@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
+
 import fitz  # PyMuPDF
+
 
 def simple_chunk_pdf(pdf_path: str):
     doc = fitz.open(pdf_path)
@@ -9,15 +11,15 @@ def simple_chunk_pdf(pdf_path: str):
         text = page.get_text("text")
         # Very basic chunk by page for now
         if text.strip():
-            chunks.append({
-                "text": text.strip(),
-                "metadata": {
-                    "source": Path(pdf_path).name,
-                    "page": page_num + 1
+            chunks.append(
+                {
+                    "text": text.strip(),
+                    "metadata": {"source": Path(pdf_path).name, "page": page_num + 1},
                 }
-            })
+            )
     print(f"Extracted {len(chunks)} chunks from {pdf_path}")
     return chunks
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
