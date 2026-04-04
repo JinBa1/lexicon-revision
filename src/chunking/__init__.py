@@ -6,6 +6,7 @@ from src.chunking.models import (
     SubQuestion,
     make_chunk_id,
 )
+from src.chunking.pipeline import run_pipeline
 
 __all__ = [
     "BaseParser",
@@ -14,4 +15,5 @@ __all__ = [
     "ParsedQuestion",
     "SubQuestion",
     "make_chunk_id",
+    "run_pipeline",
 ]
