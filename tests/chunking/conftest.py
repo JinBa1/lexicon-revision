@@ -87,3 +87,52 @@ def real_pdf_tiers_2019_q1() -> str:
 @pytest.fixture
 def real_pdf_tiers_2019_q11() -> str:
     return _repo_path("tests/data/tiers/y2019p9q11.pdf")
+
+
+# --- MinerU content_list.json fixtures ---
+
+MINERU_FIXTURES = REPO_ROOT / "tests" / "data" / "mineru_fixtures"
+
+
+@pytest.fixture
+def content_list_q1() -> str:
+    return _mineru_path("y2025p1q1")
+
+
+def _mineru_path(stem: str) -> str:
+    return str(MINERU_FIXTURES / stem / "hybrid_auto" / f"{stem}_content_list.json")
+
+
+@pytest.fixture
+def content_list_q3() -> str:
+    return _mineru_path("y2025p1q3")
+
+
+@pytest.fixture
+def content_list_q7() -> str:
+    return _mineru_path("y2025p1q7")
+
+
+@pytest.fixture
+def content_list_code_2018_q3() -> str:
+    return _mineru_path("y2018p1q3")
+
+
+@pytest.fixture
+def content_list_formula_2018_q8() -> str:
+    return _mineru_path("y2018p6q8")
+
+
+@pytest.fixture
+def content_list_media_2018_q4() -> str:
+    return _mineru_path("y2018p1q4")
+
+
+@pytest.fixture
+def content_list_table_2018_q7() -> str:
+    return _mineru_path("y2018p8q7")
+
+
+@pytest.fixture
+def content_list_tiers_2018_q1() -> str:
+    return _mineru_path("y2018p1q1")
