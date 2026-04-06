@@ -7,8 +7,8 @@ from src.chunking.models import ParsedQuestion
 
 class BaseParser(ABC):
     @abstractmethod
-    def parse(self, pdf_path: str) -> list[ParsedQuestion]:
-        """Parse a PDF file and return a list of ParsedQuestion objects.
+    def parse(self, content_list_path: str) -> list[ParsedQuestion]:
+        """Parse a MinerU content_list.json and return ParsedQuestion objects.
 
         For single-question-per-PDF formats (e.g. Cambridge), returns a
         single-element list. Multi-question formats return multiple elements.

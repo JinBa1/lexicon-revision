@@ -18,9 +18,9 @@ def test_base_parser_subclass_must_implement_parse(tmp_path):
 
 def test_base_parser_subclass_with_parse_works(tmp_path):
     class DummyParser(BaseParser):
-        def parse(self, pdf_path: str) -> list[ParsedQuestion]:
+        def parse(self, content_list_path: str) -> list[ParsedQuestion]:
             return []
 
     parser = DummyParser()
-    result = parser.parse(str(tmp_path / "dummy.pdf"))
+    result = parser.parse(str(tmp_path / "dummy_content_list.json"))
     assert result == []
