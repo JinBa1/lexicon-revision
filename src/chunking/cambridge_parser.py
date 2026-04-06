@@ -69,6 +69,7 @@ class CambridgeParser(BaseParser):
                 total_marks=self._compute_total_marks(sub_questions),
                 has_code=has_code,
                 has_figure=has_figure,
+                has_table=False,
                 warnings=warnings,
             )
         ]

@@ -21,6 +21,7 @@ def test_parsed_question_construction():
         total_marks=5,
         has_code=True,
         has_figure=False,
+        has_table=False,
         warnings=[],
     )
     assert pq.tripos_part == "Part IA"
@@ -58,6 +59,7 @@ def test_chunk_construction_question_level():
         total_marks=20,
         has_code=True,
         has_figure=False,
+        has_table=False,
         media=[],
         source_pdf="y2025p1q1.pdf",
         warnings=[],
@@ -84,6 +86,7 @@ def test_chunk_construction_sub_question_level():
         total_marks=20,
         has_code=True,
         has_figure=False,
+        has_table=False,
         media=[],
         source_pdf="y2025p1q1.pdf",
         warnings=[],
@@ -100,3 +103,48 @@ def test_chunk_id_generation():
     assert make_chunk_id("cam", 2025, 1, 1) == "cam-2025-p1-q1"
     assert make_chunk_id("cam", 2025, 1, 1, "a") == "cam-2025-p1-q1-a"
     assert make_chunk_id("cam", 2025, 1, 1, "c") == "cam-2025-p1-q1-c"
+
+
+def test_parsed_question_has_table_field():
+    sq = SubQuestion(label="a", text="Some text.", marks=5)
+    pq = ParsedQuestion(
+        tripos_part="Part IA",
+        year=2025,
+        paper=1,
+        question_number=3,
+        topic="Databases",
+        author="tgg22",
+        preamble="Consider the following table...",
+        sub_questions=[sq],
+        total_marks=5,
+        has_code=False,
+        has_figure=False,
+        has_table=True,
+        warnings=[],
+    )
+    assert pq.has_table is True
+
+
+def test_chunk_has_table_field():
+    chunk = Chunk(
+        id="cam-2025-p1-q2",
+        chunk_level="question",
+        parent_chunk_id=None,
+        text="Consider the following relation...",
+        year=2025,
+        paper=1,
+        question_number=2,
+        topic="Databases",
+        author="tgg22",
+        tripos_part="Part IA",
+        sub_question_label=None,
+        marks=None,
+        total_marks=20,
+        has_code=False,
+        has_figure=False,
+        has_table=True,
+        media=[],
+        source_pdf="y2025p1q2.pdf",
+        warnings=[],
+    )
+    assert chunk.has_table is True

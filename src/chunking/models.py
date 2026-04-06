@@ -32,6 +32,7 @@ class ParsedQuestion:
     total_marks: int | None
     has_code: bool
     has_figure: bool
+    has_table: bool
     warnings: list[str] = field(default_factory=list)
 
 
@@ -58,6 +59,7 @@ class Chunk:
     # Content flags
     has_code: bool
     has_figure: bool
+    has_table: bool
 
     # Media & traceability
     media: list[MediaRef]
