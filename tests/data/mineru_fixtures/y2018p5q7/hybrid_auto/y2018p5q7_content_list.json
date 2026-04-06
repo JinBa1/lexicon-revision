@@ -1,0 +1,125 @@
+[
+    {
+        "type": "text",
+        "text": "7 Concurrent and Distributed Systems (RNW) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            615,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "UNIX pipes and SSH connections can be modeled as single-recipient producerconsumer queues (PCQs). Consider the following processes linked by PCQs forwarding console input to the application, and output back to the console: ",
+        "bbox": [
+            159,
+            151,
+            894,
+            204
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/b079bc454bbab67374fa2ba76b12470e6dfb12cc829487f99476340944457ab0.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            189,
+            225,
+            867,
+            256
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Each queue has a fixed limit of N (≥ 1) bytes. A PCQ is readable if there is a non-zero number of bytes in its buffer. A PCQ is writable if there are fewer than N bytes of data in its buffer. Four (simplified) I/O system calls are used: ",
+        "bbox": [
+            159,
+            282,
+            892,
+            335
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "code",
+        "sub_type": "algorithm",
+        "code_caption": [],
+        "code_body": "$\\mathbf{b} =$ readbyte(pcq) Read one byte of data from pcq; blocks if pcq is empty.   \nwritebyte(pcq, b) Writes one byte of data to pcq; blocks if pcq is full.   \nwaitread(pcq1, ..) Block until at least one argument is readable.   \npollread(pcq) Returns true if pcq is readable. ",
+        "bbox": [
+            169,
+            344,
+            870,
+            414
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "With crypto omitted, SSH client and server workloops are implemented as: ",
+        "bbox": [
+            161,
+            425,
+            815,
+            443
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "code",
+        "sub_type": "code",
+        "code_caption": [],
+        "code_body": "```javascript\n1: while (1) {\n2: waitread(input1, input2); // Wait for input on either PCQ\n3: if (pollread(input1)) {\n4: b = readbyte(input1);\n5: writebyte(output2, b);\n6: }\n7: if (pollread(input2)) {\n8: b = readbyte(input2);\n9: writebyte(output1, b);\n10: } \n```",
+        "bbox": [
+            161,
+            455,
+            830,
+            627
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(a) What is the maximum amount of data buffered across all PCQs? [2 marks] ",
+            "(b) Applications often echo user keypresses, printing input characters as they process them. If the user hits the ‘A’ key, at most how many times will PCQ semaphores be signaled before the character is printed on the console? [2 marks] ",
+            "(c) The system operator sets N to 1 and pastes a long list of commands into the console. Part way through, the SSH Server and Application processes hang. Succinctly explain what happened, describing PCQ3 and PCQ6 starting states, initial line number for the SSH Server, and event sequence. [6 marks] ",
+            "(d ) Explain why, on a busy system, key press echoes might be delayed when a high-priority user interacts with a low-priority application. Propose a solution, describing how each of the above system calls should be changed, and any additional state required. Describe limitations that might apply. [10 marks] "
+        ],
+        "bbox": [
+            161,
+            643,
+            890,
+            902
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IB – 2018 – Paper 5 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

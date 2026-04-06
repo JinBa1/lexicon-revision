@@ -1,0 +1,110 @@
+[
+    {
+        "type": "text",
+        "text": "8 Foundations of Data Science (DJW) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            524,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Fisher’s Iris dataset contains, among other things, measurements of Petal.Length and Sepal.Length for samples from each of three species of iris. Suppose we want to fit the model ",
+        "bbox": [
+            159,
+            151,
+            892,
+            200
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\n\\text {P e t a l . L e n g t h} = \\alpha_ {s} + \\beta_ {s} \\text {S e p a l . L e n g t h} + \\text {N o r m a l} (0, \\sigma^ {2})\n$$",
+        "text_format": "latex",
+        "bbox": [
+            300,
+            202,
+            751,
+            219
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "where s is the species. ",
+        "bbox": [
+            161,
+            228,
+            357,
+            244
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Note: The Norma $\\scriptstyle \\left\\lfloor \\mu , \\sigma ^ { 2 } \\right\\}$ distribution has density function ",
+        "bbox": [
+            161,
+            262,
+            672,
+            280
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nf (x) = \\frac {1}{\\sqrt {2 \\pi \\sigma^ {2}}} e ^ {- (x - \\mu) ^ {2} / (2 \\sigma^ {2})}.\n$$",
+        "text_format": "latex",
+        "bbox": [
+            406,
+            292,
+            650,
+            328
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(a) Explain what is meant by ‘linear model’, ‘feature’, and ‘orthogonal projection’. Rewrite the above model as a linear model made up of linearly independent features, and explain why they are linearly independent. [7 marks] ",
+            "(b) You are given a library function $\\mathsf { p r o j } ( y , [ e _ { 1 } , \\ldots , e _ { n } ] )$ . It returns a list $[ \\lambda _ { 1 } , \\ldots , \\lambda _ { n } ]$ ] such that $\\lambda _ { 1 } e _ { 1 } + \\cdots + \\lambda _ { n } e _ { n }$ is the orthogonal projection of the vector y onto the subspace spanned by vectors $\\{ e _ { 1 } , \\ldots , e _ { n } \\}$ . Explain what is meant by the ‘least squares method’, and give pseudocode using proj to find the least squares estimators for $\\alpha _ { s }$ and $\\beta _ { s }$ . [2 marks] ",
+            "(c) Explain how to compute the maximum likelihood estimators of $\\alpha _ { s } , \\beta _ { s }$ , and $\\sigma .$ In your answer, you should explain the relationship between the least squares method and maximum likelihood estimation. [5 marks] ",
+            "(d) We wish to know whether the $\\beta _ { s }$ coefficients for the three species are noticeably different. Outline the Bayesian approach to answering this question. [6 marks] "
+        ],
+        "bbox": [
+            161,
+            363,
+            892,
+            642
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IB – 2018 – Paper 6 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            522,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

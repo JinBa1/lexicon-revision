@@ -1,0 +1,126 @@
+[
+    {
+        "type": "text",
+        "text": "1 Foundations of Computer Science (AM) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            564,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) Sets containing integers can be represented as int list values. Consider two such representations called unordered and ordered. In the former elements can appear in any order; in the latter elements are required to be in ascending order. In both representations elements must not be repeated. ",
+        "bbox": [
+            161,
+            151,
+            892,
+            221
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(i ) Using the unordered representation give ML functions corresponding to set intersection and set union. [3 marks] ",
+            "(ii ) For your answers to Part (a)(i ) give the associated time complexities, assuming both input sets have at most n elements. [2 marks] ",
+            "(iii) Now, using the ordered representation, give ML functions corresponding to set intersection and set union along with their time complexities, noting reasons for any differences in complexity compared to those for the unordered representations. [4 marks] ",
+            "(iv) Without giving any ML code, suggest a technique whereby set intersection for unordered can be implemented in O(n log n) time. [1 mark] "
+        ],
+        "bbox": [
+            203,
+            237,
+            892,
+            462
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(b) One often hears “in ML, all functions take exactly one argument”. Explain two techniques which enable us to circumvent this rule, illustrating your answer by giving ML definitions for the standard map and a variant which “takes the same arguments in the same order”. ",
+        "bbox": [
+            161,
+            476,
+            892,
+            545
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Call the variant map'. [3 marks] ",
+        "bbox": [
+            203,
+            546,
+            890,
+            565
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(c) For each of the five following ML expressions give definitions of f, g, h, xs ys and zs (as appropriate) which cause the expression to evaluate to true, or explain, giving reasons, why this is impossible. (The functions map and map’ are as discussed in Part (b).) ",
+        "bbox": [
+            161,
+            580,
+            892,
+            650
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(i ) map f [1,2] = [[1,2],[3,4]] ",
+            "(ii ) map g [1,2,3,4] = [[1,2],[3,4]] ",
+            "(iii ) map (map h) xs = [[1,2],[3,4]] ",
+            "(iv ) map map' ys = [[1,2],[3,4]] ",
+            "(v ) map map zs = [[1,2],[3,4]] "
+        ],
+        "bbox": [
+            203,
+            665,
+            610,
+            821
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[7 marks] ",
+        "bbox": [
+            806,
+            838,
+            890,
+            856
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IA – 2018 – Paper 1 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

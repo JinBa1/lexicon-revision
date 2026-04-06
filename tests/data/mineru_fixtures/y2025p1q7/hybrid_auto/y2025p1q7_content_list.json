@@ -1,0 +1,220 @@
+[
+    {
+        "type": "text",
+        "text": "7 Algorithms 1 (jkf21) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            371,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) Find asymptotically tight lower and upper bounds for the following recurrence relation and explain your answer. ",
+        "bbox": [
+            161,
+            151,
+            892,
+            186
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (1) = 1\n$$",
+        "text_format": "latex",
+        "bbox": [
+            507,
+            200,
+            588,
+            217
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (n) = 5 T (n / 5) + n ^ {3}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            453,
+            230,
+            640,
+            249
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[7 marks] ",
+        "bbox": [
+            808,
+            256,
+            889,
+            274
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(b) Find an asymptotically tight upper bound for the recurrence relation ",
+        "bbox": [
+            161,
+            290,
+            806,
+            307
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (1) = 1\n$$",
+        "text_format": "latex",
+        "bbox": [
+            507,
+            322,
+            588,
+            338
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (n) = T (n - 1) + \\lg n\n$$",
+        "text_format": "latex",
+        "bbox": [
+            447,
+            353,
+            650,
+            370
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "where lg denotes base-2 logarithms. Explain your answer. [3 marks] ",
+        "bbox": [
+            201,
+            378,
+            889,
+            395
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(c) Show that the recurrence relation ",
+        "bbox": [
+            161,
+            412,
+            500,
+            429
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (1) = 1\n$$",
+        "text_format": "latex",
+        "bbox": [
+            507,
+            444,
+            588,
+            461
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (n) = T (n / a) + \\lg n\n$$",
+        "text_format": "latex",
+        "bbox": [
+            453,
+            475,
+            643,
+            493
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "is in $\\omega ( \\lg n )$ and $O ( n )$ , where $a > 1$ is a real-valued parameter and lg denotes base-2 logarithms. Is $T ( n ) \\in o ( \\lg ^ { 2 } n ) !$ Explain your answer. [7 marks] ",
+        "bbox": [
+            201,
+            500,
+            892,
+            536
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(d) Let T (n) be the recurrence relation defined by ",
+        "bbox": [
+            161,
+            551,
+            611,
+            570
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (1) = 1\n$$",
+        "text_format": "latex",
+        "bbox": [
+            507,
+            583,
+            588,
+            600
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "equation",
+        "text": "$$\nT (n) = T (n / 5) + T (3 n / 5) + k n\n$$",
+        "text_format": "latex",
+        "bbox": [
+            411,
+            614,
+            685,
+            632
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "where $k > 0 \\in \\mathbb { R }$ . Is $T ( n ) \\in O ( n ) !$ Justify your answer. [3 marks] ",
+        "bbox": [
+            201,
+            638,
+            889,
+            657
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IA – 2025 – Paper 1 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

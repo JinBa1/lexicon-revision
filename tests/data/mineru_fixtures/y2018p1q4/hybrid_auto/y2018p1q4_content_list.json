@@ -1,0 +1,159 @@
+[
+    {
+        "type": "text",
+        "text": "4 Object-Oriented Programming (RKH) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            549,
+            136
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "A car manufacturer uses Java software to track current vehicles being built. The UML diagram below shows an excerpt of the current software structure. You should assume the presence of other appropriate fields and methods. ",
+        "bbox": [
+            159,
+            151,
+            892,
+            204
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/1b5022e8ffbaaebb6ca6239e27883bf79d585f8e486ca28bea0bfe12e7ead545.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            238,
+            230,
+            818,
+            340
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) Each car can be built to one of three trim levels: base, luxury or sport. They can also be configured with an electric or petrol engine. At various points in the manufacturing process the customer can choose to change the trim level. ",
+        "bbox": [
+            161,
+            357,
+            892,
+            410
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(i ) Explain in detail why the current structure does not support this. ",
+        "bbox": [
+            203,
+            426,
+            818,
+            443
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[3 marks] ",
+        "bbox": [
+            808,
+            443,
+            889,
+            462
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(ii ) Show how to refactor the structure to allow trim-level change using a standard design pattern, which you should identify. Explain how it addresses the problems you identified in Part (a)(i) and show how you would implement getTrimLevel() in Car. [5 marks] ",
+        "bbox": [
+            203,
+            476,
+            890,
+            546
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(iii ) Compare and contrast your solution to Part (a)(ii ) with an alternative approach that stores the current trim level as a private String field within Car. [2 marks] ",
+        "bbox": [
+            203,
+            563,
+            890,
+            615
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(b) The manufacturer decides to offer a vehicle with a hybrid engine that is both an electric engine and a petrol engine. ",
+        "bbox": [
+            161,
+            632,
+            890,
+            667
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(i) Some languages support multiple inheritance of type, method implementation and state. Identify the problems each introduces and discuss the extent to which Java supports them. [5 marks] ",
+        "bbox": [
+            203,
+            683,
+            890,
+            736
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(ii ) Refactor the software structure to achieve the effect of multiple inheritance of type and method implementation for HybridEngine in Java without using default methods. Show how your solution would support an accelerate() method for HybridEngine that uses the electric engine if the battery level is above some threshold or the petrol engine otherwise. ",
+        "bbox": [
+            203,
+            752,
+            890,
+            835
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[5 marks] ",
+        "bbox": [
+            808,
+            838,
+            889,
+            856
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IA – 2018 – Paper 1 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

@@ -1,0 +1,156 @@
+[
+    {
+        "type": "text",
+        "text": "5 Computer Vision (jgd1000) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            436,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) In early stages of machine vision systems, the isotropic operator shown on the right is often applied to an image $I ( x , y )$ in the following way: $[ \\nabla ^ { 2 } G _ { \\sigma } ( x , y ) ] * I ( x , y )$ . ",
+        "bbox": [
+            161,
+            151,
+            695,
+            204
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "What is the purpose of this operation? Which class of neurones in the retina does it mimic? ",
+        "bbox": [
+            201,
+            210,
+            694,
+            244
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "How would the results differ if instead this operation: $G _ { \\sigma } ( x , y ) * \\nabla ^ { 2 } I ( x , y )$ were performed; or alternatively if this operation: $\\nabla ^ { 2 } \\left[ G _ { \\sigma } ( x , y ) * I ( x , y ) \\right]$ were performed? ",
+        "bbox": [
+            201,
+            250,
+            694,
+            305
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/15eb92f4d9a8352e166a3097773e1efde823c42952ce3380405b074950deb0a8.jpg",
+        "image_caption": [
+            "[6 marks] "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            697,
+            154,
+            922,
+            300
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(b) Computer vision colour space is usually three-dimensional, just because human vision is tri-chromatic and therefore cameras are designed with three colour planes. But suppose we added a fourth colour plane, say yellow (Y), to the standard red, green, and blue (RGB) bands. Considering that these are linearly independent but not orthogonal vectors, what would be the added capability of RGBY space? What tests would reveal it? Present a version of the Retinex algorithm for RGBY space, explaining the purpose of each step in the algorithm. ",
+        "bbox": [
+            161,
+            335,
+            892,
+            455
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[8 marks] ",
+        "bbox": [
+            808,
+            456,
+            887,
+            473
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(c) Visual inference of surface shape depends on assumptions and prior knowledge, such as “faces are mostly convex”. Explain the “rotating hollow mask illusion”. Why does a face mask (as pictured below) appear to reverse its direction of rotation, once it is seen from the inside instead of the outside? What is the role of Bayesian inference when interpreting a face-like surface that is actually concave in presentation instead of convex? Should visual illusions like this be considered “features” or “bugs”, and should one try to design them in to a computer vision system? [6 marks] ",
+        "bbox": [
+            161,
+            493,
+            892,
+            631
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/96e53b5e55bbe25439321c32b59f45bd16751dedce350b44c16d3054b567886d.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            221,
+            646,
+            403,
+            860
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/9721164e5f9f6d0240f2473bbb44203fdb4c9df443dc1d302b095c367872abf8.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            445,
+            646,
+            618,
+            866
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/f3b6b3b52550d3e3a3110a7293f0f60de13d571be2bfb9e0ac454990f5edaadb.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            677,
+            648,
+            873,
+            865
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part II – 2019 – Paper 9 ",
+        "bbox": [
+            119,
+            82,
+            722,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            522,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

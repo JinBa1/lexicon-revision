@@ -1,0 +1,160 @@
+[
+    {
+        "type": "text",
+        "text": "4 Computer Vision (jgd1000) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            438,
+            136
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) Explain why such a tiny number of 2D Gabor wavelets as shown in this sequence are so efficient at representing faces, and why such wavelet-based encodings deliver good performance in \"appearance-based\" algorithms for face recognition. What role do such encodings have in representing different facial expressions? What sort of neural evidence is there for such encodings in human vision? ",
+        "bbox": [
+            161,
+            151,
+            895,
+            239
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/4f5f359195de65efb74fa75e6101305eea6783b9ffcfeb749b8107f1c4b8d389.jpg",
+        "image_caption": [
+            "16 "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            208,
+            252,
+            364,
+            337
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/fac6ef1cebd85132a92272acd7fc18c10e0fbf6aff74f9928811bab8a38275a3.jpg",
+        "image_caption": [
+            "52 "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            376,
+            252,
+            531,
+            336
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/88ef1d1dd1115cfbf1971b2abb12dd89eda9cfbdeffc0b58029bbe9e2a33bcec.jpg",
+        "image_caption": [
+            "116 "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            546,
+            253,
+            700,
+            336
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/c8776bff719662a9c0c49a64aab434bf10cfd49ce2ae6e6b11749c2306e896c2.jpg",
+        "image_caption": [
+            "216 ",
+            "Number of Wavelets "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            714,
+            253,
+            867,
+            336
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[6 marks] ",
+        "bbox": [
+            806,
+            378,
+            890,
+            397
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(b) Explain the \"receptive field\" concept as used both in CNNs (convolutional neural networks) and in visual neuroscience, and explain the role of trainable connections. Why is the concept of convolution relevant? Roughly how many layers are in the 'FaceNet' CNN, and how many connection parameters must be trained? By comparison, in the visual cortex of the brain, typically how many synapses are there per neurone, and what is the total length of \"wiring\" (neurite connections) per cubic-millimeter? Can connection updates be a basis for computer vision? [6 marks] ",
+            "(c) In relation to the image formation diagram shown below, explain: (i) the concept of a reflectance map; (ii) what is a specular surface; (iii) what is a Lambertian surface; and (iv) what is surface albedo. Give the defining relationships for the amount of light from a point source that is scattered in different directions by such illuminated surfaces, and describe the inferences that a vision system must make with them. [8 marks] "
+        ],
+        "bbox": [
+            161,
+            414,
+            894,
+            678
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/82ea7733b7a6ab34fb8d310589e99f9f583f13d8d5afb2067b2cab8e95b4371e.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            647,
+            680,
+            712,
+            725
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/6513b12607e58d3b2ca1a9bf08ee9d7326f4e9e0537559306d0685b5e765f4a1.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            383,
+            741,
+            647,
+            896
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part II - 2019 - Paper 8 ",
+        "bbox": [
+            119,
+            82,
+            722,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

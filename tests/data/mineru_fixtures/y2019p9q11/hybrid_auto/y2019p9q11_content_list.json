@@ -1,0 +1,89 @@
+[
+    {
+        "type": "text",
+        "text": "11 Optimising Compilers (tmj32) ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            117,
+            467,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(a) Describe the phase-order problem in a compiler and illustrate your answer with some example code. [4 marks] ",
+            "(b) You are advising a semiconductor design company on building a compiler for their latest processor. The processor has the following features: "
+        ],
+        "bbox": [
+            161,
+            151,
+            892,
+            237
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            " Sixteen 64-bit registers (r0-r15) and sixteen 32-bit registers (s0-s15), the latter corresponding to the lower 32 bits of each of the 64-bit registers. ",
+            " A one-cycle branch delay slot after each control-transfer instruction (i.e. the instruction after a branch is executed before the branch takes effect). ",
+            " Complex arithmetic instructions that implicitly use r15 as their first source operand. "
+        ],
+        "bbox": [
+            218,
+            254,
+            887,
+            391
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "What are the challenges of code generation for this processor, given these features and how can they be addressed within the compiler? [8 marks] ",
+        "bbox": [
+            201,
+            409,
+            890,
+            445
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(c) To ease compilation, the chief designer suggests that the processor’s instructions could be executed directly in SSA form (i.e. all destination registers unique). This would use a small cache to provide fast access to the most recently used virtual registers. Discuss the advantages and disadvantages of such an approach from the compiler writer’s viewpoint. [8 marks] ",
+        "bbox": [
+            161,
+            460,
+            890,
+            548
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part II – 2019 – Paper 9 ",
+        "bbox": [
+            119,
+            82,
+            722,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

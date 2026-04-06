@@ -1,0 +1,112 @@
+[
+    {
+        "type": "text",
+        "text": "3 Object-Oriented Programming (rkh23) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            549,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "The Java Collections framework contains PriorityQueue<E>, which represents a priority queue based on a priority heap of objects of type E. Priority is specified implicitly by providing an ordering on E via either the Comparable or Comparator interfaces. Consider a task tracking app that uses the following class to represent a task: ",
+        "bbox": [
+            159,
+            151,
+            894,
+            236
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "code",
+        "sub_type": "algorithm",
+        "code_caption": [],
+        "code_body": "public class WorkTask { private int priority; private String description; public WorkTask(String descriptor, int priority) { this descriptor = descriptor; thispriority $=$ priority; } public int getPriority() { return priority; } public int setPriority(int priority) {thispriority $=$ priority; } ",
+        "bbox": [
+            159,
+            255,
+            870,
+            460
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(a) (i) Compare and contrast Comparable and Comparator in Java’s Collections framework. [3 marks] ",
+            "(ii) Show how to make a PriorityQueue<WorkTask> maintain its contents highest priority first using: "
+        ],
+        "bbox": [
+            161,
+            476,
+            890,
+            564
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(A) Comparable [2 marks] ",
+            "(B) Comparator [2 marks] "
+        ],
+        "bbox": [
+            245,
+            579,
+            889,
+            633
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(iii) Would you prefer Comparable or Comparator for this application? Explain your answer. [1 mark] ",
+        "bbox": [
+            203,
+            649,
+            890,
+            684
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(b) PriorityQueue does not offer a method to change priorities. Instead, an object with a changed priority must be removed and reinserted. Using a design pattern that you should specify, write code for AutoUpdatableQueue, which extends PriorityQueue and automatically updates the queue when the priority of any object in the queue is updated. Make your solution flexible and demonstrate how to apply it to a queue of WorkTasks. [12 marks] ",
+        "bbox": [
+            161,
+            700,
+            890,
+            806
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IA – 2025 – Paper 1 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]
