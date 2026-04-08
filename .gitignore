@@ -6,6 +6,12 @@ chroma_data/
 .vscode/
 *.pdf
 data/
+.codex
+AGENTS.md
+CLAUDE.md
+Project Outline.md
+docs/
+plans/
 
 # Allow test fixtures (MinerU JSON output, not PDFs/debug files)
 !tests/data/

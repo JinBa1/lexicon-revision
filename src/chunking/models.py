@@ -12,11 +12,33 @@ class SubQuestion:
 
 @dataclass
 class MediaRef:
-    file_path: str
-    page_number: int  # 1-indexed
-    bbox: tuple[float, float, float, float]  # (x0, y0, x1, y1) in points
+    media_id: str
+    kind: str
+    file_path: str | None
+    page_number: int | None  # 1-indexed; None when MinerU omits page_idx
+    bbox: (
+        tuple[float, float, float, float] | None
+    )  # (x0, y0, x1, y1) in points; None when unavailable
     chunk_id: str
+    relation: str
+    owner_level: str
+    owner_label: str | None
+    order_index: int
+    text_payload: str | None = None
     description: str | None = None  # future: vision model description
+
+
+@dataclass
+class ParsedMediaBlock:
+    media_id: str
+    kind: str
+    file_path: str | None
+    page_number: int | None
+    bbox: tuple[float, float, float, float] | None
+    order_index: int
+    text_payload: str | None = None
+    owner_hint_label: str | None = None
+    is_shared_candidate: bool = False
 
 
 @dataclass
@@ -33,6 +55,7 @@ class ParsedQuestion:
     has_code: bool
     has_figure: bool
     has_table: bool
+    media_blocks: list[ParsedMediaBlock] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 

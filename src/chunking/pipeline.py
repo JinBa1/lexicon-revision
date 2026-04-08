@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 
 def run_pipeline(
     mineru_output_dir: str,
-    metadata_path: str,
+    metadata_path: str | None = None,
     university: str = "cam",
 ) -> list[Chunk]:
     output_dir = Path(mineru_output_dir)
-    metadata = _load_metadata(metadata_path)
+    metadata = _load_metadata(metadata_path) if metadata_path is not None else {}
     parser = CambridgeContentListParser()
 
     all_chunks: list[Chunk] = []
@@ -25,8 +25,6 @@ def run_pipeline(
     warning_count = 0
 
     content_lists = sorted(output_dir.glob("**/*_content_list.json"))
-    # Filter out _content_list_v2.json files
-    content_lists = [p for p in content_lists if not p.name.endswith("_v2.json")]
     if not content_lists:
         logger.warning("No content_list.json files found in %s", output_dir)
         return []
@@ -47,12 +45,9 @@ def run_pipeline(
             logger.warning("No questions parsed from %s - skipping", cl_path.name)
             continue
 
-        # Resolve image directory (sibling to content_list.json)
-        images_dir = cl_path.parent / "images"
-
         for pq in parsed_questions:
             chunks = _build_chunks(pq, downloader_meta, filename, university)
-            _attach_media_refs(pq, chunks, images_dir)
+            _attach_media_refs(pq, chunks, cl_path.parent)
             all_chunks.extend(chunks)
             parsed_count += 1
             warning_count += len(pq.warnings)
@@ -165,27 +160,104 @@ def _build_chunks(
 def _attach_media_refs(
     parsed_question: ParsedQuestion,
     chunks: list[Chunk],
-    images_dir: Path,
+    content_list_dir: Path,
 ) -> None:
-    """Attach MediaRef entries for MinerU-extracted images.
-
-    MinerU already extracted images to disk — we just record their paths.
-    For now, all images attach to the question-level chunk.
-    """
-    if not images_dir.exists():
+    """Attach MediaRef entries from parser-preserved MinerU media blocks."""
+    if not parsed_question.media_blocks:
         return
 
     question_chunk = next((c for c in chunks if c.chunk_level == "question"), None)
     if question_chunk is None:
         return
 
-    for img_path in sorted(images_dir.glob("*.jpg")) + sorted(images_dir.glob("*.png")):
-        question_chunk.media.append(
-            MediaRef(
-                file_path=str(img_path),
-                page_number=0,
-                bbox=(0.0, 0.0, 0.0, 0.0),
-                chunk_id=question_chunk.id,
-                description=None,
+    sub_chunks_by_label = {
+        chunk.sub_question_label: chunk
+        for chunk in chunks
+        if chunk.chunk_level == "sub_question" and chunk.sub_question_label is not None
+    }
+
+    for media_block in parsed_question.media_blocks:
+        file_path = _resolve_media_path(media_block.file_path, content_list_dir)
+        page_number = media_block.page_number
+        bbox = media_block.bbox
+
+        def attach_to_chunk(
+            chunk: Chunk,
+            relation: str,
+            owner_level: str,
+            owner_label: str | None,
+        ) -> None:
+            chunk.media.append(
+                MediaRef(
+                    media_id=media_block.media_id,
+                    kind=media_block.kind,
+                    file_path=file_path,
+                    page_number=page_number,
+                    bbox=bbox,
+                    chunk_id=chunk.id,
+                    relation=relation,
+                    owner_level=owner_level,
+                    owner_label=owner_label,
+                    order_index=media_block.order_index,
+                    text_payload=media_block.text_payload,
+                    description=None,
+                )
             )
+
+        owner_chunk = (
+            sub_chunks_by_label.get(media_block.owner_hint_label)
+            if media_block.owner_hint_label is not None
+            else None
         )
+
+        # `is_shared_candidate` is parser-provided evidence that the media belongs
+        # to the question preamble/shared context. It is not treated as a generic
+        # ambiguity flag for "could belong anywhere".
+        if media_block.is_shared_candidate:
+            attach_to_chunk(
+                question_chunk,
+                relation="direct",
+                owner_level="question",
+                owner_label=None,
+            )
+            for sub_chunk in sub_chunks_by_label.values():
+                attach_to_chunk(
+                    sub_chunk,
+                    relation="inherited_shared",
+                    owner_level="question",
+                    owner_label=None,
+                )
+            continue
+
+        if owner_chunk is None:
+            attach_to_chunk(
+                question_chunk,
+                relation="direct",
+                owner_level="question",
+                owner_label=None,
+            )
+            continue
+
+        attach_to_chunk(
+            owner_chunk,
+            relation="direct",
+            owner_level="sub_question",
+            owner_label=media_block.owner_hint_label,
+        )
+        attach_to_chunk(
+            question_chunk,
+            relation="visible_from_child",
+            owner_level="sub_question",
+            owner_label=media_block.owner_hint_label,
+        )
+
+
+def _resolve_media_path(file_path: str | None, content_list_dir: Path) -> str | None:
+    if file_path is None:
+        return None
+
+    path = Path(file_path)
+    if not path.is_absolute():
+        path = (content_list_dir / path).resolve()
+
+    return str(path)

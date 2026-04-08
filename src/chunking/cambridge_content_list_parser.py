@@ -4,7 +4,7 @@ import json
 import re
 
 from src.chunking.base_parser import BaseParser
-from src.chunking.models import ParsedQuestion, SubQuestion
+from src.chunking.models import ParsedMediaBlock, ParsedQuestion, SubQuestion
 
 HEADER_RE = re.compile(
     r"COMPUTER SCIENCE TRIPOS\s+Part\s+([A-Z]+)\s*[–·\-]\s*(\d{4})\s*[–·\-]\s*"
@@ -53,6 +53,7 @@ class CambridgeContentListParser(BaseParser):
 
         # Find body blocks (everything after the question line, excluding header)
         body_blocks = self._extract_body_blocks(blocks, question_info)
+        media_blocks = self._extract_media_blocks(body_blocks)
         preamble, sub_questions = self._split_sub_questions(body_blocks)
 
         return [
@@ -71,6 +72,7 @@ class CambridgeContentListParser(BaseParser):
                 has_code=has_code,
                 has_figure=has_figure,
                 has_table=has_table,
+                media_blocks=media_blocks,
                 warnings=warnings,
             )
         ]
@@ -215,6 +217,35 @@ class CambridgeContentListParser(BaseParser):
 
         return preamble, sub_questions
 
+    def _extract_media_blocks(self, body_blocks: list[dict]) -> list[ParsedMediaBlock]:
+        """Preserve media/table block facts for later ownership assignment."""
+        owner_hints_by_block = self._compute_owner_hints_by_block(body_blocks)
+        media_blocks: list[ParsedMediaBlock] = []
+
+        for order_index, block in enumerate(body_blocks):
+            block_type = block.get("type")
+            if block_type not in {"image", "table"}:
+                continue
+
+            page_idx = block.get("page_idx")
+            bbox = block.get("bbox")
+            owner_hint_label = owner_hints_by_block.get(order_index)
+            media_blocks.append(
+                ParsedMediaBlock(
+                    media_id=f"{block_type}_{order_index}",
+                    kind=block_type,
+                    file_path=block.get("img_path"),
+                    page_number=page_idx + 1 if isinstance(page_idx, int) else None,
+                    bbox=self._normalize_bbox(bbox),
+                    order_index=order_index,
+                    text_payload=self._extract_media_text_payload(block),
+                    owner_hint_label=owner_hint_label,
+                    is_shared_candidate=owner_hint_label is None,
+                )
+            )
+
+        return media_blocks
+
     def _flatten_to_segments(
         self, body_blocks: list[dict]
     ) -> list[tuple[str, str | None]]:
@@ -244,6 +275,74 @@ class CambridgeContentListParser(BaseParser):
                 segments.append((text, label))
 
         return segments
+
+    def _compute_owner_hints_by_block(self, body_blocks: list[dict]) -> dict[int, str]:
+        """Map each block index to the latest top-level label seen by segment order."""
+        segments = self._flatten_to_positioned_segments(body_blocks)
+        candidates = [
+            (segment_index, label)
+            for segment_index, (_, label, _) in enumerate(segments)
+            if label is not None
+        ]
+        top_level_starts = self._filter_sequential_labels(candidates)
+        labels_by_segment = {
+            segment_index: label for segment_index, label in top_level_starts
+        }
+
+        owner_hints_by_block: dict[int, str] = {}
+        current_owner_label: str | None = None
+        segments_by_block: dict[int, list[int]] = {}
+
+        for segment_index, (_, _, block_index) in enumerate(segments):
+            segments_by_block.setdefault(block_index, []).append(segment_index)
+
+        for block_index, _ in enumerate(body_blocks):
+            for segment_index in segments_by_block.get(block_index, []):
+                current_owner_label = labels_by_segment.get(
+                    segment_index, current_owner_label
+                )
+            if current_owner_label is not None:
+                owner_hints_by_block[block_index] = current_owner_label
+
+        return owner_hints_by_block
+
+    def _flatten_to_positioned_segments(
+        self, body_blocks: list[dict]
+    ) -> list[tuple[str, str | None, int]]:
+        """Flatten blocks into segments while retaining source body-block index."""
+        segments: list[tuple[str, str | None, int]] = []
+
+        for block_index, block in enumerate(body_blocks):
+            block_type = block.get("type")
+
+            if block_type == "list":
+                items = block.get("list_items", [])
+                for item in items:
+                    item_text = item.strip()
+                    label = self._detect_top_level_label(item_text)
+                    segments.append((item_text, label, block_index))
+
+            elif block_type in ("text", "equation", "code", "table", "image"):
+                text = self._extract_block_text(block)
+                if not text:
+                    continue
+                label = self._detect_top_level_label(text)
+                segments.append((text, label, block_index))
+
+        return segments
+
+    def _extract_media_text_payload(self, block: dict) -> str | None:
+        if block.get("type") == "table":
+            payload = block.get("table_body", "").strip()
+            return payload or None
+        return None
+
+    def _normalize_bbox(
+        self, bbox: list[float] | tuple[float, ...] | None
+    ) -> tuple[float, float, float, float] | None:
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            return None
+        return tuple(float(value) for value in bbox)
 
     def _filter_sequential_labels(
         self, candidates: list[tuple[int, str]]

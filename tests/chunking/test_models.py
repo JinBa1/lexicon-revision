@@ -1,13 +1,26 @@
+"""Contract tests for the chunking dataclasses.
+
+These tests are intentionally narrow. Passing them means the shared model
+objects can be instantiated with the current schema and keep the expected field
+values.
+
+Passing this file does NOT say anything about parser quality, ownership logic,
+or whether the pipeline produces good chunks from real MinerU fixtures. Those
+behaviors are covered in parser and pipeline tests.
+"""
+
 from src.chunking.models import Chunk, MediaRef, ParsedQuestion, SubQuestion
 
 
 def test_sub_question_construction():
+    """SubQuestion stores the basic label/text/marks payload unchanged."""
     sq = SubQuestion(label="a", text="Compare Comparable and Comparator.", marks=3)
     assert sq.label == "a"
     assert sq.marks == 3
 
 
 def test_parsed_question_construction():
+    """ParsedQuestion preserves parser-produced metadata and child parts."""
     sq = SubQuestion(label="a", text="Some text.", marks=5)
     pq = ParsedQuestion(
         tripos_part="Part IA",
@@ -30,19 +43,68 @@ def test_parsed_question_construction():
 
 
 def test_media_ref_construction():
+    """MediaRef requires the core provenance and attachment fields."""
     mr = MediaRef(
+        media_id="cam-2025-p1-q3-b-figure_1",
+        kind="table",
         file_path="data/media/cam-2025-p1-q3-b/figure_1.png",
         page_number=1,
         bbox=(100.0, 200.0, 300.0, 400.0),
         chunk_id="cam-2025-p1-q3-b",
+        relation="direct",
+        owner_level="question",
+        owner_label=None,
+        order_index=0,
         description=None,
     )
+    assert mr.media_id == "cam-2025-p1-q3-b-figure_1"
     assert mr.page_number == 1
     assert mr.bbox == (100.0, 200.0, 300.0, 400.0)
     assert mr.description is None
 
 
+def test_media_ref_hybrid_ownership_fields():
+    """MediaRef supports ownership metadata used by the chunking pipeline."""
+    mr = MediaRef(
+        media_id="cam-2025-p1-q3-b-figure_1",
+        kind="table",
+        file_path="data/media/cam-2025-p1-q3-b/figure_1.png",
+        page_number=1,
+        bbox=(100.0, 200.0, 300.0, 400.0),
+        chunk_id="cam-2025-p1-q3-b",
+        relation="direct",
+        owner_level="sub_question",
+        owner_label="b",
+        order_index=0,
+        text_payload="Figure 1",
+        description="A diagram of the system.",
+    )
+    assert mr.media_id == "cam-2025-p1-q3-b-figure_1"
+    assert mr.owner_level == "sub_question"
+    assert mr.owner_label == "b"
+    assert mr.order_index == 0
+
+
+def test_media_ref_accepts_none_page_number_and_bbox():
+    """MediaRef allows None for page_number and bbox when MinerU omits them."""
+    mr = MediaRef(
+        media_id="image_0",
+        kind="image",
+        file_path=None,
+        page_number=None,
+        bbox=None,
+        chunk_id="cam-2025-p1-q1",
+        relation="direct",
+        owner_level="question",
+        owner_label=None,
+        order_index=0,
+    )
+    assert mr.page_number is None
+    assert mr.bbox is None
+
+
 def test_chunk_construction_question_level():
+    """Question chunks carry whole-question metadata and no parent pointer."""
     chunk = Chunk(
         id="cam-2025-p1-q1",
         chunk_level="question",
@@ -70,6 +132,7 @@ def test_chunk_construction_question_level():
 
 
 def test_chunk_construction_sub_question_level():
+    """Sub-question chunks carry parent linkage and part-level marks."""
     chunk = Chunk(
         id="cam-2025-p1-q1-a",
         chunk_level="sub_question",
@@ -98,6 +161,7 @@ def test_chunk_construction_sub_question_level():
 
 
 def test_chunk_id_generation():
+    """Chunk IDs follow the repo's stable `cam-YYYY-pP-qQ[-sub]` convention."""
     from src.chunking.models import make_chunk_id
 
     assert make_chunk_id("cam", 2025, 1, 1) == "cam-2025-p1-q1"
@@ -106,6 +170,7 @@ def test_chunk_id_generation():
 
 
 def test_parsed_question_has_table_field():
+    """ParsedQuestion exposes coarse table presence for downstream filtering."""
     sq = SubQuestion(label="a", text="Some text.", marks=5)
     pq = ParsedQuestion(
         tripos_part="Part IA",
@@ -126,6 +191,7 @@ def test_parsed_question_has_table_field():
 
 
 def test_chunk_has_table_field():
+    """Chunk keeps the same coarse table-presence flag after assembly."""
     chunk = Chunk(
         id="cam-2025-p1-q2",
         chunk_level="question",

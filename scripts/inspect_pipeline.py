@@ -28,7 +28,12 @@ if str(REPO_ROOT) not in sys.path:
 from src.chunking.cambridge_content_list_parser import (  # noqa: E402
     CambridgeContentListParser,
 )
-from src.chunking.models import Chunk, ParsedQuestion  # noqa: E402
+from src.chunking.models import (  # noqa: E402
+    Chunk,
+    MediaRef,
+    ParsedMediaBlock,
+    ParsedQuestion,
+)
 from src.chunking.pipeline import run_pipeline  # noqa: E402
 
 
@@ -49,7 +54,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("mineru_output_dir", help="Directory containing MinerU output")
-    parser.add_argument("metadata_path", help="Path to metadata.json")
+    parser.add_argument(
+        "metadata_path",
+        nargs="?",
+        default=None,
+        help="Path to metadata.json (optional)",
+    )
     parser.add_argument("--university", default="cam", help="University code")
     parser.add_argument(
         "--stage",
@@ -232,11 +242,78 @@ def render_text(chunks: list[Chunk], *, view: str, max_text_chars: int) -> str:
         lines.append("text:")
         lines.append(chunk.text)
         if chunk.media:
-            lines.append("media paths:")
+            lines.append("media:")
             for media in chunk.media:
-                lines.append(f"- {media.file_path}")
+                lines.extend(_render_media_ref(media))
 
     return "\n".join(lines)
+
+
+def _format_media_file_path(file_path: str | None) -> str:
+    if file_path is None:
+        return "None"
+
+    path = Path(file_path)
+    if path.is_absolute():
+        try:
+            return str(path.relative_to(REPO_ROOT))
+        except ValueError:
+            return str(path)
+
+    return str(path)
+
+
+def _render_media_ref(media: MediaRef) -> list[str]:
+    lines = [
+        (
+            "- "
+            f"media_id={media.media_id} kind={media.kind} relation={media.relation} "
+            f"owner_level={media.owner_level} owner_label={media.owner_label} "
+            f"page_number={media.page_number} order_index={media.order_index} "
+            f"bbox={media.bbox} "
+            f"file_path={_format_media_file_path(media.file_path)}"
+        )
+    ]
+
+    if media.kind == "table" or media.text_payload is not None:
+        if media.text_payload is None:
+            lines.append("  text_payload=absent")
+        else:
+            preview = _truncate_text(media.text_payload, 80)
+            lines.append(
+                "  "
+                f"text_payload=present text_payload_len={len(media.text_payload)} "
+                f"preview={preview!r}"
+            )
+
+    return lines
+
+
+def _render_parsed_media_block(media: ParsedMediaBlock) -> list[str]:
+    lines = [
+        (
+            "- "
+            f"media_id={media.media_id} kind={media.kind} "
+            f"page_number={media.page_number} order_index={media.order_index} "
+            f"bbox={media.bbox} "
+            f"owner_hint_label={media.owner_hint_label} "
+            f"is_shared_candidate={media.is_shared_candidate} "
+            f"file_path={_format_media_file_path(media.file_path)}"
+        )
+    ]
+
+    if media.kind == "table" or media.text_payload is not None:
+        if media.text_payload is None:
+            lines.append("  text_payload=absent")
+        else:
+            preview = _truncate_text(media.text_payload, 80)
+            lines.append(
+                "  "
+                f"text_payload=present text_payload_len={len(media.text_payload)} "
+                f"preview={preview!r}"
+            )
+
+    return lines
 
 
 def render_parser_text(
@@ -286,6 +363,10 @@ def render_parser_text(
 
         lines.append("preamble:")
         lines.append(parsed_question.preamble)
+        if parsed_question.media_blocks:
+            lines.append("media blocks:")
+            for media_block in parsed_question.media_blocks:
+                lines.extend(_render_parsed_media_block(media_block))
         if parsed_question.sub_questions:
             lines.append("sub-question details:")
             for sub_question in parsed_question.sub_questions:
