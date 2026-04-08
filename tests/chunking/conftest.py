@@ -51,3 +51,8 @@ def content_list_table_2018_q7() -> str:
 @pytest.fixture
 def content_list_tiers_2018_q1() -> str:
     return _mineru_path("y2018p1q1")
+
+
+@pytest.fixture
+def content_list_y2018p5q7() -> str:
+    return _mineru_path("y2018p5q7")

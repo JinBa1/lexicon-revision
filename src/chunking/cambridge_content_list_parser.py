@@ -12,12 +12,19 @@ HEADER_RE = re.compile(
 )
 
 QUESTION_LINE_RE = re.compile(
-    r"^(?P<number>\d+)\s+(?P<topic>.+?)\s+\((?P<author>[A-Za-z0-9+]+)\)\s*$"
+    r"^(?P<number>\d+)\s+(?P<topic>.+?)\s+\(\s*(?P<author>[A-Za-z0-9+]+)\s*\)\s*$"
 )
 
-SUB_QUESTION_RE = re.compile(r"^\(([a-z])\)\s+")
 
-MARKS_RE = re.compile(r"\[(\d+)\s+marks?\]")
+def _sub_question_token_pattern(capture_label: bool) -> str:
+    label = r"([a-z])" if capture_label else r"[a-z]"
+    return rf"\(\s*{label}\s*\)"
+
+
+SUB_QUESTION_RE = re.compile(rf"^{_sub_question_token_pattern(True)}\s+")
+SUB_QUESTION_PREFIX_RE = re.compile(rf"^{_sub_question_token_pattern(False)}\s*")
+
+MARKS_RE = re.compile(r"\[\s*(\d+)\s+marks?\s*\]")
 
 # Block types to skip entirely
 SKIP_TYPES = {"page_number"}
@@ -197,7 +204,7 @@ class CambridgeContentListParser(BaseParser):
             sub_text = "\n".join(sub_parts).strip()
 
             # Remove the leading (label) from the text
-            sub_text = re.sub(r"^\([a-z]\)\s*", "", sub_text, count=1)
+            sub_text = self._strip_top_level_label_prefix(sub_text)
 
             marks = self._extract_marks(sub_text)
             cleaned_text = MARKS_RE.sub("", sub_text).strip()
@@ -261,15 +268,21 @@ class CambridgeContentListParser(BaseParser):
         return result
 
     def _detect_top_level_label(self, text: str) -> str | None:
-        """Detect if text starts with a top-level sub-question label (a)-(z).
+        """Detect a single-letter sub-question token at the start of text.
 
-        Returns the label letter if found, None otherwise.
-        Nested labels like (i), (ii), (A), (B) are NOT detected.
+        This helper is intentionally low-level: it returns any matching
+        lowercase label token, including noisy forms such as ``(i)``.
+        Sequential filtering in ``_filter_sequential_labels`` decides whether
+        a detected token is actually treated as a top-level sub-question.
         """
         match = SUB_QUESTION_RE.match(text)
         if match:
             return match.group(1)
         return None
+
+    def _strip_top_level_label_prefix(self, text: str) -> str:
+        """Remove a leading top-level label token while preserving body text."""
+        return SUB_QUESTION_PREFIX_RE.sub("", text, count=1)
 
     def _extract_marks(self, text: str) -> int | None:
         """Extract total marks from text. Uses the last [N marks] found."""

@@ -82,8 +82,54 @@ class TestQuestionLineParsing:
         assert pq.author == "AM"
 
 
+class TestMetadataNoiseTolerance:
+    """Test parsing of noisy metadata tokens without fuzzy inference."""
+
+    def test_parse_question_line_tolerates_author_bracket_spacing(self) -> None:
+        parser = CambridgeContentListParser()
+        blocks = [{"type": "text", "text": "7 Algorithms 1 ( jkf21 )"}]
+        result = parser._parse_question_line(blocks)
+        assert result is not None
+        assert result["question_number"] == 7
+        assert result["topic"] == "Algorithms 1"
+        assert result["author"] == "jkf21"
+
+    def test_parse_header_tolerates_spacing_and_separator_variants(self) -> None:
+        parser = CambridgeContentListParser()
+        blocks = [
+            {
+                "type": "header",
+                "text": "COMPUTER SCIENCE TRIPOS  Part IA - 2025 - Paper 1",
+            }
+        ]
+        result = parser._parse_header(blocks)
+        assert result == {
+            "tripos_part": "Part IA",
+            "year": 2025,
+            "paper": 1,
+        }
+
+
 class TestSubQuestionSplitting:
     """Test sub-question detection and splitting."""
+
+    def test_detect_top_level_label_tolerates_internal_spaces(self) -> None:
+        parser = CambridgeContentListParser()
+        assert parser._detect_top_level_label("(d) prompt") == "d"
+        assert parser._detect_top_level_label("(d ) prompt") == "d"
+        assert parser._detect_top_level_label("( d) prompt") == "d"
+        assert parser._detect_top_level_label("( d ) prompt") == "d"
+
+    def test_detect_top_level_label_matches_single_letter_token(self) -> None:
+        parser = CambridgeContentListParser()
+        assert parser._detect_top_level_label("(i) nested") == "i"
+
+    def test_prefix_stripping_tolerates_internal_spaces(self) -> None:
+        parser = CambridgeContentListParser()
+        assert parser._strip_top_level_label_prefix("(d) prompt") == "prompt"
+        assert parser._strip_top_level_label_prefix("(d ) prompt") == "prompt"
+        assert parser._strip_top_level_label_prefix("( d) prompt") == "prompt"
+        assert parser._strip_top_level_label_prefix("( d ) prompt") == "prompt"
 
     def test_q1_2025_sub_questions(self, content_list_q1: str) -> None:
         parser = CambridgeContentListParser()
@@ -137,6 +183,30 @@ class TestSubQuestionSplitting:
         pq = parser.parse(content_list_code_2018_q3)[0]
         labels = [sq.label for sq in pq.sub_questions]
         assert labels == ["a", "b", "c", "d", "e"]
+
+    def test_2018_q5_q7_top_level_labels_include_noisy_d(
+        self, content_list_y2018p5q7: str
+    ) -> None:
+        """MinerU emits '(d )'; it should still be parsed as top-level d."""
+        parser = CambridgeContentListParser()
+        pq = parser.parse(content_list_y2018p5q7)[0]
+        labels = [sq.label for sq in pq.sub_questions]
+        assert labels == ["a", "b", "c", "d"]
+
+
+class TestMarksNoiseTolerance:
+    """Test marks extraction with noisy bracket spacing."""
+
+    def test_extract_marks_tolerates_spacing(self) -> None:
+        parser = CambridgeContentListParser()
+        assert parser._extract_marks("Prompt [10 marks]") == 10
+        assert parser._extract_marks("Prompt [10  marks]") == 10
+        assert parser._extract_marks("Prompt [ 10 marks ]") == 10
+        assert parser._extract_marks("Prompt [10 mark]") == 10
+
+    def test_marks_regex_does_not_match_arbitrary_bracketed_number(self) -> None:
+        parser = CambridgeContentListParser()
+        assert parser._extract_marks("Prompt [10]") is None
 
 
 class TestTieredSubQuestions:
