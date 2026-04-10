@@ -1,0 +1,53 @@
+[
+    {
+        "type": "text",
+        "text": "2 Economics, Law and Ethics (RJA) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            510,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(a) Describe the possible market failures affecting anti-virus software firms in the late 1980s and early 1990s, when viruses were a new threat to computer systems and dozens of firms started up to offer anti-virus software. [5 marks] ",
+            "(b) Describe how the incentives facing anti-virus software firms had changed 10 years later once the industry had consolidated into a handful of large firms. How might this affect attacker behaviour? [5 marks] ",
+            "(c) How will the incentives have changed in recent years with the spread of online banking and crypto currencies? [5 marks] ",
+            "(d) How do you expect the anti-virus industry to change as computing shifts from PCs and laptops to phones and tablets? What about the impact of systems embedded in durable consumer goods such as cars? [5 marks] "
+        ],
+        "bbox": [
+            161,
+            151,
+            892,
+            394
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IB – 2018 – Paper 7 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            522,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

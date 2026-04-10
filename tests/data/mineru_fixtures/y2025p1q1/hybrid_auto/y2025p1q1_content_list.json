@@ -1,0 +1,108 @@
+[
+    {
+        "type": "text",
+        "text": "1 Foundations of Computer Science (avsm2) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            584,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) Given the following incorrect code that implements a merge sort, identify five errors and suggest corrections with a brief explanation to make it work. ",
+        "bbox": [
+            159,
+            151,
+            892,
+            186
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "code",
+        "sub_type": "code",
+        "code_caption": [],
+        "code_body": "```txt\nlet length = function\n| [] -> 0\n| __: t -> 1 + length t\nlet rec merge l1 l2 =\nmatch l1, l2 with\n| [], 1 -> 1\n| h1 :: t1, h2 :: t2 -> if h1 <= h2 then h1 :: merge t1 l2 else h2 :: merge l1 t2\nlet rec split l l1 l2 n =\nmatch l, n with\n| [], __ -> (l1, l2)\n| h :: t, 0 -> split t l1 (h :: l2) n\n| h :: t, __ -> split t (l1 :: h) l2 n\nlet rec mergesort ls =\nmatch ls with\n| __ -> let n = length ls / 2 in\nlet l, r = split ls [[] n in\nmerge (mergesort l) (mergesort r)\n| [] | [_] -> ls \n```",
+        "bbox": [
+            201,
+            203,
+            623,
+            614
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "[10 marks] ",
+        "bbox": [
+            796,
+            632,
+            889,
+            651
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(b) Write a function val check_sorted : 'a list -> bool that returns true if the input list is already sorted, and define its time and space complexity. (Hint: you can use the polymorphic <= operator here). [4 marks] ",
+            "(c) You find a library that implements quicksort, bubblesort and insertsort functions that all have the same type as mergesort. Write a function: "
+        ],
+        "bbox": [
+            161,
+            665,
+            892,
+            769
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "val checksort: ('a -> 'b list) list -> 'a -> unit ",
+        "bbox": [
+            201,
+            787,
+            714,
+            802
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "checksort should apply the input sorting functions and check that each result is sorted. Define a mechanism to signal if an unexpected mismatch is discovered. Give an example of using checksort to verify that quicksort, bubblesort and insertsort work for some sample integer list. [6 marks] ",
+        "bbox": [
+            201,
+            821,
+            890,
+            891
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IA – 2025 – Paper 1 ",
+        "bbox": [
+            119,
+            82,
+            727,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]

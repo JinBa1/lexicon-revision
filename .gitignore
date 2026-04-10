@@ -6,3 +6,20 @@ chroma_data/
 .vscode/
 *.pdf
 data/
+.codex
+AGENTS.md
+CLAUDE.md
+Project Outline.md
+docs/
+plans/
+
+# Allow test fixtures (MinerU JSON output, not PDFs/debug files)
+!tests/data/
+!tests/data/mineru_fixtures/
+!tests/data/mineru_fixtures/**
+tests/data/mineru_fixtures/**/*_layout.pdf
+tests/data/mineru_fixtures/**/*_origin.pdf
+tests/data/mineru_fixtures/**/*_span.pdf
+tests/data/mineru_fixtures/**/*_middle.json
+tests/data/mineru_fixtures/**/*_model.json
+tests/data/mineru_fixtures/**/*_content_list_v2.json

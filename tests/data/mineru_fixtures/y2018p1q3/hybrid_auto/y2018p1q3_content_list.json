@@ -1,0 +1,78 @@
+[
+    {
+        "type": "text",
+        "text": "3 Object-Oriented Programming (RKH) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            547,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Consider the following Java class. ",
+        "bbox": [
+            161,
+            151,
+            455,
+            168
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "code",
+        "sub_type": "algorithm",
+        "code_caption": [],
+        "code_body": "1 public class Child extends Parent {   \n2 public int $\\mathbf{x} = 0$ .   \n3 public boolean equals(Object obj) { if (this $= =$ obj) return true;   \n7 if (!super.equals(obj)) return false;   \n8 if (getClass() != obj.getClass()) return false;   \n9 Child other $=$ (Child) obj;   \n11 if $(\\mathrm{x}\\coloneqq$ other.x) return false;   \n12 return true;   \n13 }   \n14 } ",
+        "bbox": [
+            173,
+            185,
+            712,
+            424
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(a) Explain why it is bad practice for member variables such as x to be public. [2 marks] ",
+            "(b) For each of the lines 6–12, explain its purpose. Illustrate your answer with examples. [7 marks] ",
+            "(c) What could result from a call to c.equals(null), assuming c is a reference to a Child object? [3 marks] ",
+            "(d) What would be the consequences of replacing the equals signature with public boolean equals(Child obj)? [4 marks] ",
+            "(e) Explain why Child should also override the hashCode() method. [4 marks] "
+        ],
+        "bbox": [
+            161,
+            460,
+            890,
+            684
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part IA – 2018 – Paper 1 ",
+        "bbox": [
+            119,
+            82,
+            724,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "",
+        "bbox": [
+            522,
+            925,
+            531,
+            936
+        ],
+        "page_idx": 0
+    }
+]

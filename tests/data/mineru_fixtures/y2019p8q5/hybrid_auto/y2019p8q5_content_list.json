@@ -1,0 +1,134 @@
+[
+    {
+        "type": "text",
+        "text": "5 Cryptography (mgk25) ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            117,
+            394,
+            135
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "(a) The Tripos Encryption Standard (TES) is a block cipher optimized for use on UGPs (“undergraduate processors”). It operates on 4-bit blocks, written as hexadecimal digits (e.g., a ⊕ 9 = 3). For one particular key K, it implements the following permutation: ",
+        "bbox": [
+            159,
+            151,
+            892,
+            221
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "img_path": "images/db61c5de1b29750317ab8bd75a7d8003f20142673575ec45e229ab4ce2fd31d4.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>m</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>a</td><td>b</td><td>c</td><td>d</td><td>e</td><td>f</td></tr><tr><td>EK(m)</td><td>1</td><td>b</td><td>5</td><td>c</td><td>7</td><td>e</td><td>2</td><td>a</td><td>4</td><td>9</td><td>f</td><td>d</td><td>0</td><td>3</td><td>6</td><td>8</td></tr></table>",
+        "bbox": [
+            289,
+            235,
+            808,
+            273
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Using this key K, decrypt the following three ciphertexts according to the indicated modes of operation. [Note: the XOR table at the bottom of this page may be of use.] ",
+        "bbox": [
+            201,
+            287,
+            892,
+            340
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(i) ECB: 188b06 [2 marks] ",
+            "(ii) CBC: 301b2 [3 marks] ",
+            "(iii ) CFB: 10f6d [3 marks] "
+        ],
+        "bbox": [
+            203,
+            355,
+            890,
+            443
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(b) State four advantages that counter mode has over either CBC or CFB mode. [4 marks] ",
+            "(c) Using the same K as in Part (a): "
+        ],
+        "bbox": [
+            161,
+            458,
+            890,
+            520
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "(i) Show that the CBC-MAC tag for message 1234 is d. [3 marks] ",
+            "(ii ) Demonstrate that CBC-MAC with a given K is not collision resistant, by showing how to find another message, of the form 1x04, that results in the same CBC-MAC message tag (without iterating over different candidates for 4-bit block x). [5 marks] "
+        ],
+        "bbox": [
+            203,
+            527,
+            890,
+            621
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "img_path": "images/0cd89a8baa7b6458a699d3dcc2fde41e5c3786e0da9ffaf0ae21afe4fa2fc377.jpg",
+        "table_caption": [
+            "UGP XOR accelerator: "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>⊕</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>a</td><td>b</td><td>c</td><td>d</td><td>e</td><td>f</td></tr><tr><td>0</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>a</td><td>b</td><td>c</td><td>d</td><td>e</td><td>f</td></tr><tr><td>1</td><td>1</td><td>0</td><td>3</td><td>2</td><td>5</td><td>4</td><td>7</td><td>6</td><td>9</td><td>8</td><td>b</td><td>a</td><td>d</td><td>c</td><td>f</td><td>e</td></tr><tr><td>2</td><td>2</td><td>3</td><td>0</td><td>1</td><td>6</td><td>7</td><td>4</td><td>5</td><td>a</td><td>b</td><td>8</td><td>9</td><td>e</td><td>f</td><td>c</td><td>d</td></tr><tr><td>3</td><td>3</td><td>2</td><td>1</td><td>0</td><td>7</td><td>6</td><td>5</td><td>4</td><td>b</td><td>a</td><td>9</td><td>8</td><td>f</td><td>e</td><td>d</td><td>c</td></tr><tr><td>4</td><td>4</td><td>5</td><td>6</td><td>7</td><td>0</td><td>1</td><td>2</td><td>3</td><td>c</td><td>d</td><td>e</td><td>f</td><td>8</td><td>9</td><td>a</td><td>b</td></tr><tr><td>5</td><td>5</td><td>4</td><td>7</td><td>6</td><td>1</td><td>0</td><td>3</td><td>2</td><td>d</td><td>c</td><td>f</td><td>e</td><td>9</td><td>8</td><td>b</td><td>a</td></tr><tr><td>6</td><td>6</td><td>7</td><td>4</td><td>5</td><td>2</td><td>3</td><td>0</td><td>1</td><td>e</td><td>f</td><td>c</td><td>d</td><td>a</td><td>b</td><td>8</td><td>9</td></tr><tr><td>7</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td><td>f</td><td>e</td><td>d</td><td>c</td><td>b</td><td>a</td><td>9</td><td>8</td></tr><tr><td>8</td><td>8</td><td>9</td><td>a</td><td>b</td><td>c</td><td>d</td><td>e</td><td>f</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr><tr><td>9</td><td>9</td><td>8</td><td>b</td><td>a</td><td>d</td><td>c</td><td>f</td><td>e</td><td>1</td><td>0</td><td>3</td><td>2</td><td>5</td><td>4</td><td>7</td><td>6</td></tr><tr><td>a</td><td>a</td><td>b</td><td>8</td><td>9</td><td>e</td><td>f</td><td>c</td><td>d</td><td>2</td><td>3</td><td>0</td><td>1</td><td>6</td><td>7</td><td>4</td><td>5</td></tr><tr><td>b</td><td>b</td><td>a</td><td>9</td><td>8</td><td>f</td><td>e</td><td>d</td><td>c</td><td>3</td><td>2</td><td>1</td><td>0</td><td>7</td><td>6</td><td>5</td><td>4</td></tr><tr><td>c</td><td>c</td><td>d</td><td>e</td><td>f</td><td>8</td><td>9</td><td>a</td><td>b</td><td>4</td><td>5</td><td>6</td><td>7</td><td>0</td><td>1</td><td>2</td><td>3</td></tr><tr><td>d</td><td>d</td><td>c</td><td>f</td><td>e</td><td>9</td><td>8</td><td>b</td><td>a</td><td>5</td><td>4</td><td>7</td><td>6</td><td>1</td><td>0</td><td>3</td><td>2</td></tr><tr><td>e</td><td>e</td><td>f</td><td>c</td><td>d</td><td>a</td><td>b</td><td>8</td><td>9</td><td>6</td><td>7</td><td>4</td><td>5</td><td>2</td><td>3</td><td>0</td><td>1</td></tr><tr><td>f</td><td>f</td><td>e</td><td>d</td><td>c</td><td>b</td><td>a</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></table>",
+        "bbox": [
+            337,
+            659,
+            719,
+            902
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "COMPUTER SCIENCE TRIPOS Part II – 2019 – Paper 8 ",
+        "bbox": [
+            119,
+            82,
+            722,
+            99
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "1 ",
+        "bbox": [
+            521,
+            925,
+            532,
+            936
+        ],
+        "page_idx": 0
+    }
+]
