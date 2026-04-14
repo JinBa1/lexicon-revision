@@ -1,0 +1,196 @@
+name: cambridge_fixture_v1
+description: >
+  Curated retrieval eval over a frozen fixture corpus: Cambridge CS Tripos
+  2023-2025, Papers 1-3, materialised at
+  data/eval_fixtures/cambridge_2023_2025_p1_p3/ and indexed with
+  `python scripts/index_chunks.py --input
+  data/eval_fixtures/cambridge_2023_2025_p1_p3 --collection
+  cam-cs-tripos-fixture --metadata data/papers/metadata.json --chroma-dir
+  ./chroma_data`. The indexed fixture contains 87 question-level chunks, 329
+  sub-question chunks, and 416 total Chroma documents. The conditional
+  surface-code-oop case is included because inspected OOP chunks have
+  has_code=true and visible Java code-like text.
+collection: cam-cs-tripos-fixture
+default_top_k: 5
+cases:
+  - id: broad-dynamic-programming
+    query: past questions on dynamic programming and greedy algorithms
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2024-p1-q7-e
+        - cam-2024-p1-q7-a
+        - cam-2024-p1-q7-d
+      any_topics:
+        - Algorithms 1
+        - Algorithms 2
+      top_k: 5
+    notes: >
+      Broad Algorithms recall grounded in dynamic programming and graph
+      algorithm chunks.
+
+  - id: broad-discrete-math
+    query: discrete mathematics practice questions
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2025-p2-q8-b
+        - cam-2025-p2-q7-a
+        - cam-2025-p2-q7
+      any_topics:
+        - Discrete Mathematics
+      top_k: 5
+    notes: >
+      Broad topic recall over Paper 2 Discrete Mathematics fixture chunks.
+
+  - id: concept-virtual-memory
+    query: memory management and virtual memory paging
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2025-p2-q4
+        - cam-2023-p2-q3-b
+        - cam-2024-p2-q4-b
+      any_topics:
+        - Operating Systems
+      top_k: 5
+    notes: >
+      Grounded in Operating Systems chunks about page faults, page replacement,
+      virtual addressing, page tables, and TLBs.
+
+  - id: concept-relational-algebra
+    query: relational algebra joins and database schemas
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2024-p3-q1
+        - cam-2024-p3-q1-a
+        - cam-2023-p3-q2
+      any_topics:
+        - Databases
+      top_k: 5
+    notes: >
+      Substituted for relational normalisation because normalisation was not
+      visibly present in inspected fixture text; relational algebra, joins, and
+      schemas are present.
+
+  - id: concept-conditional-probability
+    query: conditional probability for geometric waiting times
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2025-p1-q6-c
+        - cam-2025-p1-q6-d
+      any_topics:
+        - Introduction to Probability
+      top_k: 5
+    notes: >
+      Grounded in the bus waiting-time question asking for a conditional
+      probability after waiting at least two minutes.
+
+  - id: technique-induction-proofs
+    query: proof by induction
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2024-p2-q8-b
+        - cam-2023-p2-q9-b
+        - cam-2023-p2-q8-b
+      any_topics:
+        - Discrete Mathematics
+        - Foundations of Computer Science
+        - Algorithms 1
+      top_k: 5
+    notes: >
+      Cross-topic technique case grounded in chunks with explicit strong,
+      structural, or rule induction prompts.
+
+  - id: technique-recursion-pattern-matching
+    query: recursive functions and pattern matching
+    filters: {}
+    expected:
+      any_chunk_ids:
+        - cam-2025-p1-q1
+      any_topics:
+        - Foundations of Computer Science
+        - Object-Oriented Programming
+      top_k: 5
+    notes: >
+      Grounded in OCaml recursive functions, algebraic data types, and
+      pattern-matching-style code.
+
+  - id: scoped-algorithms-2024
+    query: algorithms revision questions
+    filters:
+      year: 2024
+    expected:
+      any_chunk_ids:
+        - cam-2024-p1-q7-e
+        - cam-2024-p1-q10-b
+        - cam-2024-p1-q9-a
+      any_topics:
+        - Algorithms 1
+        - Algorithms 2
+      top_k: 5
+    notes: >
+      Tests year filter wiring against the four 2024 Algorithms question slots.
+
+  - id: scoped-paper2-discrete-math
+    query: counting and combinatorics
+    filters:
+      paper: 2
+    expected:
+      any_chunk_ids:
+        - cam-2023-p2-q10-f
+        - cam-2024-p2-q8-b
+        - cam-2025-p2-q10-b
+      any_topics:
+        - Discrete Mathematics
+      top_k: 5
+    notes: >
+      Tests paper filter wiring against Paper 2 Discrete Mathematics chunks.
+
+  - id: pinpoint-databases-2025-p3
+    query: 2025 paper 3 database outer join and relational algebra
+    filters:
+      year: 2025
+      paper: 3
+    expected:
+      any_chunk_ids:
+        - cam-2025-p3-q1-c
+        - cam-2025-p3-q1
+      top_k: 3
+    notes: >
+      Pinpoints the 2025 Paper 3 Databases question on SQL, sets/lists as
+      relations, and outer join definitions.
+
+  - id: pinpoint-graphics
+    query: 2025 paper 3 graphics z-buffer barycentric coordinates
+    filters:
+      year: 2025
+      paper: 3
+      question: 4
+    expected:
+      any_chunk_ids:
+        - cam-2025-p3-q4-b
+        - cam-2025-p3-q4
+      top_k: 3
+    notes: >
+      Pinpoints the 2025 Paper 3 Graphics question on transformations,
+      Z-buffering, vertex attributes, uniforms, and barycentric coordinates.
+
+  - id: surface-code-oop
+    query: class hierarchy code example
+    filters:
+      has_code: true
+    expected:
+      any_chunk_ids:
+        - cam-2024-p1-q4
+        - cam-2024-p1-q4-b
+        - cam-2025-p1-q4
+      any_topics:
+        - Object-Oriented Programming
+      top_k: 5
+    notes: >
+      Included because inspected OOP question-level chunks have has_code=true
+      and visible Java code-like text.

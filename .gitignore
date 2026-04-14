@@ -9,9 +9,19 @@ data/
 .codex
 AGENTS.md
 CLAUDE.md
+PLAN.md
 Project Outline.md
 docs/
 plans/
+scripts/audit-architecture.sh
+skills/
+.claude/
+
+# Allow eval specs while keeping other docs ignored by default
+!docs/
+docs/*
+!docs/evals/
+!docs/evals/**
 
 # Allow test fixtures (MinerU JSON output, not PDFs/debug files)
 !tests/data/
