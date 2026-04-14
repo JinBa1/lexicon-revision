@@ -1,0 +1,673 @@
+{
+  "case_count": 12,
+  "cases": [
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2024-p1-q7-e",
+          "cam-2024-p1-q7-a",
+          "cam-2024-p1-q7-d"
+        ],
+        "any_topics": [
+          "Algorithms 1",
+          "Algorithms 2"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "broad-dynamic-programming",
+      "matched_rank": 1,
+      "notes": "Broad Algorithms recall grounded in dynamic programming and graph algorithm chunks.\n",
+      "passed": true,
+      "query": "past questions on dynamic programming and greedy algorithms",
+      "returned": [
+        {
+          "chunk_id": "cam-2024-p1-q7-e",
+          "preview": "Give clear pseudocode to solve the problem using the approach in Part (d), using recursive memoized top-down dynamic...",
+          "rank": 1,
+          "score": 0.778111457824707,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q7-a",
+          "preview": "Discuss the following statement and prove that it is incorrect. This problem exhibits optimal substructure, meaning t...",
+          "rank": 2,
+          "score": 0.7391612529754639,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q7-d",
+          "preview": "Clearly explain how to solve the problem through the alternative approach of reducing it to one of the well-known dyn...",
+          "rank": 3,
+          "score": 0.7273455858230591,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q7-b",
+          "preview": "Prove that the following statement is also incorrect. Any optimal solution for s[:k] must start with an optimal solut...",
+          "rank": 4,
+          "score": 0.7003039121627808,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2023-p1-q9-b",
+          "preview": "Does your friend’s procedure improve on the asymptotic worst-case time of simply running dijkstra(g,s)? Justify your...",
+          "rank": 5,
+          "score": 0.6968110203742981,
+          "topic": "Algorithms 2"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p2-q8-b",
+          "cam-2025-p2-q7-a",
+          "cam-2025-p2-q7"
+        ],
+        "any_topics": [
+          "Discrete Mathematics"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "broad-discrete-math",
+      "matched_rank": 1,
+      "notes": "Broad topic recall over Paper 2 Discrete Mathematics fixture chunks.\n",
+      "passed": true,
+      "query": "discrete mathematics practice questions",
+      "returned": [
+        {
+          "chunk_id": "cam-2025-p2-q8-b",
+          "preview": "Prove that the sum of the cubes of any three consecutive natural numbers is divisible by 9.",
+          "rank": 1,
+          "score": 0.680357038974762,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2025-p2-q7-a",
+          "preview": "(i ) Say whether the statement below holds or not. For all sets A and B, relations $R \\subseteq A \\times B$ , and sub...",
+          "rank": 2,
+          "score": 0.6766631603240967,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2025-p2-q7-b",
+          "preview": "Either prove or disprove the following statements. (i ) For all prime numbers p and integers $n ,$ , $$ n ^ {2} \\equi...",
+          "rank": 3,
+          "score": 0.6751593947410583,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q7-b",
+          "preview": "Prove that the following statement is also incorrect. Any optimal solution for s[:k] must start with an optimal solut...",
+          "rank": 4,
+          "score": 0.674206554889679,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2025-p2-q7",
+          "preview": "(a) (i ) Say whether the statement below holds or not. For all sets A and B, relations $R \\subseteq A \\times B$ , and...",
+          "rank": 5,
+          "score": 0.6739676594734192,
+          "topic": "Discrete Mathematics"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p2-q4",
+          "cam-2023-p2-q3-b",
+          "cam-2024-p2-q4-b"
+        ],
+        "any_topics": [
+          "Operating Systems"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "concept-virtual-memory",
+      "matched_rank": 1,
+      "notes": "Grounded in Operating Systems chunks about page faults, page replacement, virtual addressing, page tables, and TLBs.\n",
+      "passed": true,
+      "query": "memory management and virtual memory paging",
+      "returned": [
+        {
+          "chunk_id": "cam-2025-p2-q4",
+          "preview": "Consider a 64 bit machine architecture providing 57 bit virtual addressing using linear-address translation with a fi...",
+          "rank": 1,
+          "score": 0.6915925741195679,
+          "topic": "Operating Systems"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q3-b",
+          "preview": "A system has paged memory with memory access time of 80 ns, and a page-fault service time of 8 ms assuming a free fra...",
+          "rank": 2,
+          "score": 0.6797946691513062,
+          "topic": "Operating Systems"
+        },
+        {
+          "chunk_id": "cam-2025-p2-q4-a",
+          "preview": "Using the largest applicable SI units, how much memory can be addressed using this scheme?",
+          "rank": 3,
+          "score": 0.6774718761444092,
+          "topic": "Operating Systems"
+        },
+        {
+          "chunk_id": "cam-2024-p2-q4-b",
+          "preview": "In a system containing three frames, consider the following string of page references: 1 2 3 2 4 3 5 1 3 2 3 4 Comput...",
+          "rank": 4,
+          "score": 0.676889955997467,
+          "topic": "Operating Systems"
+        },
+        {
+          "chunk_id": "cam-2024-p2-q4-d",
+          "preview": "LRU is relatively expensive to implement, so some systems approximate it cheaply, determining which page to replace b...",
+          "rank": 5,
+          "score": 0.6643984913825989,
+          "topic": "Operating Systems"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2024-p3-q1",
+          "cam-2024-p3-q1-a",
+          "cam-2023-p3-q2"
+        ],
+        "any_topics": [
+          "Databases"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "concept-relational-algebra",
+      "matched_rank": 1,
+      "notes": "Substituted for relational normalisation because normalisation was not visibly present in inspected fixture text; relational algebra, joins, and schemas are present.\n",
+      "passed": true,
+      "query": "relational algebra joins and database schemas",
+      "returned": [
+        {
+          "chunk_id": "cam-2024-p3-q1",
+          "preview": "(a) A relational algebra is defined over sets of tuples. Explain whether the relational union of two sets (relations)...",
+          "rank": 1,
+          "score": 0.7906369566917419,
+          "topic": "Databases"
+        },
+        {
+          "chunk_id": "cam-2024-p3-q1-a",
+          "preview": "A relational algebra is defined over sets of tuples. Explain whether the relational union of two sets (relations) req...",
+          "rank": 2,
+          "score": 0.7711336612701416,
+          "topic": "Databases"
+        },
+        {
+          "chunk_id": "cam-2023-p3-q2",
+          "preview": "(a) Is the relational database join operator associative? Describe an example where different associations might resu...",
+          "rank": 3,
+          "score": 0.7629925012588501,
+          "topic": "Databases"
+        },
+        {
+          "chunk_id": "cam-2025-p3-q1",
+          "preview": "(a) X, Y and Z are sets stored as relations. A user wishes to compute X ∩ (Y ∪ Z) and writes the following query: sel...",
+          "rank": 4,
+          "score": 0.7551658153533936,
+          "topic": "Databases"
+        },
+        {
+          "chunk_id": "cam-2025-p3-q1-c",
+          "preview": "(i) For three-valued logic, give a real-world example where a non-commutative outer join (ie. left or right-outer joi...",
+          "rank": 5,
+          "score": 0.7511704564094543,
+          "topic": "Databases"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p1-q6-c",
+          "cam-2025-p1-q6-d"
+        ],
+        "any_topics": [
+          "Introduction to Probability"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "concept-conditional-probability",
+      "matched_rank": 1,
+      "notes": "Grounded in the bus waiting-time question asking for a conditional probability after waiting at least two minutes.\n",
+      "passed": true,
+      "query": "conditional probability for geometric waiting times",
+      "returned": [
+        {
+          "chunk_id": "cam-2025-p1-q6-c",
+          "preview": "Suppose that we know that the waiting time is at least 2. Conditional on this, what is the probability that the waiti...",
+          "rank": 1,
+          "score": 0.758287787437439,
+          "topic": "Introduction to Probability"
+        },
+        {
+          "chunk_id": "cam-2025-p1-q6-e",
+          "preview": "Given you have n samples $X _ { 1 } , X _ { 2 } , . . . , X _ { n }$ of waiting times, construct an unbiased estimato...",
+          "rank": 2,
+          "score": 0.7502696514129639,
+          "topic": "Introduction to Probability"
+        },
+        {
+          "chunk_id": "cam-2025-p1-q6-d",
+          "preview": "What is the distribution of buses that arrive in minutes $0 , 1 , \\ldots , 1 0$ , conditional on that a bus arrives a...",
+          "rank": 3,
+          "score": 0.7446438074111938,
+          "topic": "Introduction to Probability"
+        },
+        {
+          "chunk_id": "cam-2025-p1-q6-h",
+          "preview": "Given you have n samples $X _ { 1 } , X _ { 2 } , . . . , X _ { n }$ of waiting times, construct an unbiased estimato...",
+          "rank": 4,
+          "score": 0.7320652604103088,
+          "topic": "Introduction to Probability"
+        },
+        {
+          "chunk_id": "cam-2025-p1-q6-b",
+          "preview": "What is the probability that the waiting time is less than 5?",
+          "rank": 5,
+          "score": 0.7149693965911865,
+          "topic": "Introduction to Probability"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2024-p2-q8-b",
+          "cam-2023-p2-q9-b",
+          "cam-2023-p2-q8-b"
+        ],
+        "any_topics": [
+          "Discrete Mathematics",
+          "Foundations of Computer Science",
+          "Algorithms 1"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "technique-induction-proofs",
+      "matched_rank": 1,
+      "notes": "Cross-topic technique case grounded in chunks with explicit strong, structural, or rule induction prompts.\n",
+      "passed": true,
+      "query": "proof by induction",
+      "returned": [
+        {
+          "chunk_id": "cam-2024-p2-q8-b",
+          "preview": "Let A∗ be the set of strings over an alphabet A. Consider the subset W of A∗ inductively defined by the following axi...",
+          "rank": 1,
+          "score": 0.782916784286499,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2024-p2-q8",
+          "preview": "(a) Let $R \\subseteq A \\times B$ be a relation from a set A to a set B. For a subset $X \\subseteq A$ , define the sub...",
+          "rank": 2,
+          "score": 0.7402719259262085,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q9-b",
+          "preview": "Let $L \\subseteq \\{ \\mathsf { a } \\} ^ { * } \\times \\mathbb { N }$ be the relation inductively defined by the axiom a...",
+          "rank": 3,
+          "score": 0.7122228145599365,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q8-b",
+          "preview": "Prove that, for all natural numbers n, $2 4 \\mid ( 2 \\cdot 7 ^ { n } - 3 \\cdot 5 ^ { n } + 1 )$ . [Hint : Note that $...",
+          "rank": 4,
+          "score": 0.710929274559021,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q7-a",
+          "preview": "Without using the Fundamental Theorem of Arithmetic, prove that for all positive integers a and b, (i ) if $\\operator...",
+          "rank": 5,
+          "score": 0.7039405703544617,
+          "topic": "Discrete Mathematics"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p1-q1"
+        ],
+        "any_topics": [
+          "Foundations of Computer Science",
+          "Object-Oriented Programming"
+        ],
+        "top_k": 5
+      },
+      "filters": {},
+      "id": "technique-recursion-pattern-matching",
+      "matched_rank": 1,
+      "notes": "Grounded in OCaml recursive functions, algebraic data types, and pattern-matching-style code.\n",
+      "passed": true,
+      "query": "recursive functions and pattern matching",
+      "returned": [
+        {
+          "chunk_id": "cam-2025-p1-q1",
+          "preview": "(a) Given the following incorrect code that implements a merge sort, identify five errors and suggest corrections wit...",
+          "rank": 1,
+          "score": 0.6951379776000977,
+          "topic": "Foundations of Computer Science"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q10-f",
+          "preview": "Build the state diagram of a Deterministic Finite Automaton with at most 5 states that recognises $L _ { ( f ) } = \\{...",
+          "rank": 2,
+          "score": 0.6851259469985962,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q10-e",
+          "preview": "Build the state diagram of a Deterministic Finite Automaton with at most 5 states that recognises $L _ { ( e ) } = \\{...",
+          "rank": 3,
+          "score": 0.6736616492271423,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q7-b",
+          "preview": "Prove that the following statement is also incorrect. Any optimal solution for s[:k] must start with an optimal solut...",
+          "rank": 4,
+          "score": 0.6680909395217896,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q8-b",
+          "preview": "Given an unsorted singly-linked list of n integers, each of which painted in one of the seven colours of the rainbow,...",
+          "rank": 5,
+          "score": 0.6678646206855774,
+          "topic": "Algorithms 1"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2024-p1-q7-e",
+          "cam-2024-p1-q10-b",
+          "cam-2024-p1-q9-a"
+        ],
+        "any_topics": [
+          "Algorithms 1",
+          "Algorithms 2"
+        ],
+        "top_k": 5
+      },
+      "filters": {
+        "year": 2024
+      },
+      "id": "scoped-algorithms-2024",
+      "matched_rank": 1,
+      "notes": "Tests year filter wiring against the four 2024 Algorithms question slots.\n",
+      "passed": true,
+      "query": "algorithms revision questions",
+      "returned": [
+        {
+          "chunk_id": "cam-2024-p1-q7-e",
+          "preview": "Give clear pseudocode to solve the problem using the approach in Part (d), using recursive memoized top-down dynamic...",
+          "rank": 1,
+          "score": 0.6920822858810425,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q7-b",
+          "preview": "Prove that the following statement is also incorrect. Any optimal solution for s[:k] must start with an optimal solut...",
+          "rank": 2,
+          "score": 0.6834001541137695,
+          "topic": "Algorithms 1"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q10-b",
+          "preview": "When should the rehashing be triggered, and what should the new size be? Give a policy for which set and delete have...",
+          "rank": 3,
+          "score": 0.657829225063324,
+          "topic": "Algorithms 2"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q9-a",
+          "preview": "For each of the following claims, either prove it or provide a counterexample: (i) The graph must have an opportunity...",
+          "rank": 4,
+          "score": 0.6505295634269714,
+          "topic": "Algorithms 2"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q10-c",
+          "preview": "Modify your procedure (if necessary) to support this memory constraint in addition to the load factor constraint. Jus...",
+          "rank": 5,
+          "score": 0.6491413116455078,
+          "topic": "Algorithms 2"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2023-p2-q10-f",
+          "cam-2024-p2-q8-b",
+          "cam-2025-p2-q10-b"
+        ],
+        "any_topics": [
+          "Discrete Mathematics"
+        ],
+        "top_k": 5
+      },
+      "filters": {
+        "paper": 2
+      },
+      "id": "scoped-paper2-discrete-math",
+      "matched_rank": 1,
+      "notes": "Tests paper filter wiring against Paper 2 Discrete Mathematics chunks.\n",
+      "passed": true,
+      "query": "counting and combinatorics",
+      "returned": [
+        {
+          "chunk_id": "cam-2023-p2-q10-f",
+          "preview": "Build the state diagram of a Deterministic Finite Automaton with at most 5 states that recognises $L _ { ( f ) } = \\{...",
+          "rank": 1,
+          "score": 0.6835641264915466,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2023-p2-q10-e",
+          "preview": "Build the state diagram of a Deterministic Finite Automaton with at most 5 states that recognises $L _ { ( e ) } = \\{...",
+          "rank": 2,
+          "score": 0.6833462715148926,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2024-p2-q8-b",
+          "preview": "Let A∗ be the set of strings over an alphabet A. Consider the subset W of A∗ inductively defined by the following axi...",
+          "rank": 3,
+          "score": 0.6533092260360718,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2025-p2-q10-b",
+          "preview": "Let Σ and Q be finite sets. Give the cardinality of the set of deterministic finite automata over Σ with states in $\\...",
+          "rank": 4,
+          "score": 0.6497539281845093,
+          "topic": "Discrete Mathematics"
+        },
+        {
+          "chunk_id": "cam-2025-p2-q9-b",
+          "preview": "Prove that any subset of a countable set is countable.",
+          "rank": 5,
+          "score": 0.647946834564209,
+          "topic": "Discrete Mathematics"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1"
+        ],
+        "any_topics": [],
+        "top_k": 3
+      },
+      "filters": {
+        "paper": 3,
+        "year": 2025
+      },
+      "id": "pinpoint-databases-2025-p3",
+      "matched_rank": 1,
+      "notes": "Pinpoints the 2025 Paper 3 Databases question on SQL, sets/lists as relations, and outer join definitions.\n",
+      "passed": true,
+      "query": "2025 paper 3 database outer join and relational algebra",
+      "returned": [
+        {
+          "chunk_id": "cam-2025-p3-q1-c",
+          "preview": "(i) For three-valued logic, give a real-world example where a non-commutative outer join (ie. left or right-outer joi...",
+          "rank": 1,
+          "score": 0.7741461992263794,
+          "topic": "Databases"
+        },
+        {
+          "chunk_id": "cam-2025-p3-q1",
+          "preview": "(a) X, Y and Z are sets stored as relations. A user wishes to compute X ∩ (Y ∪ Z) and writes the following query: sel...",
+          "rank": 2,
+          "score": 0.7508212327957153,
+          "topic": "Databases"
+        },
+        {
+          "chunk_id": "cam-2025-p3-q1-a",
+          "preview": "X, Y and Z are sets stored as relations. A user wishes to compute X ∩ (Y ∪ Z) and writes the following query: select...",
+          "rank": 3,
+          "score": 0.7268273830413818,
+          "topic": "Databases"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p3-q4-b",
+          "cam-2025-p3-q4"
+        ],
+        "any_topics": [],
+        "top_k": 3
+      },
+      "filters": {
+        "paper": 3,
+        "question_number": 4,
+        "year": 2025
+      },
+      "id": "pinpoint-graphics",
+      "matched_rank": 1,
+      "notes": "Pinpoints the 2025 Paper 3 Graphics question on transformations, Z-buffering, vertex attributes, uniforms, and barycentric coordinates.\n",
+      "passed": true,
+      "query": "2025 paper 3 graphics z-buffer barycentric coordinates",
+      "returned": [
+        {
+          "chunk_id": "cam-2025-p3-q4-b",
+          "preview": "Answer the following questions about the graphics pipeline. (i ) In rasterization, what information does the Z-buffer...",
+          "rank": 1,
+          "score": 0.7220554351806641,
+          "topic": "Introduction to Graphics"
+        },
+        {
+          "chunk_id": "cam-2025-p3-q4",
+          "preview": "(a) Answer the following questions about geometric transformations. (i ) Given a cylinder defined at the origin with...",
+          "rank": 2,
+          "score": 0.6759952306747437,
+          "topic": "Introduction to Graphics"
+        },
+        {
+          "chunk_id": "cam-2025-p3-q4-a",
+          "preview": "Answer the following questions about geometric transformations. (i ) Given a cylinder defined at the origin with radi...",
+          "rank": 3,
+          "score": 0.5927859544754028,
+          "topic": "Introduction to Graphics"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2024-p1-q4",
+          "cam-2024-p1-q4-b",
+          "cam-2025-p1-q4"
+        ],
+        "any_topics": [
+          "Object-Oriented Programming"
+        ],
+        "top_k": 5
+      },
+      "filters": {
+        "has_code": true
+      },
+      "id": "surface-code-oop",
+      "matched_rank": 1,
+      "notes": "Included because inspected OOP question-level chunks have has_code=true and visible Java code-like text.\n",
+      "passed": true,
+      "query": "class hierarchy code example",
+      "returned": [
+        {
+          "chunk_id": "cam-2024-p1-q4",
+          "preview": "A university manages its students using a program that has a class Student with subclasses FirstYear, SecondYear, and...",
+          "rank": 1,
+          "score": 0.644800066947937,
+          "topic": "Object-Oriented Programming"
+        },
+        {
+          "chunk_id": "cam-2024-p1-q4-b",
+          "preview": "Write a Comparator that can be used to sort the List<Student> by year group and then by name, both ascending, and sho...",
+          "rank": 2,
+          "score": 0.6447927355766296,
+          "topic": "Object-Oriented Programming"
+        },
+        {
+          "chunk_id": "cam-2023-p3-q4",
+          "preview": "You are asked to implement a Java class for storing images with arbitrary pixel order and an arbitrary number of colo...",
+          "rank": 3,
+          "score": 0.6391494870185852,
+          "topic": "Introduction to Graphics"
+        },
+        {
+          "chunk_id": "cam-2023-p3-q4-c",
+          "preview": "You want to add a region-of-interest functionality to the class. Write the code for a constructor with the signature...",
+          "rank": 4,
+          "score": 0.6251954436302185,
+          "topic": "Introduction to Graphics"
+        },
+        {
+          "chunk_id": "cam-2025-p1-q4",
+          "preview": "(a) State the Open-Closed Principle and explain how it reduces the risk of regressions as software evolves (b) Identi...",
+          "rank": 5,
+          "score": 0.6249992847442627,
+          "topic": "Object-Oriented Programming"
+        }
+      ]
+    }
+  ],
+  "collection": "cam-cs-tripos-fixture",
+  "description": "Curated retrieval eval over a frozen fixture corpus: Cambridge CS Tripos 2023-2025, Papers 1-3, materialised at data/eval_fixtures/cambridge_2023_2025_p1_p3/ and indexed with `python scripts/index_chunks.py --input data/eval_fixtures/cambridge_2023_2025_p1_p3 --collection cam-cs-tripos-fixture --metadata data/papers/metadata.json --chroma-dir ./chroma_data`. The indexed fixture contains 87 question-level chunks, 329 sub-question chunks, and 416 total Chroma documents. The conditional surface-code-oop case is included because inspected OOP chunks have has_code=true and visible Java code-like text.\n",
+  "effective_limit": 10,
+  "eval_path": "docs/evals/cambridge_fixture_v1.yaml",
+  "failed_count": 0,
+  "limit": 5,
+  "metrics": {
+    "hit_at_1": 12,
+    "hit_at_10": 12,
+    "hit_at_3": 12,
+    "hit_at_5": 12
+  },
+  "name": "cambridge_fixture_v1",
+  "passed_count": 12,
+  "rerank": false
+}
