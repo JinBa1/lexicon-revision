@@ -19,28 +19,11 @@ from src.search.service import (  # noqa: E402
     DEFAULT_CHROMA_DIR,
     DEFAULT_COLLECTION,
     EMBEDDING_MODEL_NAME,
+    METADATA_KEYS,
     RERANKER_MODEL_NAME,
     CollectionNotFoundError,
     SearchService,
 )
-
-_METADATA_KEYS = [
-    "year",
-    "paper",
-    "question_number",
-    "topic",
-    "author",
-    "tripos_part",
-    "chunk_level",
-    "parent_chunk_id",
-    "sub_question_label",
-    "marks",
-    "total_marks",
-    "has_code",
-    "has_figure",
-    "has_table",
-    "source_pdf",
-]
 
 
 def parse_args() -> argparse.Namespace:
@@ -242,7 +225,7 @@ def _format_filters(filters: dict[str, Any]) -> str:
 
 
 def _format_metadata(metadata: dict[str, Any]) -> str:
-    return " ".join(f"{key}={metadata.get(key)}" for key in _METADATA_KEYS)
+    return " ".join(f"{key}={metadata.get(key)}" for key in METADATA_KEYS)
 
 
 def main() -> None:

@@ -14,7 +14,7 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    user: "${UID}:${GID}"
+    user: "${UID:-1000}:${GID:-1000}"
 
   chroma:
     image: chromadb/chroma:latest

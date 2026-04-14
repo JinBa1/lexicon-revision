@@ -14,6 +14,7 @@ from pathlib import Path
 import chromadb
 import numpy as np
 import pytest
+import scripts.inspect_search as inspect_search
 from scripts.inspect_search import (
     build_search_payload,
     main,
@@ -22,7 +23,7 @@ from scripts.inspect_search import (
     render_text,
 )
 from src.search.models import SearchResponse, SearchResult
-from src.search.service import CollectionNotFoundError, SearchService
+from src.search.service import METADATA_KEYS, CollectionNotFoundError, SearchService
 
 EMBED_DIM = 8
 
@@ -417,6 +418,45 @@ def test_render_text_hides_media_when_not_requested() -> None:
 
     assert "   media:" not in output
     assert "media_id=fig-1" not in output
+
+
+def test_render_text_uses_canonical_metadata_key_order() -> None:
+    """The CLI should reuse the search-layer metadata key contract directly."""
+    assert inspect_search.METADATA_KEYS is METADATA_KEYS
+
+    metadata_output = render_text(
+        {
+            "query": "binary search trees",
+            "collection": "tool-test-collection",
+            "filters": {},
+            "limit": 3,
+            "rerank": False,
+            "show_media": False,
+            "total": 1,
+            "results": [
+                {
+                    "chunk_id": "chunk-1",
+                    "chunk_level": "question",
+                    "parent_chunk_id": None,
+                    "sub_question_label": None,
+                    "score": 0.8123,
+                    "metadata": {
+                        key: f"value-{index}" for index, key in enumerate(METADATA_KEYS)
+                    },
+                    "text": "Binary search trees support logarithmic lookup.",
+                    "text_preview": "Binary search trees support logarithmic lookup.",
+                    "media": [],
+                }
+            ],
+        }
+    )
+
+    assert METADATA_KEYS[0] == "year"
+    assert (
+        "metadata: "
+        + " ".join(f"{key}=value-{index}" for index, key in enumerate(METADATA_KEYS))
+        in metadata_output
+    )
 
 
 @pytest.mark.parametrize(

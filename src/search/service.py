@@ -18,7 +18,7 @@ DEFAULT_CHROMA_DIR = "./chroma_data"
 DEFAULT_COLLECTION = "cam-cs-tripos"
 RERANK_CANDIDATE_CAP = 50
 
-_METADATA_KEYS = [
+METADATA_KEYS = [
     "year",
     "paper",
     "question_number",
@@ -134,34 +134,45 @@ class SearchService:
             scores = [row[3] for row in ranked]
 
         media_map = self._load_media_map(collection)
-        results = [
-            SearchResult(
-                chunk_id=chunk_id,
-                chunk_level=normalized_metadata["chunk_level"],
-                parent_chunk_id=normalized_metadata["parent_chunk_id"],
-                sub_question_label=normalized_metadata["sub_question_label"],
-                text=document,
-                score=score,
-                metadata=normalized_metadata,
-                media=[
-                    MediaRefResponse(
-                        media_id=media_ref.get("media_id", ""),
-                        kind=media_ref.get("kind", ""),
-                        file_path=media_ref.get("file_path"),
-                        relation=media_ref.get("relation", ""),
-                    )
-                    for media_ref in media_map.get(chunk_id, [])
-                ],
+        results = []
+        for chunk_id, document, metadata, score in zip(
+            ids[:limit],
+            documents[:limit],
+            metadatas[:limit],
+            scores[:limit],
+            strict=True,
+        ):
+            normalized_metadata = _normalize_metadata(metadata)
+            chunk_level = normalized_metadata["chunk_level"]
+            if not _is_valid_chunk_level(chunk_level):
+                logger.warning(
+                    "Skipping chunk %s in collection %s due to invalid chunk_level %r",
+                    chunk_id,
+                    collection,
+                    chunk_level,
+                )
+                continue
+
+            results.append(
+                SearchResult(
+                    chunk_id=chunk_id,
+                    chunk_level=chunk_level,
+                    parent_chunk_id=normalized_metadata["parent_chunk_id"],
+                    sub_question_label=normalized_metadata["sub_question_label"],
+                    text=document,
+                    score=score,
+                    metadata=normalized_metadata,
+                    media=[
+                        MediaRefResponse(
+                            media_id=media_ref.get("media_id", ""),
+                            kind=media_ref.get("kind", ""),
+                            file_path=media_ref.get("file_path"),
+                            relation=media_ref.get("relation", ""),
+                        )
+                        for media_ref in media_map.get(chunk_id, [])
+                    ],
+                )
             )
-            for chunk_id, document, metadata, score in zip(
-                ids[:limit],
-                documents[:limit],
-                metadatas[:limit],
-                scores[:limit],
-                strict=True,
-            )
-            for normalized_metadata in [_normalize_metadata(metadata)]
-        ]
 
         return SearchResponse(
             query=query,
@@ -177,11 +188,12 @@ class SearchService:
 
         sidecar_path = Path(self._chroma_dir) / f"{collection}_media_map.json"
         if not sidecar_path.exists():
-            logger.warning(
+            logger.debug(
                 "Media sidecar not found at %s; returning empty media lists",
                 sidecar_path,
             )
-            return {}
+            self._media_cache[collection] = {}
+            return self._media_cache[collection]
 
         try:
             media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
@@ -190,14 +202,16 @@ class SearchService:
                 "Failed to load media sidecar at %s; returning empty media lists",
                 sidecar_path,
             )
-            return {}
+            self._media_cache[collection] = {}
+            return self._media_cache[collection]
 
         if not _is_valid_media_map(media_map):
             logger.warning(
                 "Media sidecar at %s has invalid shape; returning empty media lists",
                 sidecar_path,
             )
-            return {}
+            self._media_cache[collection] = {}
+            return self._media_cache[collection]
 
         self._media_cache[collection] = media_map
         return media_map
@@ -206,7 +220,7 @@ class SearchService:
 def _normalize_metadata(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Ensure all spec-defined metadata keys are always present."""
     raw = raw or {}
-    return {key: raw.get(key) for key in _METADATA_KEYS}
+    return {key: raw.get(key) for key in METADATA_KEYS}
 
 
 def _build_where_clause(filters: dict[str, Any]) -> dict[str, Any] | None:
@@ -249,6 +263,9 @@ def _is_valid_media_map(value: Any) -> bool:
                 return False
             if ref.get("kind") not in {"image", "table"}:
                 return False
+            file_path = ref.get("file_path")
+            if file_path is not None and not isinstance(file_path, str):
+                return False
             if ref.get("relation") not in {
                 "direct",
                 "inherited_shared",
@@ -257,3 +274,8 @@ def _is_valid_media_map(value: Any) -> bool:
                 return False
 
     return True
+
+
+def _is_valid_chunk_level(value: Any) -> bool:
+    """Accept only chunk levels the response model can represent."""
+    return value in {"question", "sub_question"}

@@ -4,8 +4,8 @@ These tests verify that chunks are indexed, metadata is stored, the media
 sidecar is written, and re-running is idempotent. They do NOT test
 embedding quality or retrieval relevance.
 
-Tests inject a FakeEmbedder for speed and CI portability. The real model
-is exercised in the Task 5 smoke test.
+Tests inject a FakeEmbedder for speed and CI portability. Real embedding-model
+coverage belongs in explicit smoke or integration tests.
 """
 
 from __future__ import annotations

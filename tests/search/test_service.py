@@ -369,6 +369,81 @@ def test_search_missing_sidecar_returns_empty_media(
         assert result.media == []
 
 
+def test_search_missing_sidecar_caches_negative_lookup(
+    tmp_path: Path,
+    fake_embedder: FakeEmbedder,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated searches reuse the cached empty sidecar and only log once."""
+    import chromadb
+
+    chroma_dir = str(tmp_path / "chroma_no_sidecar_cached")
+    collection_name = "no-sidecar-cached"
+
+    client = chromadb.PersistentClient(path=chroma_dir)
+    col = client.get_or_create_collection(
+        collection_name,
+        metadata={"hnsw:space": "cosine"},
+    )
+    doc = "A test document about algorithms."
+    col.upsert(
+        ids=["test-1"],
+        documents=[doc],
+        embeddings=[fake_embedder.encode(doc).tolist()],
+        metadatas=[
+            {
+                "chunk_level": "question",
+                "has_code": False,
+                "has_figure": False,
+                "has_table": False,
+                "source_pdf": "test.pdf",
+            }
+        ],
+    )
+
+    sidecar_path = Path(chroma_dir) / f"{collection_name}_media_map.json"
+    exists_calls = 0
+    original_exists = Path.exists
+
+    def counting_exists(self: Path) -> bool:
+        nonlocal exists_calls
+        if self == sidecar_path:
+            exists_calls += 1
+            return False
+        return original_exists(self)
+
+    monkeypatch.setattr(Path, "exists", counting_exists)
+
+    service = SearchService(
+        chroma_dir=chroma_dir,
+        embedding_model=fake_embedder,
+        reranker=None,
+    )
+
+    with caplog.at_level("DEBUG"):
+        first = service.search(
+            query="algorithms",
+            collection=collection_name,
+            limit=10,
+        )
+        second = service.search(
+            query="algorithms",
+            collection=collection_name,
+            limit=10,
+        )
+
+    assert len(first.results) > 0
+    assert len(second.results) > 0
+    assert all(result.media == [] for result in first.results)
+    assert all(result.media == [] for result in second.results)
+    assert exists_calls == 1
+    assert (
+        sum("Media sidecar not found" in record.message for record in caplog.records)
+        == 1
+    )
+
+
 def test_search_invalid_sidecar_shape_returns_empty_media(
     tmp_path: Path, fake_embedder: FakeEmbedder
 ) -> None:
@@ -415,6 +490,196 @@ def test_search_invalid_sidecar_shape_returns_empty_media(
 
     assert len(response.results) == 1
     assert response.results[0].media == []
+
+
+def test_search_invalid_sidecar_shape_caches_negative_lookup(
+    tmp_path: Path,
+    fake_embedder: FakeEmbedder,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed sidecars are rejected once and then served from the empty cache."""
+    import chromadb
+
+    chroma_dir = str(tmp_path / "chroma_invalid_sidecar_cached")
+    collection_name = "invalid-sidecar-cached"
+
+    client = chromadb.PersistentClient(path=chroma_dir)
+    col = client.get_or_create_collection(
+        collection_name,
+        metadata={"hnsw:space": "cosine"},
+    )
+    doc = "A test document about algorithms."
+    col.upsert(
+        ids=["test-1"],
+        documents=[doc],
+        embeddings=[fake_embedder.encode(doc).tolist()],
+        metadatas=[
+            {
+                "chunk_level": "question",
+                "has_code": False,
+                "has_figure": False,
+                "has_table": False,
+                "source_pdf": "test.pdf",
+            }
+        ],
+    )
+
+    sidecar_path = Path(chroma_dir) / f"{collection_name}_media_map.json"
+    sidecar_path.write_text(json.dumps({"test-1": ["bad-ref"]}), encoding="utf-8")
+
+    exists_calls = 0
+    original_exists = Path.exists
+
+    def counting_exists(self: Path) -> bool:
+        nonlocal exists_calls
+        if self == sidecar_path:
+            exists_calls += 1
+        return original_exists(self)
+
+    monkeypatch.setattr(Path, "exists", counting_exists)
+
+    service = SearchService(
+        chroma_dir=chroma_dir,
+        embedding_model=fake_embedder,
+        reranker=None,
+    )
+
+    with caplog.at_level("WARNING"):
+        first = service.search(
+            query="algorithms",
+            collection=collection_name,
+            limit=10,
+        )
+        second = service.search(
+            query="algorithms",
+            collection=collection_name,
+            limit=10,
+        )
+
+    assert len(first.results) == 1
+    assert len(second.results) == 1
+    assert first.results[0].media == []
+    assert second.results[0].media == []
+    assert exists_calls == 1
+    assert sum("has invalid shape" in record.message for record in caplog.records) == 1
+
+
+def test_search_invalid_sidecar_file_path_returns_empty_media(
+    tmp_path: Path, fake_embedder: FakeEmbedder
+) -> None:
+    """A sidecar ref with a non-string file_path is treated as absent media."""
+    import chromadb
+
+    chroma_dir = str(tmp_path / "chroma_invalid_file_path")
+    collection_name = "invalid-file-path"
+
+    client = chromadb.PersistentClient(path=chroma_dir)
+    col = client.get_or_create_collection(
+        collection_name,
+        metadata={"hnsw:space": "cosine"},
+    )
+    doc = "A test document about algorithms."
+    col.upsert(
+        ids=["test-1"],
+        documents=[doc],
+        embeddings=[fake_embedder.encode(doc).tolist()],
+        metadatas=[
+            {
+                "chunk_level": "question",
+                "has_code": False,
+                "has_figure": False,
+                "has_table": False,
+                "source_pdf": "test.pdf",
+            }
+        ],
+    )
+
+    sidecar_path = Path(chroma_dir) / f"{collection_name}_media_map.json"
+    sidecar_path.write_text(
+        json.dumps(
+            {
+                "test-1": [
+                    {
+                        "media_id": "test-1-figure",
+                        "kind": "image",
+                        "file_path": {"path": "/media/figure.png"},
+                        "relation": "direct",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    service = SearchService(
+        chroma_dir=chroma_dir,
+        embedding_model=fake_embedder,
+        reranker=None,
+    )
+    response = service.search(
+        query="algorithms",
+        collection=collection_name,
+        limit=10,
+    )
+
+    assert len(response.results) == 1
+    assert response.results[0].media == []
+
+
+def test_search_skips_records_with_missing_chunk_level(
+    tmp_path: Path, fake_embedder: FakeEmbedder, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Dirty chunk metadata is skipped instead of failing the whole search."""
+    import chromadb
+
+    chroma_dir = str(tmp_path / "chroma_missing_chunk_level")
+    collection_name = "missing-chunk-level"
+
+    client = chromadb.PersistentClient(path=chroma_dir)
+    col = client.get_or_create_collection(
+        collection_name,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    valid_doc = "A valid document about algorithms."
+    invalid_doc = "A dirty document about algorithms."
+    col.upsert(
+        ids=["valid-1", "invalid-1"],
+        documents=[valid_doc, invalid_doc],
+        embeddings=fake_embedder.encode([valid_doc, invalid_doc]).tolist(),
+        metadatas=[
+            {
+                "chunk_level": "question",
+                "has_code": False,
+                "has_figure": False,
+                "has_table": False,
+                "source_pdf": "valid.pdf",
+            },
+            {
+                "has_code": False,
+                "has_figure": False,
+                "has_table": False,
+                "source_pdf": "invalid.pdf",
+            },
+        ],
+    )
+
+    service = SearchService(
+        chroma_dir=chroma_dir,
+        embedding_model=fake_embedder,
+        reranker=None,
+    )
+
+    with caplog.at_level("WARNING"):
+        response = service.search(
+            query="algorithms",
+            collection=collection_name,
+            limit=10,
+        )
+
+    assert [result.chunk_id for result in response.results] == ["valid-1"]
+    assert any("chunk_level" in record.message for record in caplog.records)
 
 
 def test_search_limit_caps_results(service_with_chunks) -> None:

@@ -599,6 +599,17 @@ def test_parse_case_and_eval_spec_validate_case_shapes(
             [{"media_id": "fig-1", "kind": "image", "relation": "local_only"}],
             "relation",
         ),
+        (
+            [
+                {
+                    "media_id": "fig-1",
+                    "kind": "image",
+                    "file_path": {"path": "fig.png"},
+                    "relation": "direct",
+                }
+            ],
+            "file_path",
+        ),
     ],
 )
 def test_load_media_map_rejects_invalid_refs(

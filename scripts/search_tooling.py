@@ -110,11 +110,13 @@ def load_media_map(
                 return {}
             media_id = ref.get("media_id")
             kind = ref.get("kind")
+            file_path = ref.get("file_path")
             relation = ref.get("relation")
             if (
                 type(media_id) is not str
                 or not media_id
                 or kind not in SUPPORTED_MEDIA_KINDS
+                or (file_path is not None and not isinstance(file_path, str))
                 or relation not in SUPPORTED_MEDIA_RELATIONS
             ):
                 return {}
