@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -185,49 +186,64 @@ class StudyService:
         attempt_count = 1
 
         try:
-            generation_result = await self.provider.generate(generation_request)
-            draft = _parse_draft(generation_result.raw_content)
-        except ValidationError as exc:
-            malformed_output = _raw_content_from_result(
-                locals().get("generation_result")
-            )
-            validation_error_summary = str(exc)
-            if self.settings.generation.schema_repair_retries > 0:
-                attempt_count = 2
-            try:
-                repair_result = await self._try_repair(
-                    request=generation_request,
-                    malformed_output=malformed_output,
-                    validation_error_summary=validation_error_summary,
-                )
-            except PROVIDER_ERRORS as exc:
-                return self._generation_failed_response(
-                    request=request,
-                    request_id=request_id,
-                    search_response=search_response,
-                    retrieval=retrieval,
-                    error_category=_provider_error_category(exc),
-                    attempt_count=attempt_count,
-                    latency_ms=_elapsed_ms(started),
-                )
-            if repair_result is None:
-                return self._generation_failed_response(
-                    request=request,
-                    request_id=request_id,
-                    search_response=search_response,
-                    retrieval=retrieval,
-                    error_category="schema_validation_failed",
-                    attempt_count=attempt_count,
-                    latency_ms=_elapsed_ms(started),
-                )
-            generation_result, draft = repair_result
-        except PROVIDER_ERRORS as exc:
+            async with asyncio.timeout(
+                self.settings.generation.total_generation_deadline_seconds
+            ):
+                try:
+                    generation_result = await self.provider.generate(generation_request)
+                    draft = _parse_draft(generation_result.raw_content)
+                except ValidationError as exc:
+                    malformed_output = _raw_content_from_result(
+                        locals().get("generation_result")
+                    )
+                    validation_error_summary = str(exc)
+                    repair_result = None
+                    if self.settings.generation.schema_repair_retries > 0:
+                        attempt_count = 2
+                        try:
+                            repair_result = await self._try_repair(
+                                request=generation_request,
+                                malformed_output=malformed_output,
+                                validation_error_summary=validation_error_summary,
+                            )
+                        except PROVIDER_ERRORS as exc:
+                            return self._generation_failed_response(
+                                request=request,
+                                request_id=request_id,
+                                search_response=search_response,
+                                retrieval=retrieval,
+                                error_category=_provider_error_category(exc),
+                                attempt_count=attempt_count,
+                                latency_ms=_elapsed_ms(started),
+                            )
+                    if repair_result is None:
+                        return self._generation_failed_response(
+                            request=request,
+                            request_id=request_id,
+                            search_response=search_response,
+                            retrieval=retrieval,
+                            error_category="schema_validation_failed",
+                            attempt_count=attempt_count,
+                            latency_ms=_elapsed_ms(started),
+                        )
+                    generation_result, draft = repair_result
+                except PROVIDER_ERRORS as exc:
+                    return self._generation_failed_response(
+                        request=request,
+                        request_id=request_id,
+                        search_response=search_response,
+                        retrieval=retrieval,
+                        error_category=_provider_error_category(exc),
+                        attempt_count=attempt_count,
+                        latency_ms=_elapsed_ms(started),
+                    )
+        except TimeoutError:
             return self._generation_failed_response(
                 request=request,
                 request_id=request_id,
                 search_response=search_response,
                 retrieval=retrieval,
-                error_category=_provider_error_category(exc),
+                error_category="provider_timeout",
                 attempt_count=attempt_count,
                 latency_ms=_elapsed_ms(started),
             )
@@ -269,9 +285,6 @@ class StudyService:
         malformed_output: str,
         validation_error_summary: str,
     ) -> tuple[GenerationResult, StudyAnswerDraft] | None:
-        if self.settings.generation.schema_repair_retries <= 0:
-            return None
-
         repair_request = GenerationRequest(
             messages=[
                 *request.messages,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -430,6 +431,43 @@ async def test_orchestrate_repairs_when_retry_count_is_positive() -> None:
 
 
 @pytest.mark.anyio
+async def test_orchestrate_does_not_repair_when_retry_count_is_zero() -> None:
+    settings = study_settings()
+    settings.generation.schema_repair_retries = 0
+    provider = FakeProvider(
+        GenerationResult(
+            raw_content='{"answer_status": "ok"',
+            model="qwen2.5:7b-instruct",
+            provider="ollama",
+            finish_reason="length",
+            latency_ms=10,
+        )
+    )
+    service = StudyService(
+        search_service=FakeSearchService(
+            SearchResponse(
+                query="dp",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            )
+        ),
+        provider=provider,
+        settings=settings,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="dp", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "generation_failed"
+    assert response.generation.error_category == "schema_validation_failed"
+    assert response.generation.attempt_count == 1
+    assert response.sources[0].chunk_id == "a"
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.anyio
 async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> None:
     class BrokenProvider(FakeProvider):
         async def generate(self, request: GenerationRequest) -> GenerationResult:
@@ -465,6 +503,41 @@ async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> N
     assert response.sources[0].chunk_id == "a"
     assert response.sources[0].why_cited is None
     assert len(provider.calls) == 2
+
+
+@pytest.mark.anyio
+async def test_orchestrate_total_generation_deadline_returns_timeout_fallback() -> None:
+    class SlowProvider(FakeProvider):
+        async def generate(self, request: GenerationRequest) -> GenerationResult:
+            self.calls.append(request)
+            await asyncio.sleep(0.05)
+            return valid_generation_result()
+
+    settings = study_settings()
+    settings.generation.total_generation_deadline_seconds = 0.01
+    provider = SlowProvider(valid_generation_result())
+    service = StudyService(
+        search_service=FakeSearchService(
+            SearchResponse(
+                query="dp",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            )
+        ),
+        provider=provider,
+        settings=settings,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="dp", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "generation_failed"
+    assert response.generation.error_category == "provider_timeout"
+    assert response.generation.attempt_count == 1
+    assert response.sources[0].chunk_id == "a"
+    assert len(provider.calls) == 1
 
 
 @pytest.mark.anyio
