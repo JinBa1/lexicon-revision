@@ -15,6 +15,10 @@ from src.search.service import (
     CollectionNotFoundError,
     SearchService,
 )
+from src.study.config import load_study_settings
+from src.study.models import StudyRequest, StudyResponse
+from src.study.providers.ollama import OllamaProvider
+from src.study.service import StudyService
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -34,15 +38,37 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         embedding_model=embedding_model,
         reranker=reranker,
     )
+    study_settings = load_study_settings()
+    generation_provider = OllamaProvider(
+        base_url=study_settings.generation.base_url,
+        model=study_settings.generation.model,
+        max_retries=study_settings.generation.max_provider_retries,
+    )
+    app.state.generation_provider = generation_provider
+    app.state.study_service = StudyService(
+        search_service=app.state.search_service,
+        provider=generation_provider,
+        settings=study_settings,
+    )
     yield
+    if app.state.generation_provider is not None:
+        await app.state.generation_provider.aclose()
     app.state.search_service = None
+    app.state.study_service = None
+    app.state.generation_provider = None
 
 
-def create_app(search_service: SearchService | None = None) -> FastAPI:
-    """Create the FastAPI app with optional injected search service."""
+def create_app(
+    search_service: SearchService | None = None,
+    study_service: StudyService | None = None,
+    generation_provider: object | None = None,
+) -> FastAPI:
+    """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:
         application = FastAPI(title="RAG Exam Revision Tool")
         application.state.search_service = search_service
+        application.state.study_service = study_service
+        application.state.generation_provider = generation_provider
     else:
         application = FastAPI(
             title="RAG Exam Revision Tool",
@@ -125,6 +151,20 @@ def create_app(search_service: SearchService | None = None) -> FastAPI:
                 status_code=404,
                 detail=f"Collection '{exc.collection_name}' not found",
             ) from exc
+
+    @application.post("/study", response_model=StudyResponse)
+    async def study(request: Request, payload: StudyRequest) -> StudyResponse:
+        service: StudyService = request.app.state.study_service
+        return await service.orchestrate(payload)
+
+    @application.get("/health")
+    async def health(request: Request) -> dict[str, str]:
+        provider = request.app.state.generation_provider
+        generator_status = await provider.health()
+        retrieval_status = (
+            "ok" if request.app.state.search_service is not None else "error"
+        )
+        return {"retrieval": retrieval_status, "generator": generator_status}
 
     return application
 
