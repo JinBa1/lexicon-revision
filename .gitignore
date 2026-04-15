@@ -16,6 +16,7 @@ plans/
 scripts/audit-architecture.sh
 skills/
 .claude/
+config/study.local.yaml
 
 # Allow eval specs while keeping other docs ignored by default
 !docs/

@@ -1,0 +1,1 @@
+"""Study-aid generation package."""
