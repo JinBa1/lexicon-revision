@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from inspect import isawaitable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -15,9 +16,15 @@ from src.search.service import (
     CollectionNotFoundError,
     SearchService,
 )
+from src.study.config import load_study_settings
+from src.study.models import StudyRequest, StudyResponse
+from src.study.providers.ollama import OllamaProvider
+from src.study.service import StudyService
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+
+GENERATOR_HEALTH_STATUSES = {"ok", "unreachable", "model_missing", "error"}
 
 
 @asynccontextmanager
@@ -34,15 +41,37 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         embedding_model=embedding_model,
         reranker=reranker,
     )
+    study_settings = load_study_settings()
+    generation_provider = OllamaProvider(
+        base_url=study_settings.generation.base_url,
+        model=study_settings.generation.model,
+        max_retries=study_settings.generation.max_provider_retries,
+    )
+    app.state.generation_provider = generation_provider
+    app.state.study_service = StudyService(
+        search_service=app.state.search_service,
+        provider=generation_provider,
+        settings=study_settings,
+    )
     yield
+    if app.state.generation_provider is not None:
+        await app.state.generation_provider.aclose()
     app.state.search_service = None
+    app.state.study_service = None
+    app.state.generation_provider = None
 
 
-def create_app(search_service: SearchService | None = None) -> FastAPI:
-    """Create the FastAPI app with optional injected search service."""
+def create_app(
+    search_service: SearchService | None = None,
+    study_service: StudyService | None = None,
+    generation_provider: object | None = None,
+) -> FastAPI:
+    """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:
         application = FastAPI(title="RAG Exam Revision Tool")
         application.state.search_service = search_service
+        application.state.study_service = study_service
+        application.state.generation_provider = generation_provider
     else:
         application = FastAPI(
             title="RAG Exam Revision Tool",
@@ -125,6 +154,40 @@ def create_app(search_service: SearchService | None = None) -> FastAPI:
                 status_code=404,
                 detail=f"Collection '{exc.collection_name}' not found",
             ) from exc
+
+    @application.post("/study", response_model=StudyResponse)
+    async def study(request: Request, payload: StudyRequest) -> StudyResponse:
+        service: StudyService | None = getattr(request.app.state, "study_service", None)
+        if service is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Study service is not configured",
+            )
+        return await service.orchestrate(payload)
+
+    @application.get("/health")
+    async def health(request: Request) -> dict[str, str]:
+        provider = getattr(request.app.state, "generation_provider", None)
+        generator_status = "error"
+        if provider is not None:
+            health_method = getattr(provider, "health", None)
+            if callable(health_method):
+                try:
+                    health_result = health_method()
+                    if isawaitable(health_result):
+                        health_result = await health_result
+                    if isinstance(health_result, str):
+                        normalized_status = health_result.lower()
+                        if normalized_status in GENERATOR_HEALTH_STATUSES:
+                            generator_status = normalized_status
+                except Exception:
+                    generator_status = "error"
+        retrieval_status = (
+            "ok"
+            if getattr(request.app.state, "search_service", None) is not None
+            else "error"
+        )
+        return {"retrieval": retrieval_status, "generator": generator_status}
 
     return application
 

@@ -1,0 +1,18 @@
+generation:
+  provider: ollama
+  model: qwen2.5:7b-instruct
+  temperature: 0.1
+  base_url: http://localhost:11434
+  request_timeout_seconds: 60
+  max_provider_retries: 1
+  total_generation_deadline_seconds: 75
+  schema_repair_retries: 1
+
+context:
+  retrieval_top_k_default: 15
+  budget_tokens: 4000
+  max_single_chunk_tokens: 1200
+
+prompt:
+  version: study_aid_v1
+  path: prompts/study_aid_v1.yaml

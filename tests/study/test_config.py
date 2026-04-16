@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from src.study.config import _env_overrides, load_study_settings
+
+
+def test_load_study_settings_uses_defaults_when_files_missing(tmp_path: Path) -> None:
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.generation.provider == "ollama"
+    assert settings.generation.model == "qwen2.5:7b-instruct"
+    assert settings.generation.request_timeout_seconds == 60
+    assert settings.context.retrieval_top_k_default == 15
+    assert settings.context.budget_tokens == 4000
+    assert settings.prompt.version == "study_aid_v1"
+
+
+def test_load_study_settings_merges_yaml_then_local_then_env(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "study.yaml").write_text(
+        """
+generation:
+  model: yaml-model
+  temperature: 0.2
+context:
+  budget_tokens: 3000
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "study.local.yaml").write_text(
+        """
+generation:
+  model: local-model
+context:
+  max_single_chunk_tokens: 900
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GENERATION__MODEL", "env-model")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.generation.model == "env-model"
+    assert settings.generation.temperature == 0.2
+    assert settings.context.budget_tokens == 3000
+    assert settings.context.max_single_chunk_tokens == 900
+
+
+def test_load_study_settings_ignores_unknown_env_namespaces(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("OTHER_SERVICE__GENERATION__MODEL", "wrong-model")
+    monkeypatch.setenv("CONTEXT__BUDGET_TOKENS", "2500")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.generation.model == "qwen2.5:7b-instruct"
+    assert settings.context.budget_tokens == 2500
+
+
+def test_env_overrides_keeps_only_known_settings_namespaces(monkeypatch) -> None:
+    monkeypatch.setenv("OTHER_SERVICE__GENERATION__MODEL", "wrong-model")
+    monkeypatch.setenv("GENERATION__MODEL", "env-model")
+
+    overrides = _env_overrides()
+
+    assert overrides == {"generation": {"model": "env-model"}}
