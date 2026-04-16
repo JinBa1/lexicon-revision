@@ -47,6 +47,21 @@ class FakeProvider:
         return "ok"
 
 
+class SyncHealthProvider:
+    def health(self):
+        return "ok"
+
+
+class InvalidHealthProvider:
+    def health(self):
+        return "unknown"
+
+
+class BrokenHealthProvider:
+    async def health(self):
+        raise RuntimeError("provider failed")
+
+
 class FakeSearchService:
     def health(self):
         return "ok"
@@ -125,3 +140,101 @@ async def test_health_reports_generator() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"retrieval": "ok", "generator": "ok"}
+
+
+@pytest.mark.anyio
+async def test_health_accepts_sync_generator_health() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=SyncHealthProvider(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"retrieval": "ok", "generator": "ok"}
+
+
+@pytest.mark.anyio
+async def test_health_reports_error_for_unknown_generator_status() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=InvalidHealthProvider(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"retrieval": "ok", "generator": "error"}
+
+
+@pytest.mark.anyio
+async def test_post_study_returns_503_when_service_unconfigured() -> None:
+    from src.main import create_app
+
+    app = create_app(search_service=FakeSearchService())
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Study service is not configured"
+
+
+@pytest.mark.anyio
+async def test_health_reports_error_when_generator_unconfigured() -> None:
+    from src.main import create_app
+
+    app = create_app(search_service=FakeSearchService())
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"retrieval": "ok", "generator": "error"}
+
+
+@pytest.mark.anyio
+async def test_health_reports_error_when_generator_health_fails() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=BrokenHealthProvider(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"retrieval": "ok", "generator": "error"}

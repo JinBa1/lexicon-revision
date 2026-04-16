@@ -33,3 +33,28 @@ user: |
             "content": "Query: dynamic programming\nSources:\n[SOURCE 1]".strip(),
         },
     ]
+
+
+def test_study_aid_prompt_forbids_derived_citation_ids() -> None:
+    template = load_prompt_template(Path("prompts/study_aid_v1.yaml"))
+
+    system = template.system
+
+    assert "exact chunk_id strings" in system
+    assert "Do not invent, shorten, extend, or add subpart suffixes" in system
+    assert "cam-2025-p2-q7(a)(i)" in system
+
+
+def test_study_aid_prompt_handles_limited_mixed_evidence() -> None:
+    template = load_prompt_template(Path("prompts/study_aid_v1.yaml"))
+
+    system = template.system
+
+    assert "If only one or a few sources directly address the query" in system
+    assert "I found limited direct evidence" in system
+    assert "do not say that the sources contain no direct examples" in system
+    assert "If you cite a source as directly relevant" in system
+    assert 'set answer_status to "partial"' in system
+    assert (
+        "Never write that retrieved sources do not directly address the query" in system
+    )

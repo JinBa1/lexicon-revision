@@ -8,6 +8,8 @@ import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+ENV_OVERRIDE_NAMESPACES = {"generation", "context", "prompt"}
+
 
 class GenerationSettings(BaseModel):
     provider: str = "ollama"
@@ -69,6 +71,8 @@ def _env_overrides() -> dict[str, Any]:
         if "__" not in key:
             continue
         parts = [part.lower() for part in key.split("__")]
+        if parts[0] not in ENV_OVERRIDE_NAMESPACES:
+            continue
         cursor = result
         for part in parts[:-1]:
             cursor = cursor.setdefault(part, {})

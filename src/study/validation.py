@@ -23,12 +23,13 @@ def validate_citations(
     kept_patterns: list[StudyPattern] = []
 
     for pattern in draft.patterns:
-        valid_ids = [
-            chunk_id
-            for chunk_id in pattern.supporting_chunk_ids
-            if chunk_id in valid_chunk_ids
-        ]
-        citation_drops += len(pattern.supporting_chunk_ids) - len(valid_ids)
+        valid_ids: list[str] = []
+        for chunk_id in pattern.supporting_chunk_ids:
+            normalized_id = _normalize_chunk_id(chunk_id, valid_chunk_ids)
+            if normalized_id is None:
+                citation_drops += 1
+            elif normalized_id not in valid_ids:
+                valid_ids.append(normalized_id)
         if valid_ids:
             kept_patterns.append(
                 StudyPattern(
@@ -40,10 +41,13 @@ def validate_citations(
 
     kept_sources: list[CitedSource] = []
     for source in draft.cited_sources:
-        if source.chunk_id in valid_chunk_ids:
-            kept_sources.append(source)
-        else:
+        normalized_id = _normalize_chunk_id(source.chunk_id, valid_chunk_ids)
+        if normalized_id is None:
             citation_drops += 1
+        else:
+            kept_sources.append(
+                CitedSource(chunk_id=normalized_id, why_cited=source.why_cited)
+            )
 
     if citation_drops and not kept_patterns and not kept_sources:
         return ValidationResult(
@@ -73,6 +77,18 @@ def validate_citations(
         citation_drops=citation_drops,
         limitations=limitations,
     )
+
+
+def _normalize_chunk_id(chunk_id: str, valid_chunk_ids: set[str]) -> str | None:
+    if chunk_id in valid_chunk_ids:
+        return chunk_id
+
+    matches = [
+        valid_id for valid_id in valid_chunk_ids if chunk_id.startswith(f"{valid_id}(")
+    ]
+    if len(matches) != 1:
+        return None
+    return matches[0]
 
 
 def _append_limited_limitation(

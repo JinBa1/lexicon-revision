@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.study.config import load_study_settings
+from src.study.config import _env_overrides, load_study_settings
 
 
 def test_load_study_settings_uses_defaults_when_files_missing(tmp_path: Path) -> None:
@@ -47,3 +47,25 @@ context:
     assert settings.generation.temperature == 0.2
     assert settings.context.budget_tokens == 3000
     assert settings.context.max_single_chunk_tokens == 900
+
+
+def test_load_study_settings_ignores_unknown_env_namespaces(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("OTHER_SERVICE__GENERATION__MODEL", "wrong-model")
+    monkeypatch.setenv("CONTEXT__BUDGET_TOKENS", "2500")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.generation.model == "qwen2.5:7b-instruct"
+    assert settings.context.budget_tokens == 2500
+
+
+def test_env_overrides_keeps_only_known_settings_namespaces(monkeypatch) -> None:
+    monkeypatch.setenv("OTHER_SERVICE__GENERATION__MODEL", "wrong-model")
+    monkeypatch.setenv("GENERATION__MODEL", "env-model")
+
+    overrides = _env_overrides()
+
+    assert overrides == {"generation": {"model": "env-model"}}

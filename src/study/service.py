@@ -181,7 +181,7 @@ class StudyService:
             timeout_seconds=self.settings.generation.request_timeout_seconds,
         )
 
-        generation_result: GenerationResult
+        generation_result: GenerationResult | None = None
         draft: StudyAnswerDraft
         attempt_count = 1
 
@@ -193,13 +193,11 @@ class StudyService:
                     generation_result = await self.provider.generate(generation_request)
                     draft = _parse_draft(generation_result.raw_content)
                 except ValidationError as exc:
-                    malformed_output = _raw_content_from_result(
-                        locals().get("generation_result")
-                    )
+                    malformed_output = _raw_content_from_result(generation_result)
                     validation_error_summary = str(exc)
                     repair_result = None
-                    if self.settings.generation.schema_repair_retries > 0:
-                        attempt_count = 2
+                    for _ in range(self.settings.generation.schema_repair_retries):
+                        attempt_count += 1
                         try:
                             repair_result = await self._try_repair(
                                 request=generation_request,
@@ -216,6 +214,8 @@ class StudyService:
                                 attempt_count=attempt_count,
                                 latency_ms=_elapsed_ms(started),
                             )
+                        if repair_result is not None:
+                            break
                     if repair_result is None:
                         return self._generation_failed_response(
                             request=request,

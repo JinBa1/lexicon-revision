@@ -581,6 +581,46 @@ async def test_orchestrate_repair_provider_failure_returns_fallback_sources() ->
 
 
 @pytest.mark.anyio
+async def test_orchestrate_uses_configured_schema_repair_retry_count() -> None:
+    class ValidOnSecondRepairProvider(FakeProvider):
+        async def generate(self, request: GenerationRequest) -> GenerationResult:
+            self.calls.append(request)
+            if len(self.calls) < 3:
+                return GenerationResult(
+                    raw_content='{"answer_status": "ok"',
+                    model="qwen2.5:7b-instruct",
+                    provider="ollama",
+                    finish_reason="length",
+                    latency_ms=10,
+                )
+            return valid_generation_result()
+
+    settings = study_settings()
+    settings.generation.schema_repair_retries = 2
+    provider = ValidOnSecondRepairProvider(valid_generation_result())
+    service = StudyService(
+        search_service=FakeSearchService(
+            SearchResponse(
+                query="dp",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            )
+        ),
+        provider=provider,
+        settings=settings,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="dp", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "ok"
+    assert response.generation.attempt_count == 3
+    assert len(provider.calls) == 3
+
+
+@pytest.mark.anyio
 async def test_orchestrate_all_invalid_citations_returns_fallback_sources() -> None:
     provider = FakeProvider(
         GenerationResult(

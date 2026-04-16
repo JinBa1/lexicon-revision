@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from inspect import isawaitable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -22,6 +23,8 @@ from src.study.service import StudyService
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+
+GENERATOR_HEALTH_STATUSES = {"ok", "unreachable", "model_missing", "error"}
 
 
 @asynccontextmanager
@@ -154,15 +157,35 @@ def create_app(
 
     @application.post("/study", response_model=StudyResponse)
     async def study(request: Request, payload: StudyRequest) -> StudyResponse:
-        service: StudyService = request.app.state.study_service
+        service: StudyService | None = getattr(request.app.state, "study_service", None)
+        if service is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Study service is not configured",
+            )
         return await service.orchestrate(payload)
 
     @application.get("/health")
     async def health(request: Request) -> dict[str, str]:
-        provider = request.app.state.generation_provider
-        generator_status = await provider.health()
+        provider = getattr(request.app.state, "generation_provider", None)
+        generator_status = "error"
+        if provider is not None:
+            health_method = getattr(provider, "health", None)
+            if callable(health_method):
+                try:
+                    health_result = health_method()
+                    if isawaitable(health_result):
+                        health_result = await health_result
+                    if isinstance(health_result, str):
+                        normalized_status = health_result.lower()
+                        if normalized_status in GENERATOR_HEALTH_STATUSES:
+                            generator_status = normalized_status
+                except Exception:
+                    generator_status = "error"
         retrieval_status = (
-            "ok" if request.app.state.search_service is not None else "error"
+            "ok"
+            if getattr(request.app.state, "search_service", None) is not None
+            else "error"
         )
         return {"retrieval": retrieval_status, "generator": generator_status}
 

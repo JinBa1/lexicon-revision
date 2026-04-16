@@ -66,6 +66,50 @@ def test_validate_citations_downgrades_some_invalid_to_partial() -> None:
     assert result.limitations == result.draft.limitations
 
 
+def test_validate_citations_normalizes_parenthesized_subpart_suffixes() -> None:
+    draft = StudyAnswerDraft(
+        answer_status="ok",
+        overview="Overview",
+        patterns=[
+            StudyPattern(
+                label="Set proofs",
+                summary="Questions use set and number-theory proofs.",
+                supporting_chunk_ids=[
+                    "cam-2025-p2-q7(a)(i)",
+                    "cam-2025-p2-q8(ii)",
+                ],
+            )
+        ],
+        cited_sources=[
+            CitedSource(
+                chunk_id="cam-2023-p2-q8-c(i)",
+                why_cited="Relevant set-operation proof.",
+            )
+        ],
+        limitations=[],
+    )
+
+    result = validate_citations(
+        draft,
+        valid_chunk_ids={
+            "cam-2025-p2-q7",
+            "cam-2025-p2-q8",
+            "cam-2023-p2-q8-c",
+        },
+    )
+
+    assert result.answer_status == "ok"
+    assert result.citation_drops == 0
+    assert result.draft is not None
+    assert result.draft.patterns[0].supporting_chunk_ids == [
+        "cam-2025-p2-q7",
+        "cam-2025-p2-q8",
+    ]
+    assert [source.chunk_id for source in result.draft.cited_sources] == [
+        "cam-2023-p2-q8-c"
+    ]
+
+
 def test_validate_citations_caps_partial_limitations() -> None:
     draft = StudyAnswerDraft(
         answer_status="ok",

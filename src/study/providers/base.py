@@ -28,7 +28,7 @@ class ProviderTimeoutError(ProviderError):
 
 
 class ProviderHTTPError(ProviderError):
-    """Provider returned a retryable server error."""
+    """Provider returned an HTTP error response."""
 
 
 class ModelNotAvailableError(ProviderError):
