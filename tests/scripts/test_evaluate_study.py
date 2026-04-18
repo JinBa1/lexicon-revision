@@ -7,6 +7,7 @@ model quality, real retrieval quality, or real Ollama behavior.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ import pytest
 from scripts.evaluate_study import (
     evaluate_study_cases,
     load_study_eval_spec,
+    parse_args,
     render_json,
     render_markdown,
 )
@@ -39,6 +41,42 @@ class ToolTestFakeStudyService:
     async def orchestrate(self, request: StudyRequest) -> StudyResponse:
         self.calls.append(request)
         return self.responses[request.query]
+
+
+def test_parse_args_accepts_no_planning(tmp_path: Path, monkeypatch) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text("name: x\ncases: []\n", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["evaluate_study.py", str(eval_path), "--no-planning"],
+    )
+
+    args = parse_args()
+
+    assert args.no_planning is True
+
+
+def test_parse_args_rerank_defaults_and_flags(tmp_path: Path, monkeypatch) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text("name: x\ncases: []\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["evaluate_study.py", str(eval_path)])
+    assert parse_args().rerank is True
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_study.py",
+            str(eval_path),
+            "--no-rerank",
+            "--reranker-device",
+            "cpu",
+        ],
+    )
+    args = parse_args()
+    assert args.rerank is False
+    assert args.reranker_device == "cpu"
 
 
 def _response(
@@ -345,8 +383,60 @@ def test_report_includes_planning_per_variant(tmp_path: Path) -> None:
     assert "planning" in variant
     assert variant["planning"]["status"] == "fallback"
     assert variant["planning"]["error_category"] == "provider_timeout"
+    assert variant["planning"]["planner_version"] == "query_planner_v1"
+    assert variant["planning"]["original_query"] == "questions on dp"
     assert variant["planning"]["latency_ms"] == 100
     assert variant["planning"]["semantic_queries"] == ["questions on dp"]
+    assert report["planner_fallback_rate"] == 1.0
+
+
+def test_render_markdown_includes_semantic_queries_in_planning_summary(
+    tmp_path: Path,
+) -> None:
+    collection = "cam-cs-tripos-fixture"
+    spec = load_study_eval_spec(
+        _write_eval(
+            tmp_path,
+            {
+                "name": "study_probe",
+                "collection": collection,
+                "cases": [
+                    {
+                        "id": "broad-dp",
+                        "query": "questions on dp",
+                        "expected": {"any_chunk_ids": ["chunk-1"]},
+                    }
+                ],
+            },
+        )
+    )
+    service = ToolTestFakeStudyService(
+        {
+            "questions on dp": _response(
+                query="questions on dp",
+                collection=collection,
+                planning=PlanningMetadata(
+                    status="ok",
+                    planner_version="query_planner_v1",
+                    original_query="questions on dp",
+                    semantic_queries=["dynamic programming recurrence"],
+                    latency_ms=20,
+                ),
+            )
+        }
+    )
+    report = evaluate_study_cases(
+        service=service,  # type: ignore[arg-type]
+        spec=spec,
+        collection=collection,
+        top_k=9,
+        case_ids=None,
+        variant_ids=None,
+    )
+
+    rendered = render_markdown(report)
+
+    assert "semantic_queries=`['dynamic programming recurrence']`" in rendered
 
 
 def test_render_outputs_group_variants_for_review(tmp_path: Path) -> None:

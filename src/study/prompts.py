@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import yaml
 from jinja2 import Template
@@ -13,11 +12,20 @@ class PromptTemplate(BaseModel):
     system: str
     user: str
 
-    def render(self, **kwargs: Any) -> list[dict[str, str]]:
-        system_content = Template(self.system).render(**kwargs)
-        user_content = Template(self.user).render(**kwargs)
+    def render(
+        self,
+        *,
+        query: str,
+        retrieval_queries: list[str],
+        context_blocks: str,
+    ) -> list[dict[str, str]]:
+        user_content = Template(self.user).render(
+            query=query,
+            retrieval_queries=retrieval_queries,
+            context_blocks=context_blocks,
+        )
         return [
-            {"role": "system", "content": system_content.strip()},
+            {"role": "system", "content": self.system.strip()},
             {"role": "user", "content": user_content.strip()},
         ]
 

@@ -10,7 +10,7 @@ from src.study.planning.models import (
     QueryPlanDraft,
     StudyFilters,
 )
-from src.study.planning.planner import LLMQueryPlanner, QueryPlanner
+from src.study.planning.planner import LLMQueryPlanner, QueryPlanner, RawQueryPlanner
 from src.study.planning.retrieval import PlannedRetrievalService
 
 __all__ = [
@@ -24,5 +24,6 @@ __all__ = [
     "QueryPlan",
     "QueryPlanDraft",
     "QueryPlanner",
+    "RawQueryPlanner",
     "StudyFilters",
 ]

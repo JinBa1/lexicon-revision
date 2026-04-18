@@ -13,7 +13,7 @@ cases:
       paper: 3
     expected:
       any_chunk_ids:
-        - cam-2025-p3-q5
+        - cam-2025-p3-q1-c
       any_topics:
         - Databases
     variants:
@@ -59,7 +59,7 @@ cases:
       topic: Databases
     expected:
       any_chunk_ids:
-        - cam-2025-p3-q5
+        - cam-2025-p3-q1-c
     variants:
       - id: messy
         query: past questions on databases outer join
@@ -68,7 +68,7 @@ cases:
     purpose: No topic filter — planner must preserve "databases" term.
     expected:
       any_chunk_ids:
-        - cam-2025-p3-q5
+        - cam-2025-p3-q1-c
     variants:
       - id: messy
         query: past questions on databases outer join

@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from src.study.config import PlanningSettings
 from src.study.models import GenerationRequest, GenerationResult, ProviderCapabilities
 from src.study.planning.models import InvalidPlanError, QueryPlanDraft, StudyFilters
-from src.study.planning.planner import LLMQueryPlanner
+from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner
 from src.study.providers.base import GeneratorHealth
 
 
@@ -146,3 +146,15 @@ async def test_prompt_messages_include_raw_query_and_filters() -> None:
     assert "- topic:" not in system
     assert raw_query in user
     assert "Databases" in user
+
+
+@pytest.mark.anyio
+async def test_raw_query_planner_returns_raw_query_without_provider_call() -> None:
+    provider = FakeProvider({"semantic_queries": ["unused"]})
+    planner = RawQueryPlanner()
+
+    plan = await planner.plan("messy original query", StudyFilters(year=2025))
+
+    assert plan.original_query == "messy original query"
+    assert plan.semantic_queries == ["messy original query"]
+    assert provider.calls == []

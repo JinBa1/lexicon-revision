@@ -141,8 +141,11 @@ async def test_post_study_rejects_bad_top_k() -> None:
     [
         {"year": "2025"},  # String instead of int
         {"has_code": "true"},  # String instead of bool
+        {"unknown_field": 1},
         {"question": 4},  # Legacy/Unknown key
+        {"topic": ""},
         {"topic": "  "},  # Blank topic (min_length=1)
+        {"topic": 123},
     ],
 )
 async def test_post_study_rejects_invalid_filters(bad_filters: dict) -> None:

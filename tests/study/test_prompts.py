@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from src.study.prompts import load_prompt_template
 
 
@@ -65,6 +66,23 @@ user: |
             "content": "Q: dp\nR: dynamic programming recurrence\nC: CTX",
         },
     ]
+
+
+def test_prompt_template_requires_retrieval_queries(tmp_path: Path) -> None:
+    prompt_path = tmp_path / "study_aid_v2.yaml"
+    prompt_path.write_text(
+        """
+version: study_aid_v2
+system: "System text"
+user: "{{ retrieval_queries | join('; ') }}"
+""",
+        encoding="utf-8",
+    )
+
+    template = load_prompt_template(prompt_path)
+
+    with pytest.raises(TypeError):
+        template.render(query="dp", context_blocks="CTX")  # type: ignore[call-arg]
 
 
 def test_real_study_aid_v2_template_loads_and_renders() -> None:

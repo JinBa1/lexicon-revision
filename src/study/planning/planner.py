@@ -25,6 +25,15 @@ class QueryPlanner(Protocol):
     ) -> QueryPlan: ...
 
 
+class RawQueryPlanner:
+    async def plan(
+        self,
+        raw_query: str,
+        hard_filters: StudyFilters | None,
+    ) -> QueryPlan:
+        return QueryPlan(original_query=raw_query, semantic_queries=[raw_query])
+
+
 class LLMQueryPlanner:
     def __init__(
         self,

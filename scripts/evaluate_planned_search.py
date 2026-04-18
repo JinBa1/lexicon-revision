@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-# Allow direct execution
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -24,195 +25,282 @@ from src.study.planning.planner import LLMQueryPlanner, QueryPlanner  # noqa: E4
 from src.study.planning.retrieval import PlannedRetrievalService  # noqa: E402
 from src.study.providers.ollama import OllamaProvider  # noqa: E402
 
+_PLANNER_ERRORS = (Exception,)
 
-def load_messy_eval_spec(path: Path) -> list[dict[str, Any]]:
-    """Load messy evaluation cases from a YAML file."""
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    cases = []
-    for raw_case in payload.get("cases", []):
-        expected = raw_case.get("expected", {})
-        any_chunk_ids = expected.get("any_chunk_ids", [])
-        any_topics = expected.get("any_topics", [])
 
-        variants = raw_case.get("variants", [])
-        if variants:
-            messy_variant = next(
-                (v for v in variants if v["id"] == "messy"), variants[0]
-            )
-            query = messy_variant["query"]
-        else:
-            query = raw_case.get("query")
+@dataclass(frozen=True)
+class MessyVariant:
+    id: str
+    query: str
 
+
+@dataclass(frozen=True)
+class MessyCase:
+    id: str
+    filters: dict[str, Any]
+    any_chunk_ids: list[str]
+    any_topics: list[str]
+    variants: list[MessyVariant]
+
+
+@dataclass(frozen=True)
+class MessyEvalSpec:
+    name: str
+    collection: str | None
+    default_top_k: int
+    cases: list[MessyCase]
+
+
+def load_messy_eval_spec(path: Path) -> MessyEvalSpec:
+    """Load planner A/B eval YAML."""
+    loaded = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"{path} must contain a YAML mapping")
+
+    cases: list[MessyCase] = []
+    for entry in loaded.get("cases", []):
+        variants = [
+            MessyVariant(id=variant["id"], query=variant["query"])
+            for variant in entry.get("variants", [])
+        ]
+        if not variants and "query" in entry:
+            variants = [MessyVariant(id="default", query=entry["query"])]
+
+        expected = entry.get("expected") or {}
         cases.append(
-            {
-                "id": raw_case.get("id", "unknown"),
-                "query": query,
-                "expected_chunk_ids": any_chunk_ids,
-                "expected_topics": any_topics,
-                "filters": raw_case.get("filters", {}),
-            }
+            MessyCase(
+                id=entry["id"],
+                filters=dict(entry.get("filters") or {}),
+                any_chunk_ids=list(expected.get("any_chunk_ids") or []),
+                any_topics=list(expected.get("any_topics") or []),
+                variants=variants,
+            )
         )
-    return cases
+
+    return MessyEvalSpec(
+        name=loaded["name"],
+        collection=loaded.get("collection"),
+        default_top_k=int(loaded.get("default_top_k", 15)),
+        cases=cases,
+    )
 
 
 async def compare_cases(
-    cases: list[dict[str, Any]],
-    search_service: Any,
-    planner: QueryPlanner,
+    *,
+    spec: MessyEvalSpec,
     collection: str,
-    limit: int,
-) -> list[dict[str, Any]]:
-    """Run A/B comparison for each case: raw query vs planned query."""
-    results = []
-    retrieval_service = PlannedRetrievalService(search_service=search_service)
+    top_k: int,
+    planner: QueryPlanner,
+    search_service: Any,
+    rerank: bool = False,
+) -> dict[str, Any]:
+    """Compare raw retrieval with planner-rewritten retrieval."""
+    case_reports: list[dict[str, Any]] = []
+    fallback_count = 0
+    total_variants = 0
+    planned_retrieval = PlannedRetrievalService(search_service=search_service)
 
-    for case in cases:
-        query = case["query"]
-        expected_ids = case["expected_chunk_ids"]
-        expected_topics = case["expected_topics"]
-        case_filters = (
-            StudyFilters.model_validate(case["filters"]) if case["filters"] else None
+    for case in spec.cases:
+        filters_model = _parse_filters(case.filters)
+        filters_dict = (
+            filters_model.model_dump(exclude_none=True)
+            if filters_model is not None
+            else None
         )
 
-        # Baseline: raw query + filters
-        baseline_resp = search_service.search(
-            query=query,
-            collection=collection,
-            filters=case["filters"] or None,
-            limit=limit,
-        )
-        baseline_hit = _check_hit(baseline_resp, expected_ids, expected_topics)
-
-        # Planned: planner-rewritten + filters
-        try:
-            plan = await planner.plan(query, hard_filters=case_filters)
-            planned_ret = retrieval_service.retrieve(
-                plan=plan,
-                hard_filters=case_filters,
+        for variant in case.variants:
+            total_variants += 1
+            raw_response = search_service.search(
+                query=variant.query,
                 collection=collection,
-                limit=limit,
+                filters=filters_dict,
+                limit=top_k,
+                rerank=rerank,
             )
-            planned_hit = _check_hit(
-                planned_ret.search_response, expected_ids, expected_topics
+            raw_hit = _hit(raw_response, case)
+
+            planning_status = "ok"
+            planning_error: str | None = None
+            planned_query = variant.query
+            try:
+                plan = await planner.plan(variant.query, filters_model)
+                planned_result = planned_retrieval.retrieve(
+                    plan,
+                    hard_filters=filters_model,
+                    collection=collection,
+                    limit=top_k,
+                    rerank=rerank,
+                )
+                planned_response = planned_result.search_response
+                planned_query = planned_result.executed_queries[0]
+            except _PLANNER_ERRORS as exc:
+                planning_status = "fallback"
+                planning_error = type(exc).__name__
+                fallback_count += 1
+                planned_response = search_service.search(
+                    query=planned_query,
+                    collection=collection,
+                    filters=filters_dict,
+                    limit=top_k,
+                    rerank=rerank,
+                )
+            planned_hit = _hit(planned_response, case)
+
+            case_reports.append(
+                {
+                    "id": f"{case.id}/{variant.id}",
+                    "filters": case.filters,
+                    "expected": {
+                        "any_chunk_ids": case.any_chunk_ids,
+                        "any_topics": case.any_topics,
+                    },
+                    "raw": {
+                        "query": variant.query,
+                        "hit": raw_hit,
+                        "top_ids": [
+                            result.chunk_id for result in raw_response.results[:top_k]
+                        ],
+                    },
+                    "planned": {
+                        "query": planned_query,
+                        "hit": planned_hit,
+                        "planning_status": planning_status,
+                        "planning_error": planning_error,
+                        "top_ids": [
+                            result.chunk_id
+                            for result in planned_response.results[:top_k]
+                        ],
+                    },
+                }
             )
-            status = "ok"
-            planned_query = plan.semantic_queries[0]
-        except Exception as exc:
-            status = "fallback"
-            planned_hit = baseline_hit
-            planned_query = f"(fallback) {query}"
-            print(
-                f"Warning: planner failed for query '{query}': {exc}", file=sys.stderr
-            )
 
-        results.append(
-            {
-                "id": case["id"],
-                "query": query,
-                "planned_query": planned_query,
-                "baseline_hit": baseline_hit,
-                "planned_hit": planned_hit,
-                "status": status,
-            }
-        )
-    return results
+    hit_delta_sum = sum(
+        (1 if case["planned"]["hit"] else 0) - (1 if case["raw"]["hit"] else 0)
+        for case in case_reports
+    )
+    return {
+        "name": spec.name,
+        "collection": collection,
+        "top_k": top_k,
+        "cases": case_reports,
+        "aggregate": {
+            "variant_count": total_variants,
+            "fallback_rate": fallback_count / total_variants if total_variants else 0.0,
+            "hit_delta_sum": hit_delta_sum,
+        },
+    }
 
 
-def _check_hit(
-    response: SearchResponse, expected_ids: list[str], expected_topics: list[str]
-) -> bool:
-    """Check if any of the expected chunk IDs or topics are in the results."""
-    expected_ids_set = set(expected_ids)
-    expected_topics_set = set(expected_topics)
-
+def _hit(response: SearchResponse, case: MessyCase) -> bool:
+    expected_ids = set(case.any_chunk_ids)
+    expected_topics = set(case.any_topics)
     for result in response.results:
-        if result.chunk_id in expected_ids_set:
+        if result.chunk_id in expected_ids:
             return True
         topic = result.metadata.get("topic")
-        if topic and topic in expected_topics_set:
+        if isinstance(topic, str) and topic in expected_topics:
             return True
     return False
 
 
+def _parse_filters(raw: dict[str, Any]) -> StudyFilters | None:
+    if not raw:
+        return None
+    return StudyFilters.model_validate(raw)
+
+
+def render_report(report: dict[str, Any]) -> str:
+    lines = [
+        f"# Planner A/B report: {report['name']}",
+        f"collection={report['collection']} top_k={report['top_k']}",
+        (
+            f"variants={report['aggregate']['variant_count']} "
+            f"fallback_rate={report['aggregate']['fallback_rate']:.2f} "
+            f"hit_delta_sum={report['aggregate']['hit_delta_sum']}"
+        ),
+        "",
+    ]
+    for case in report["cases"]:
+        lines.append(f"## {case['id']}")
+        lines.append(f"raw hit={case['raw']['hit']} q={case['raw']['query']!r}")
+        lines.append(
+            f"planned hit={case['planned']['hit']} "
+            f"status={case['planned']['planning_status']} "
+            f"q={case['planned']['query']!r}"
+        )
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments."""
-    parser = argparse.ArgumentParser(description="A/B evaluation of planned retrieval")
-    parser.add_argument("eval_path", type=Path, help="Path to messy eval YAML")
-    parser.add_argument("--collection", help="Chroma collection override")
-    parser.add_argument("--limit", type=int, default=15, help="Search limit (hit@k)")
+    parser = argparse.ArgumentParser(description="Planner A/B retrieval comparison")
+    parser.add_argument("eval_path", type=Path)
+    parser.add_argument("--collection", default=None)
+    parser.add_argument("--top-k", type=int, default=None)
+    parser.add_argument("--chroma-dir", default=DEFAULT_CHROMA_DIR)
+    parser.add_argument("--json", action="store_true")
+    rerank_group = parser.add_mutually_exclusive_group()
+    rerank_group.add_argument(
+        "--rerank",
+        dest="rerank",
+        action="store_true",
+        help="Apply cross-encoder reranking",
+    )
+    rerank_group.add_argument(
+        "--no-rerank",
+        dest="rerank",
+        action="store_false",
+        help="Disable cross-encoder reranking (default for planner A/B)",
+    )
+    parser.set_defaults(rerank=False)
     parser.add_argument(
-        "--chroma-dir", default=DEFAULT_CHROMA_DIR, help="Chroma directory"
+        "--reranker-device",
+        choices=["cpu", "cuda", "auto"],
+        default="auto",
+        help="Device for the cross-encoder reranker when --rerank is set",
     )
     return parser.parse_args()
 
 
-async def main() -> None:
-    """Main execution loop."""
-    args = parse_args()
-    if not args.eval_path.exists():
-        print(f"Error: eval file not found at {args.eval_path}", file=sys.stderr)
-        sys.exit(1)
+async def _run(args: argparse.Namespace) -> None:
+    spec = load_messy_eval_spec(args.eval_path)
+    collection = args.collection or spec.collection
+    if collection is None:
+        raise SystemExit("collection must be set via --collection or YAML")
+    top_k = args.top_k or spec.default_top_k
 
-    cases = load_messy_eval_spec(args.eval_path)
-
-    # Setup services
     settings = load_study_settings()
-    search_service = create_real_search_service(args.chroma_dir, rerank=True)
+    search_service = create_real_search_service(
+        args.chroma_dir,
+        rerank=args.rerank,
+        reranker_device=args.reranker_device,
+    )
     provider = OllamaProvider(
         base_url=settings.generation.base_url,
         model=settings.generation.model,
+        max_retries=settings.generation.max_provider_retries,
     )
-    planner = LLMQueryPlanner(provider, settings.planning)
+    planner = LLMQueryPlanner(provider=provider, settings=settings.planning)
+    try:
+        report = await compare_cases(
+            spec=spec,
+            collection=collection,
+            top_k=top_k,
+            planner=planner,
+            search_service=search_service,
+            rerank=args.rerank,
+        )
+    finally:
+        await provider.aclose()
 
-    # Determine collection
-    payload = yaml.safe_load(args.eval_path.read_text(encoding="utf-8"))
-    collection = args.collection or payload.get("collection") or "cam-cs-tripos"
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(render_report(report))
 
-    print(
-        f"Evaluating {len(cases)} cases against collection '{collection}' "
-        f"(limit={args.limit})..."
-    )
-    results = await compare_cases(
-        cases=cases,
-        search_service=search_service,
-        planner=planner,
-        collection=collection,
-        limit=args.limit,
-    )
 
-    # Report per-case
-    print(f"{'ID':<40} | {'Baseline':<10} | {'Planned':<10} | {'Status':<10}")
-    print("-" * 80)
-
-    baseline_hits = 0
-    planned_hits = 0
-    fallbacks = 0
-
-    for res in results:
-        b_hit = "HIT" if res["baseline_hit"] else "MISS"
-        p_hit = "HIT" if res["planned_hit"] else "MISS"
-        print(f"{res['id']:<40} | {b_hit:<10} | {p_hit:<10} | {res['status']:<10}")
-
-        if res["baseline_hit"]:
-            baseline_hits += 1
-        if res["planned_hit"]:
-            planned_hits += 1
-        if res["status"] == "fallback":
-            fallbacks += 1
-
-    baseline_rate = baseline_hits / len(cases)
-    planned_rate = planned_hits / len(cases)
-    fallback_rate = fallbacks / len(cases)
-
-    print("-" * 80)
-    print(f"Baseline total hits: {baseline_hits}/{len(cases)} ({baseline_rate:.1%})")
-    print(f"Planned total hits:  {planned_hits}/{len(cases)} ({planned_rate:.1%})")
-    print(f"Delta:               {planned_hits - baseline_hits:+d}")
-    print(f"Fallback rate:       {fallbacks}/{len(cases)} ({fallback_rate:.1%})")
+def main() -> None:
+    asyncio.run(_run(parse_args()))
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        sys.exit(130)
+    main()

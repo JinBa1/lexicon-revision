@@ -25,7 +25,7 @@ from scripts.search_tooling import SUPPORTED_FILTER_KEYS, truncate_text  # noqa:
 from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import StudyRequest, StudyScope  # noqa: E402
-from src.study.planning.planner import LLMQueryPlanner  # noqa: E402
+from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner  # noqa: E402
 from src.study.planning.retrieval import PlannedRetrievalService  # noqa: E402
 from src.study.providers.ollama import OllamaProvider  # noqa: E402
 from src.study.service import StudyService  # noqa: E402
@@ -117,6 +117,31 @@ def parse_args() -> argparse.Namespace:
         type=_positive_int,
         default=500,
         help="Preview length for answer/source excerpts in Markdown",
+    )
+    parser.add_argument(
+        "--no-planning",
+        action="store_true",
+        help="Bypass LLM query planning and retrieve with each raw query",
+    )
+    rerank_group = parser.add_mutually_exclusive_group()
+    rerank_group.add_argument(
+        "--rerank",
+        dest="rerank",
+        action="store_true",
+        help="Apply cross-encoder reranking (default)",
+    )
+    rerank_group.add_argument(
+        "--no-rerank",
+        dest="rerank",
+        action="store_false",
+        help="Disable cross-encoder reranking (avoid GPU contention with Ollama)",
+    )
+    parser.set_defaults(rerank=True)
+    parser.add_argument(
+        "--reranker-device",
+        choices=["cpu", "cuda", "auto"],
+        default="auto",
+        help="Device for the cross-encoder reranker (default: auto)",
     )
     return parser.parse_args()
 
@@ -390,8 +415,10 @@ async def _evaluate_variant(
         "planning": {
             "status": response.planning.status,
             "error_category": response.planning.error_category,
+            "planner_version": response.planning.planner_version,
+            "original_query": response.planning.original_query,
             "latency_ms": response.planning.latency_ms,
-            "semantic_queries": response.planning.semantic_queries,
+            "semantic_queries": list(response.planning.semantic_queries),
         },
         "generation": {
             "provider": response.generation.provider,
@@ -470,6 +497,7 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
                 lines.append(
                     f"Planning: `{planning['status']}`; "
                     f"error `{planning['error_category'] or 'none'}`; "
+                    f"semantic_queries=`{planning['semantic_queries']}`; "
                     f"latency `{planning['latency_ms']}ms`"
                 )
             lines.extend(
@@ -549,14 +577,22 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("Collection must be provided by eval file or --collection")
     top_k = args.top_k or spec.default_top_k or settings.context.retrieval_top_k_default
 
-    search_service = create_real_search_service(args.chroma_dir, rerank=True)
+    search_service = create_real_search_service(
+        args.chroma_dir,
+        rerank=args.rerank,
+        reranker_device=args.reranker_device,
+    )
     inner_provider = OllamaProvider(
         base_url=settings.generation.base_url,
         model=settings.generation.model,
         max_retries=settings.generation.max_provider_retries,
     )
     provider = RecordingProvider(inner=inner_provider)
-    query_planner = LLMQueryPlanner(provider=provider, settings=settings.planning)
+    query_planner = (
+        RawQueryPlanner()
+        if args.no_planning
+        else LLMQueryPlanner(provider=provider, settings=settings.planning)
+    )
     planned_retrieval = PlannedRetrievalService(search_service=search_service)
     study_service = StudyService(
         query_planner=query_planner,
@@ -631,8 +667,10 @@ async def _evaluate_real_cases(
                     "planning": {
                         "status": response.planning.status,
                         "error_category": response.planning.error_category,
+                        "planner_version": response.planning.planner_version,
+                        "original_query": response.planning.original_query,
                         "latency_ms": response.planning.latency_ms,
-                        "semantic_queries": response.planning.semantic_queries,
+                        "semantic_queries": list(response.planning.semantic_queries),
                     },
                     "generation": payload["generation"],
                     "validation": {

@@ -160,6 +160,31 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional path to an alternate study settings YAML directory",
     )
+    parser.add_argument(
+        "--no-planning",
+        action="store_true",
+        help="Bypass LLM query planning and retrieve with the raw query",
+    )
+    rerank_group = parser.add_mutually_exclusive_group()
+    rerank_group.add_argument(
+        "--rerank",
+        dest="rerank",
+        action="store_true",
+        help="Apply cross-encoder reranking (default)",
+    )
+    rerank_group.add_argument(
+        "--no-rerank",
+        dest="rerank",
+        action="store_false",
+        help="Disable cross-encoder reranking (avoid GPU contention with Ollama)",
+    )
+    parser.set_defaults(rerank=True)
+    parser.add_argument(
+        "--reranker-device",
+        choices=["cpu", "cuda", "auto"],
+        default="auto",
+        help="Device for the cross-encoder reranker (default: auto)",
+    )
     return parser.parse_args()
 
 
@@ -378,6 +403,7 @@ def render_text(
         )
         if planning.get("error_category"):
             lines.append(f"  error_category: {planning['error_category']}")
+        lines.append(f"  original_query: {planning.get('original_query')}")
         for index, attempt in enumerate(planning.get("attempts", []), start=1):
             header = f"  Attempt {index} (planner): latency_ms={attempt['latency_ms']}"
             if attempt["provider_error"]:
@@ -523,7 +549,11 @@ def main() -> None:
         )
         top_k = args.top_k or settings.context.retrieval_top_k_default
 
-        search_service = create_real_search_service(args.chroma_dir, rerank=True)
+        search_service = create_real_search_service(
+            args.chroma_dir,
+            rerank=args.rerank,
+            reranker_device=args.reranker_device,
+        )
         inner_provider = OllamaProvider(
             base_url=settings.generation.base_url,
             model=settings.generation.model,
@@ -531,10 +561,14 @@ def main() -> None:
         )
         provider = RecordingProvider(inner=inner_provider)
 
-        from src.study.planning.planner import LLMQueryPlanner
+        from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner
         from src.study.planning.retrieval import PlannedRetrievalService
 
-        query_planner = LLMQueryPlanner(provider=provider, settings=settings.planning)
+        query_planner = (
+            RawQueryPlanner()
+            if args.no_planning
+            else LLMQueryPlanner(provider=provider, settings=settings.planning)
+        )
         planned_retrieval = PlannedRetrievalService(search_service=search_service)
 
         study_service = StudyService(

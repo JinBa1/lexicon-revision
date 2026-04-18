@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 from src.search.models import SearchResponse, SearchResult
 from src.study.config import (
     ContextSettings,
@@ -14,8 +15,18 @@ from src.study.config import (
     StudySettings,
 )
 from src.study.models import GenerationRequest, GenerationResult, StudyRequest
-from src.study.planning.models import PlannedRetrievalResult, QueryPlan, StudyFilters
-from src.study.providers.base import ProviderConnectionError
+from src.study.planning.models import (
+    InvalidPlanError,
+    PlannedRetrievalResult,
+    QueryPlan,
+    StudyFilters,
+)
+from src.study.providers.base import (
+    ModelNotAvailableError,
+    ProviderConnectionError,
+    ProviderHTTPError,
+    ProviderTimeoutError,
+)
 from src.study.service import StudyService
 
 
@@ -365,6 +376,51 @@ async def test_orchestrate_provider_failure_returns_fallback_sources() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("provider_error", "expected_category"),
+    [
+        (ProviderTimeoutError("slow"), "provider_timeout"),
+        (ModelNotAvailableError("missing"), "model_not_available"),
+        (ProviderHTTPError("upstream"), "provider_error"),
+    ],
+)
+async def test_orchestrate_maps_provider_failures(
+    provider_error: Exception,
+    expected_category: str,
+) -> None:
+    query_planner = FakeQueryPlanner(
+        QueryPlan(original_query="fail", semantic_queries=["fail"])
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="fail",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["fail"],
+            filters_applied={},
+        )
+    )
+    provider = FakeProvider(provider_error)
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="fail", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "generation_failed"
+    assert response.generation.error_category == expected_category
+    assert response.sources[0].chunk_id == "a"
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.anyio
 async def test_orchestrate_schema_repair_success() -> None:
     query_planner = FakeQueryPlanner(
         QueryPlan(original_query="repair", semantic_queries=["repair"])
@@ -413,6 +469,102 @@ async def test_orchestrate_schema_repair_success() -> None:
         "Your previous response was not valid JSON"
         in provider.calls[1].messages[-1]["content"]
     )
+
+
+@pytest.mark.anyio
+async def test_orchestrate_does_not_repair_when_retry_count_is_zero() -> None:
+    query_planner = FakeQueryPlanner(
+        QueryPlan(original_query="repair", semantic_queries=["repair"])
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="repair",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["repair"],
+            filters_applied={},
+        )
+    )
+    provider = FakeProvider(
+        GenerationResult(
+            raw_content='{"answer_status": "ok"',
+            model="qwen",
+            provider="ollama",
+            finish_reason="stop",
+            latency_ms=10,
+        )
+    )
+    settings = study_settings()
+    settings.generation.schema_repair_retries = 0
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+        settings=settings,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="repair", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "generation_failed"
+    assert response.generation.error_category == "schema_validation_failed"
+    assert response.generation.attempt_count == 1
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.anyio
+async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> None:
+    query_planner = FakeQueryPlanner(
+        QueryPlan(original_query="repair", semantic_queries=["repair"])
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="repair",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["repair"],
+            filters_applied={},
+        )
+    )
+    provider = FakeProvider(
+        [
+            GenerationResult(
+                raw_content='{"answer_status": "ok"',
+                model="qwen",
+                provider="ollama",
+                finish_reason="stop",
+                latency_ms=10,
+            ),
+            GenerationResult(
+                raw_content='{"answer_status": "ok"',
+                model="qwen",
+                provider="ollama",
+                finish_reason="stop",
+                latency_ms=10,
+            ),
+        ]
+    )
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="repair", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "generation_failed"
+    assert response.generation.error_category == "schema_validation_failed"
+    assert response.sources[0].chunk_id == "a"
+    assert len(provider.calls) == 2
 
 
 @pytest.mark.anyio
@@ -519,6 +671,49 @@ async def test_orchestrate_planner_fallback_on_error() -> None:
     assert response.planning.semantic_queries == ["orig"]
     # Verify retrieval used the fallback query
     assert planned_retrieval.calls[0]["plan"].semantic_queries == ["orig"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("planner_error", "expected_category"),
+    [
+        (ProviderTimeoutError("slow"), "provider_timeout"),
+        (ModelNotAvailableError("missing"), "model_not_available"),
+        (ProviderHTTPError("upstream"), "provider_error"),
+        (InvalidPlanError("bad"), "invalid_plan"),
+        (ValidationError.from_exception_data("x", []), "schema_validation_failed"),
+    ],
+)
+async def test_orchestrate_planner_error_categories(
+    planner_error: Exception,
+    expected_category: str,
+) -> None:
+    query_planner = FakeQueryPlanner(planner_error)
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="orig",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["orig"],
+            filters_applied={},
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="orig", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.planning.status == "fallback"
+    assert response.planning.error_category == expected_category
 
 
 @pytest.mark.anyio
