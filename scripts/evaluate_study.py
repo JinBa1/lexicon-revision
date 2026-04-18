@@ -19,7 +19,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.inspect_search import create_real_search_service  # noqa: E402
+from scripts.inspect_search import (  # noqa: E402
+    build_provider_metadata,
+    create_real_search_service,
+)
 from scripts.inspect_study import RecordingProvider, build_payload  # noqa: E402
 from scripts.search_tooling import SUPPORTED_FILTER_KEYS, truncate_text  # noqa: E402
 from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
@@ -602,7 +605,7 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     try:
-        return await _evaluate_real_cases(
+        report = await _evaluate_real_cases(
             study_service=study_service,
             provider=provider,
             spec=spec,
@@ -612,6 +615,8 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
             variant_ids=set(args.variant_ids) if args.variant_ids else None,
             prompt_version=settings.prompt.version,
         )
+        report["providers"] = build_provider_metadata(search_service)
+        return report
     finally:
         await provider.aclose()
 

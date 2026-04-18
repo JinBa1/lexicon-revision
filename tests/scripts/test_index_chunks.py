@@ -26,8 +26,21 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.index_chunks import index_collection  # noqa: E402
+from src.search.providers.base import EmbeddingResult  # noqa: E402
 
 EMBED_DIM = 8
+
+
+class _FakeEmbedder:
+    model_id = "fake-embed-v1"
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        return EmbeddingResult(
+            vectors=[[0.0] * EMBED_DIM for _ in texts], model_id=self.model_id
+        )
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        return EmbeddingResult(vectors=[[0.0] * EMBED_DIM], model_id=self.model_id)
 
 
 class FakeEmbedder:
@@ -234,3 +247,62 @@ def test_index_media_sidecar_has_correct_keys(
     if sample_ref["bbox"] is not None:
         assert isinstance(sample_ref["bbox"], list)
         assert len(sample_ref["bbox"]) == 4
+
+
+def test_new_collection_stamps_embedding_model_id(tmp_path: Path) -> None:
+    index_collection(
+        mineru_output_dir=MINERU_FIXTURES,
+        chroma_dir=str(tmp_path / "chroma"),
+        collection_name="test-coll",
+        embedding_model=_FakeEmbedder(),
+    )
+    client = chromadb.PersistentClient(path=str(tmp_path / "chroma"))
+    collection = client.get_collection("test-coll")
+    assert collection.metadata.get("embedding_model_id") == "fake-embed-v1"
+
+
+def test_legacy_collection_without_metadata_is_upgraded(tmp_path: Path) -> None:
+    chroma_dir = str(tmp_path / "chroma")
+    client = chromadb.PersistentClient(path=chroma_dir)
+    client.create_collection(name="test-coll", metadata={"hnsw:space": "cosine"})
+    index_collection(
+        mineru_output_dir=MINERU_FIXTURES,
+        chroma_dir=chroma_dir,
+        collection_name="test-coll",
+        embedding_model=_FakeEmbedder(),
+    )
+    collection = client.get_collection("test-coll")
+    assert collection.metadata.get("embedding_model_id") == "fake-embed-v1"
+
+
+def test_mismatched_existing_model_raises_without_flag(tmp_path: Path) -> None:
+    chroma_dir = str(tmp_path / "chroma")
+    client = chromadb.PersistentClient(path=chroma_dir)
+    client.create_collection(
+        name="test-coll", metadata={"embedding_model_id": "other-model"}
+    )
+    with pytest.raises(ValueError, match="embedding_model_id"):
+        index_collection(
+            mineru_output_dir=MINERU_FIXTURES,
+            chroma_dir=chroma_dir,
+            collection_name="test-coll",
+            embedding_model=_FakeEmbedder(),
+            recreate_collection=False,
+        )
+
+
+def test_recreate_flag_overwrites_collection_with_new_model_id(tmp_path: Path) -> None:
+    chroma_dir = str(tmp_path / "chroma")
+    client = chromadb.PersistentClient(path=chroma_dir)
+    client.create_collection(
+        name="test-coll", metadata={"embedding_model_id": "other-model"}
+    )
+    index_collection(
+        mineru_output_dir=MINERU_FIXTURES,
+        chroma_dir=chroma_dir,
+        collection_name="test-coll",
+        embedding_model=_FakeEmbedder(),
+        recreate_collection=True,
+    )
+    collection = client.get_collection("test-coll")
+    assert collection.metadata.get("embedding_model_id") == "fake-embed-v1"

@@ -15,7 +15,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.inspect_search import create_real_search_service  # noqa: E402
+from scripts.inspect_search import (  # noqa: E402
+    build_provider_metadata,
+    create_real_search_service,
+)
 from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
 from src.search.service import (  # noqa: E402
     DEFAULT_CHROMA_DIR,
@@ -606,6 +609,7 @@ def main() -> None:
         interactions=provider.interactions,
         prompt_version=settings.prompt.version,
     )
+    payload["providers"] = build_provider_metadata(search_service)
 
     output = (
         render_json(payload)

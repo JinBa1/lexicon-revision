@@ -17,6 +17,7 @@ import chromadb
 import httpx
 import numpy as np
 import pytest
+from src.search.providers.base import EmbeddingResult
 from src.search.service import SearchService
 
 EMBED_DIM = 8
@@ -25,7 +26,18 @@ EMBED_DIM = 8
 class FakeEmbedder:
     """Deterministic embedder that hashes text into a unit vector."""
 
+    model_id = "test-embedding"
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        vec = self._hash_to_vector(text).tolist()
+        return EmbeddingResult(vectors=[vec], model_id=self.model_id)
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        vectors = [self._hash_to_vector(t).tolist() for t in texts]
+        return EmbeddingResult(vectors=vectors, model_id=self.model_id)
+
     def encode(self, text: str | list[str]) -> np.ndarray:
+        """Compatibility method for existing tests using .encode()."""
         if isinstance(text, str):
             return self._hash_to_vector(text)
         return np.array([self._hash_to_vector(t) for t in text])

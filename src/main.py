@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-import os
+import logging
 from contextlib import asynccontextmanager
 from inspect import isawaitable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from src.search.models import SearchResponse
+from src.search.providers.config import (
+    build_embedding_provider,
+    build_rerank_provider,
+    load_retrieval_provider_settings,
+)
 from src.search.service import (
     DEFAULT_CHROMA_DIR,
     DEFAULT_COLLECTION,
-    EMBEDDING_MODEL_NAME,
     RERANK_CANDIDATE_CAP,
-    RERANKER_MODEL_NAME,
     CollectionNotFoundError,
     SearchService,
 )
@@ -27,16 +30,15 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 GENERATOR_HEALTH_STATUSES = {"ok", "unreachable", "model_missing", "error"}
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Production lifespan: load real models into app.state."""
-    from sentence_transformers import CrossEncoder, SentenceTransformer
-
-    embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    rerank_enabled = os.environ.get("RERANK_ENABLED", "true").lower() != "false"
-    reranker = CrossEncoder(RERANKER_MODEL_NAME) if rerank_enabled else None
+    provider_settings = load_retrieval_provider_settings()
+    embedding_model = build_embedding_provider(provider_settings)
+    reranker = build_rerank_provider(provider_settings)
 
     app.state.search_service = SearchService(
         chroma_dir=DEFAULT_CHROMA_DIR,
@@ -67,9 +69,20 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     if app.state.generation_provider is not None:
         await app.state.generation_provider.aclose()
+    _close_if_supported(embedding_model)
+    _close_if_supported(reranker)
     app.state.search_service = None
     app.state.study_service = None
     app.state.generation_provider = None
+
+
+def _close_if_supported(provider: object | None) -> None:
+    if provider is None or not hasattr(provider, "close"):
+        return
+    try:
+        provider.close()
+    except Exception:
+        logger.exception("Failed to close retrieval provider")
 
 
 def create_app(

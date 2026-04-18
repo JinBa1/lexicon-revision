@@ -16,6 +16,9 @@ from src.study.planning.models import QueryPlan, StudyFilters
 
 
 class _FakeSearchService:
+    embedding_model_id = "tool-test-embedding"
+    rerank_model_id = None
+
     def __init__(self, responses: dict[str, SearchResponse]) -> None:
         self.responses = responses
         self.calls: list[dict[str, Any]] = []
@@ -162,6 +165,10 @@ cases:
     assert by_id["fallback-case/messy"]["planned"]["planning_status"] == "fallback"
     assert by_id["fallback-case/messy"]["planned"]["hit"] is True
     assert by_id["fallback-case/messy"]["planned"]["query"] == "messy two"
+    assert report["providers"] == {
+        "embedding_model_id": "tool-test-embedding",
+        "rerank_model_id": None,
+    }
     assert report["aggregate"]["fallback_rate"] == pytest.approx(0.5)
     assert report["aggregate"]["hit_delta_sum"] == 0
 
