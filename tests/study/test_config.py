@@ -62,6 +62,29 @@ def test_load_study_settings_ignores_unknown_env_namespaces(
     assert settings.context.budget_tokens == 2500
 
 
+def test_load_study_settings_has_planning_defaults(tmp_path: Path) -> None:
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.planning.temperature == 0.0
+    assert settings.planning.request_timeout_seconds == 15
+    assert settings.planning.total_planning_deadline_seconds == 20
+    assert settings.planning.prompt_version == "query_planner_v1"
+    assert settings.planning.prompt_path == "prompts/query_planner_v1.yaml"
+
+
+def test_load_study_settings_applies_planning_env_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PLANNING__REQUEST_TIMEOUT_SECONDS", "5")
+    monkeypatch.setenv("PLANNING__PROMPT_VERSION", "query_planner_v1_custom")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.planning.request_timeout_seconds == 5
+    assert settings.planning.prompt_version == "query_planner_v1_custom"
+
+
 def test_env_overrides_keeps_only_known_settings_namespaces(monkeypatch) -> None:
     monkeypatch.setenv("OTHER_SERVICE__GENERATION__MODEL", "wrong-model")
     monkeypatch.setenv("GENERATION__MODEL", "env-model")
