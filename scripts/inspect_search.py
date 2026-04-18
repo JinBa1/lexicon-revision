@@ -15,12 +15,16 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
+from src.search.providers.config import (  # noqa: E402
+    RetrievalProviderSettings,
+    build_embedding_provider,
+    build_rerank_provider,
+    load_retrieval_provider_settings,
+)
 from src.search.service import (  # noqa: E402
     DEFAULT_CHROMA_DIR,
     DEFAULT_COLLECTION,
-    EMBEDDING_MODEL_NAME,
     METADATA_KEYS,
-    RERANKER_MODEL_NAME,
     CollectionNotFoundError,
     SearchService,
 )
@@ -121,23 +125,21 @@ def create_real_search_service(
     rerank: bool,
     reranker_device: str | None = None,
 ) -> SearchService:
-    """Create a SearchService backed by real sentence-transformer models.
+    """Create a SearchService backed by configured retrieval providers.
 
     `reranker_device` accepts "cpu", "cuda", or "auto"/None (let CrossEncoder
-    pick). Used to keep GPU off the reranker when Ollama owns the GPU.
+    pick). It only affects the local reranker provider.
     """
-    from sentence_transformers import CrossEncoder, SentenceTransformer
-
-    embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    if rerank:
-        device = None if reranker_device in (None, "auto") else reranker_device
-        reranker = (
-            CrossEncoder(RERANKER_MODEL_NAME, device=device)
-            if device is not None
-            else CrossEncoder(RERANKER_MODEL_NAME)
-        )
-    else:
-        reranker = None
+    provider_settings = load_retrieval_provider_settings()
+    provider_settings = RetrievalProviderSettings(
+        embedding=provider_settings.embedding,
+        rerank=provider_settings.rerank,
+        rerank_enabled=rerank,
+        voyage_api_key=provider_settings.voyage_api_key,
+    )
+    embedding_model = build_embedding_provider(provider_settings)
+    device = None if reranker_device in (None, "auto") else reranker_device
+    reranker = build_rerank_provider(provider_settings, device=device)
     return SearchService(
         chroma_dir=chroma_dir,
         embedding_model=embedding_model,
@@ -169,6 +171,7 @@ def build_search_payload(
         {
             "filters": filters,
             "limit": limit,
+            "providers": build_provider_metadata(service),
             "rerank": rerank,
             "show_media": show_media,
             "max_text_chars": max_text_chars,
@@ -182,6 +185,13 @@ def build_search_payload(
         for result in payload["results"]
     ]
     return payload
+
+
+def build_provider_metadata(service: object) -> dict[str, str | None]:
+    return {
+        "embedding_model_id": getattr(service, "embedding_model_id", None),
+        "rerank_model_id": getattr(service, "rerank_model_id", None),
+    }
 
 
 def render_json(payload: dict[str, Any]) -> str:

@@ -26,6 +26,9 @@ from src.search.service import CollectionNotFoundError
 class ToolTestFakeSearchService:
     """Recording search service for CLI evaluation and rendering tests."""
 
+    embedding_model_id = "tool-test-embedding"
+    rerank_model_id = None
+
     def __init__(self, responses: dict[str, SearchResponse]) -> None:
         self.responses = responses
         self.calls: list[dict[str, object]] = []
@@ -208,6 +211,10 @@ def test_evaluate_cases_passes_on_expected_chunk_id_within_top_k() -> None:
     )
 
     assert service.calls[0]["collection"] == collection
+    assert report["providers"] == {
+        "embedding_model_id": "tool-test-embedding",
+        "rerank_model_id": None,
+    }
     assert report["passed_count"] == 1
     assert report["metrics"] == {
         "hit_at_1": 0,
@@ -469,6 +476,7 @@ def test_render_json_is_parseable() -> None:
     parsed = json.loads(render_json(report))
 
     assert parsed["name"] == "search_eval"
+    assert parsed["providers"]["embedding_model_id"] == "tool-test-embedding"
     assert parsed["cases"][0]["id"] == "json-case"
 
 

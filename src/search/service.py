@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import chromadb
 from src.search.models import MediaRefResponse, SearchResponse, SearchResult
+from src.search.providers.base import EmbeddingProvider, RerankProvider
 
 logger = logging.getLogger(__name__)
 
@@ -37,18 +38,6 @@ METADATA_KEYS = [
 ]
 
 
-class Embedder(Protocol):
-    """Minimal embedding-model protocol used by the service."""
-
-    def encode(self, text: str | list[str]) -> Any: ...
-
-
-class Reranker(Protocol):
-    """Minimal reranker protocol used by the service."""
-
-    def predict(self, pairs: list[tuple[str, str]]) -> Any: ...
-
-
 class CollectionNotFoundError(Exception):
     """Raised when a ChromaDB collection does not exist."""
 
@@ -57,20 +46,44 @@ class CollectionNotFoundError(Exception):
         super().__init__(f"Collection '{collection_name}' not found")
 
 
+class EmbeddingModelMismatchError(Exception):
+    """Raised when the collection's embedding model ID differs from the provider's."""
+
+    def __init__(self, *, collection: str, expected: str, actual: str) -> None:
+        self.collection = collection
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"Collection '{collection}' was indexed with embedding model "
+            f"{actual!r} but the configured query embedder is {expected!r}"
+        )
+
+
 class SearchService:
     """Retrieve and rerank chunks from a ChromaDB collection."""
 
     def __init__(
         self,
-        embedding_model: Embedder,
+        embedding_model: EmbeddingProvider,
         chroma_dir: str = DEFAULT_CHROMA_DIR,
-        reranker: Reranker | None = None,
+        reranker: RerankProvider | None = None,
     ) -> None:
         self._chroma_dir = chroma_dir
         self._client = chromadb.PersistentClient(path=chroma_dir)
         self._embedding_model = embedding_model
         self._reranker = reranker
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        self._metadata_warning_collections: set[str] = set()
+
+    @property
+    def embedding_model_id(self) -> str:
+        return self._embedding_model.model_id
+
+    @property
+    def rerank_model_id(self) -> str | None:
+        if self._reranker is None:
+            return None
+        return self._reranker.model_id
 
     def search(
         self,
@@ -93,9 +106,33 @@ class SearchService:
         except chromadb.errors.NotFoundError as exc:
             raise CollectionNotFoundError(collection) from exc
 
+        # Collection metadata guard
+        coll_metadata = search_collection.metadata
+        expected_model_id = self._embedding_model.model_id
+        actual_model_id = (coll_metadata or {}).get("embedding_model_id")
+
+        if actual_model_id is None:
+            if collection not in self._metadata_warning_collections:
+                logger.warning(
+                    "Collection '%s' has no 'embedding_model_id' in metadata; "
+                    "proceeding without validation",
+                    collection,
+                )
+                self._metadata_warning_collections.add(collection)
+        elif actual_model_id != expected_model_id:
+            raise EmbeddingModelMismatchError(
+                collection=collection,
+                expected=expected_model_id,
+                actual=str(actual_model_id),
+            )
+
         where = _build_where_clause(filters or {})
         n_candidates = min(limit * 3, RERANK_CANDIDATE_CAP) if rerank else limit
-        query_embedding = _to_list(self._embedding_model.encode(query))
+
+        embedding_result = self._embedding_model.embed_query(query)
+        if len(embedding_result.vectors) != 1:
+            raise RuntimeError("embedder must return exactly one query vector")
+        query_embedding = list(embedding_result.vectors[0])
 
         query_kwargs: dict[str, Any] = {
             "query_embeddings": [query_embedding],
@@ -121,8 +158,11 @@ class SearchService:
 
         scores = [1.0 - distance for distance in distances]
         if rerank and self._reranker is not None:
-            pairs = list(zip([query] * len(documents), documents, strict=True))
-            rerank_scores = _to_list(self._reranker.predict(pairs))
+            rerank_result = self._reranker.rerank(query, list(documents))
+            if len(rerank_result.scores) != len(documents):
+                raise RuntimeError("reranker score count must match document count")
+            rerank_scores = list(rerank_result.scores)
+
             ranked = sorted(
                 zip(ids, documents, metadatas, rerank_scores, strict=True),
                 key=lambda row: row[3],
@@ -239,13 +279,6 @@ def _build_where_clause(filters: dict[str, Any]) -> dict[str, Any] | None:
     if len(conditions) == 1:
         return conditions[0]
     return {"$and": conditions}
-
-
-def _to_list(value: Any) -> list[Any]:
-    """Convert ndarray-like outputs from models into plain Python lists."""
-    if hasattr(value, "tolist"):
-        return value.tolist()
-    return list(value)
 
 
 def _is_valid_media_map(value: Any) -> bool:

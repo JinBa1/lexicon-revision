@@ -16,7 +16,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.inspect_search import create_real_search_service  # noqa: E402
+from scripts.inspect_search import (  # noqa: E402
+    build_provider_metadata,
+    create_real_search_service,
+)
 from src.search.models import SearchResponse  # noqa: E402
 from src.search.service import DEFAULT_CHROMA_DIR  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
@@ -182,6 +185,7 @@ async def compare_cases(
         "name": spec.name,
         "collection": collection,
         "top_k": top_k,
+        "providers": build_provider_metadata(search_service),
         "cases": case_reports,
         "aggregate": {
             "variant_count": total_variants,

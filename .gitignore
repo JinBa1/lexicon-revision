@@ -21,6 +21,7 @@ skills/
 config/study.local.yaml
 reports/study/
 config/study-profiles/
+STACK_CHOICE.md
 
 # Allow eval specs while keeping other docs ignored by default
 !docs/

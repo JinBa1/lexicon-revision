@@ -23,20 +23,40 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import chromadb  # noqa: E402
-from sentence_transformers import SentenceTransformer  # noqa: E402
 from src.chunking.models import Chunk  # noqa: E402
 from src.chunking.pipeline import run_pipeline  # noqa: E402
-from src.search.service import DEFAULT_CHROMA_DIR, EMBEDDING_MODEL_NAME  # noqa: E402
+from src.search.providers.config import (  # noqa: E402
+    build_embedding_provider,
+    load_retrieval_provider_settings,
+)
+from src.search.service import DEFAULT_CHROMA_DIR  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+CHROMA_DISTANCE_METADATA_KEY = "hnsw:space"
+EMBEDDING_MODEL_METADATA_KEY = "embedding_model_id"
 
-def _encode_texts(model: object, texts: list[str]) -> Any:
-    """Encode texts while tolerating simpler fake embedders in tests."""
+
+def _encode_texts(model: Any, texts: list[str]) -> list[list[float]]:
+    """Encode texts while tolerating both SentenceTransformer and new providers."""
+    if hasattr(model, "embed_documents"):
+        # New provider protocol
+        result = model.embed_documents(texts)
+        return result.vectors
+
+    # Legacy SentenceTransformer or simple fake
     try:
-        return model.encode(texts, show_progress_bar=True)
+        embeddings = model.encode(texts, show_progress_bar=True)
     except TypeError:
-        return model.encode(texts)
+        embeddings = model.encode(texts)
+
+    if hasattr(embeddings, "tolist"):
+        return embeddings.tolist()
+    return embeddings
+
+
+def _embedding_model_id(model: Any) -> str:
+    return str(getattr(model, "model_id", "unknown-model"))
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +88,11 @@ def parse_args() -> argparse.Namespace:
         "--university",
         default="cam",
         help="University code used in chunk IDs (default: cam)",
+    )
+    parser.add_argument(
+        "--recreate-collection",
+        action="store_true",
+        help="Delete and recreate the collection if it exists",
     )
     return parser.parse_args()
 
@@ -144,7 +169,8 @@ def index_collection(
     chroma_dir: str = DEFAULT_CHROMA_DIR,
     metadata_path: str | None = None,
     university: str = "cam",
-    embedding_model: object | None = None,
+    embedding_model: Any | None = None,
+    recreate_collection: bool = False,
 ) -> None:
     """Index chunk output into ChromaDB and write the media sidecar.
 
@@ -167,62 +193,117 @@ def index_collection(
     documents = [chunk.text.strip() for chunk in chunks]
     embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
 
-    model = (
-        embedding_model
-        if embedding_model is not None
-        else SentenceTransformer(EMBEDDING_MODEL_NAME)
-    )
-    embeddings = _encode_texts(model, embedding_inputs)
-    if hasattr(embeddings, "tolist"):
-        embeddings = embeddings.tolist()
+    owns_embedding_model = embedding_model is None
+    if embedding_model is not None:
+        model = embedding_model
+    else:
+        settings = load_retrieval_provider_settings()
+        model = build_embedding_provider(settings)
 
-    ids = [chunk.id for chunk in chunks]
-    metadatas = [build_metadata(chunk) for chunk in chunks]
-
-    chroma_path = Path(chroma_dir)
-    chroma_path.mkdir(parents=True, exist_ok=True)
-
-    client = chromadb.PersistentClient(path=chroma_dir)
-    collection = client.get_or_create_collection(
-        collection_name,
-        metadata={"hnsw:space": "cosine"},
-    )
-
-    batch_size = 500
-    for start in range(0, len(ids), batch_size):
-        end = start + batch_size
-        collection.upsert(
-            ids=ids[start:end],
-            documents=documents[start:end],
-            embeddings=embeddings[start:end],
-            metadatas=metadatas[start:end],
-        )
-
-    sidecar_path = chroma_path / f"{collection_name}_media_map.json"
-    media_map = build_media_map(chunks)
-    sidecar_json = json.dumps(media_map, indent=2, ensure_ascii=False)
-
-    tmp_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            dir=chroma_path,
-            suffix=".tmp",
-            delete=False,
-            encoding="utf-8",
-        ) as handle:
-            handle.write(sidecar_json)
-            tmp_path = Path(handle.name)
-        tmp_path.replace(sidecar_path)
-    except OSError:
-        if tmp_path is not None and tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
-        logger.exception(
-            "Failed to write media sidecar to %s. ChromaDB upserts succeeded; "
-            "re-run with the same arguments to retry sidecar creation.",
-            sidecar_path,
+        embeddings = _encode_texts(model, embedding_inputs)
+
+        model_id = _embedding_model_id(model)
+
+        ids = [chunk.id for chunk in chunks]
+        metadatas = [build_metadata(chunk) for chunk in chunks]
+
+        chroma_path = Path(chroma_dir)
+        chroma_path.mkdir(parents=True, exist_ok=True)
+
+        client = chromadb.PersistentClient(path=chroma_dir)
+
+        if recreate_collection:
+            try:
+                client.delete_collection(collection_name)
+            except chromadb.errors.NotFoundError:
+                pass
+
+        try:
+            collection = client.get_collection(collection_name)
+        except chromadb.errors.NotFoundError:
+            collection = client.create_collection(
+                collection_name,
+                metadata={
+                    CHROMA_DISTANCE_METADATA_KEY: "cosine",
+                    EMBEDDING_MODEL_METADATA_KEY: model_id,
+                },
+            )
+        else:
+            _ensure_collection_embedding_model(
+                collection=collection,
+                collection_name=collection_name,
+                model_id=model_id,
+            )
+
+        batch_size = 500
+        for start in range(0, len(ids), batch_size):
+            end = start + batch_size
+            collection.upsert(
+                ids=ids[start:end],
+                documents=documents[start:end],
+                embeddings=embeddings[start:end],
+                metadatas=metadatas[start:end],
+            )
+
+        sidecar_path = chroma_path / f"{collection_name}_media_map.json"
+        media_map = build_media_map(chunks)
+        sidecar_json = json.dumps(media_map, indent=2, ensure_ascii=False)
+
+        tmp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=chroma_path,
+                suffix=".tmp",
+                delete=False,
+                encoding="utf-8",
+            ) as handle:
+                handle.write(sidecar_json)
+                tmp_path = Path(handle.name)
+            tmp_path.replace(sidecar_path)
+        except OSError:
+            if tmp_path is not None and tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            logger.exception(
+                "Failed to write media sidecar to %s. ChromaDB upserts succeeded; "
+                "re-run with the same arguments to retry sidecar creation.",
+                sidecar_path,
+            )
+            raise
+    finally:
+        if owns_embedding_model:
+            _close_if_supported(model)
+
+
+def _ensure_collection_embedding_model(
+    *,
+    collection: Any,
+    collection_name: str,
+    model_id: str,
+) -> None:
+    metadata = collection.metadata or {}
+    existing_model_id = metadata.get(EMBEDDING_MODEL_METADATA_KEY)
+    if existing_model_id is None:
+        updated_metadata = dict(metadata)
+        updated_metadata[EMBEDDING_MODEL_METADATA_KEY] = model_id
+        # Chroma rejects updates that include hnsw:space, even unchanged.
+        updated_metadata.pop(CHROMA_DISTANCE_METADATA_KEY, None)
+        collection.modify(metadata=updated_metadata)
+        return
+
+    if existing_model_id != model_id:
+        raise ValueError(
+            f"Collection '{collection_name}' has {EMBEDDING_MODEL_METADATA_KEY} "
+            f"{existing_model_id!r}, but this index run uses {model_id!r}. "
+            "Pass --recreate-collection to overwrite it."
         )
-        raise
+
+
+def _close_if_supported(provider: Any) -> None:
+    close = getattr(provider, "close", None)
+    if callable(close):
+        close()
 
 
 def main() -> None:
@@ -236,6 +317,7 @@ def main() -> None:
             chroma_dir=args.chroma_dir,
             metadata_path=args.metadata,
             university=args.university,
+            recreate_collection=args.recreate_collection,
         )
     except OSError:
         sys.exit(1)

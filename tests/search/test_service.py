@@ -16,15 +16,176 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from src.search.service import CollectionNotFoundError, SearchService
+from src.search.providers.base import EmbeddingResult, RerankResult
+from src.search.service import (
+    CollectionNotFoundError,
+    EmbeddingModelMismatchError,
+    SearchService,
+)
 
 EMBED_DIM = 8
+
+
+def _build_collection(
+    tmp_path: Path,
+    name: str = "test-collection",
+    embedding_model_id: str | None = "test-embedding",
+) -> Path:
+    """Helper to create a populated Chroma collection for tests."""
+    import chromadb
+
+    chroma_dir = tmp_path / "chroma_helper"
+    client = chromadb.PersistentClient(path=str(chroma_dir))
+    metadata = {"hnsw:space": "cosine"}
+    if embedding_model_id:
+        metadata["embedding_model_id"] = embedding_model_id
+    col = client.create_collection(name, metadata=metadata)
+    doc = "A test document about algorithms."
+    col.upsert(
+        ids=["test-1"],
+        documents=[doc],
+        embeddings=[[0.1] * EMBED_DIM],
+        metadatas=[
+            {
+                "chunk_level": "question",
+                "has_code": False,
+                "has_figure": False,
+                "has_table": False,
+                "source_pdf": "test.pdf",
+            }
+        ],
+    )
+    return chroma_dir
+
+
+class _FixedEmbedder:
+    model_id = "voyage-4-lite"
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        return EmbeddingResult(vectors=[[0.1] * EMBED_DIM], model_id=self.model_id)
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        return EmbeddingResult(
+            vectors=[[0.0] * EMBED_DIM for _ in texts], model_id=self.model_id
+        )
+
+
+def test_search_raises_when_collection_metadata_model_differs(tmp_path: Path) -> None:
+    chroma_dir = _build_collection(
+        tmp_path, name="cam-cs-tripos", embedding_model_id="bge-other"
+    )
+    service = SearchService(
+        embedding_model=_FixedEmbedder(),
+        chroma_dir=str(chroma_dir),
+        reranker=None,
+    )
+    with pytest.raises(EmbeddingModelMismatchError) as excinfo:
+        service.search(query="q", collection="cam-cs-tripos", limit=3, rerank=False)
+    assert excinfo.value.expected == "voyage-4-lite"
+    assert excinfo.value.actual == "bge-other"
+
+
+def test_search_warns_when_collection_metadata_missing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    chroma_dir = _build_collection(
+        tmp_path, name="cam-cs-tripos", embedding_model_id=None
+    )
+    service = SearchService(
+        embedding_model=_FixedEmbedder(),
+        chroma_dir=str(chroma_dir),
+        reranker=None,
+    )
+    with caplog.at_level("WARNING"):
+        service.search(query="q", collection="cam-cs-tripos", limit=3, rerank=False)
+    assert any("embedding_model_id" in record.message for record in caplog.records)
+
+
+def test_search_warns_once_when_collection_metadata_missing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    chroma_dir = _build_collection(
+        tmp_path, name="cam-cs-tripos", embedding_model_id=None
+    )
+    service = SearchService(
+        embedding_model=_FixedEmbedder(),
+        chroma_dir=str(chroma_dir),
+        reranker=None,
+    )
+
+    with caplog.at_level("WARNING"):
+        service.search(query="first", collection="cam-cs-tripos", limit=3, rerank=False)
+        service.search(
+            query="second", collection="cam-cs-tripos", limit=3, rerank=False
+        )
+
+    warnings = [
+        record for record in caplog.records if "embedding_model_id" in record.message
+    ]
+    assert len(warnings) == 1
+
+
+def test_search_proceeds_when_collection_metadata_matches(tmp_path: Path) -> None:
+    chroma_dir = _build_collection(
+        tmp_path, name="cam-cs-tripos", embedding_model_id="voyage-4-lite"
+    )
+    service = SearchService(
+        embedding_model=_FixedEmbedder(),
+        chroma_dir=str(chroma_dir),
+        reranker=None,
+    )
+    # This should not raise
+    response = service.search(
+        query="q", collection="cam-cs-tripos", limit=3, rerank=False
+    )
+    assert len(response.results) == 1
+
+
+class _MismatchedReranker:
+    model_id = "bad-rerank"
+
+    def rerank(self, query: str, documents: list[str]) -> RerankResult:
+        # Return only 1 score regardless of documents count
+        return RerankResult(scores=[1.0], model_id=self.model_id)
+
+
+def test_search_raises_on_rerank_score_count_mismatch(tmp_path: Path) -> None:
+    import chromadb
+
+    chroma_dir = tmp_path / "chroma_rerank_mismatch"
+    client = chromadb.PersistentClient(path=str(chroma_dir))
+    col = client.create_collection("test-col")
+    col.upsert(
+        ids=["d1", "d2"],
+        documents=["doc 1", "doc 2"],
+        embeddings=[[0.1] * EMBED_DIM, [0.2] * EMBED_DIM],
+        metadatas=[{"chunk_level": "question"}] * 2,
+    )
+
+    service = SearchService(
+        embedding_model=FakeEmbedder(),
+        chroma_dir=str(chroma_dir),
+        reranker=_MismatchedReranker(),
+    )
+    with pytest.raises(RuntimeError, match="reranker score count must match"):
+        service.search(query="q", collection="test-col", limit=10, rerank=True)
 
 
 class FakeEmbedder:
     """Deterministic embedder that hashes text into a unit vector."""
 
+    model_id = "test-embedding"
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        vec = self._hash_to_vector(text).tolist()
+        return EmbeddingResult(vectors=[vec], model_id=self.model_id)
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        vectors = [self._hash_to_vector(t).tolist() for t in texts]
+        return EmbeddingResult(vectors=vectors, model_id=self.model_id)
+
     def encode(self, text: str | list[str]) -> np.ndarray:
+        """Compatibility method for existing tests using .encode()."""
         if isinstance(text, str):
             return self._hash_to_vector(text)
         return np.array([self._hash_to_vector(t) for t in text])
@@ -41,10 +202,17 @@ class FakeEmbedder:
 class FakeReranker:
     """Deterministic reranker that scores candidate docs from a fixed map."""
 
+    model_id = "test-rerank"
+
     def __init__(self, score_map: dict[str, float]) -> None:
         self.score_map = score_map
 
+    def rerank(self, query: str, documents: list[str]) -> RerankResult:
+        scores = [self.score_map[doc] for doc in documents]
+        return RerankResult(scores=scores, model_id=self.model_id)
+
     def predict(self, pairs: list[tuple[str, str]]) -> np.ndarray:
+        """Compatibility method for existing tests using .predict()."""
         return np.array([self.score_map[doc] for _, doc in pairs], dtype=np.float32)
 
 
@@ -771,6 +939,16 @@ def test_search_allows_limit_above_rerank_cap_when_rerank_disabled(
 
 class FixedQueryEmbedder:
     """Embedder with a fixed query vector for deterministic ranking tests."""
+
+    model_id = "test-fixed-embedding"
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        return EmbeddingResult(vectors=[[1.0, 0.0]], model_id=self.model_id)
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        return EmbeddingResult(
+            vectors=[[1.0, 0.0] for _ in texts], model_id=self.model_id
+        )
 
     def encode(self, text: str | list[str]) -> np.ndarray:
         query_vector = np.array([1.0, 0.0], dtype=np.float32)

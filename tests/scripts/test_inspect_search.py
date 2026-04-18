@@ -23,6 +23,7 @@ from scripts.inspect_search import (
     render_text,
 )
 from src.search.models import SearchResponse, SearchResult
+from src.search.providers.base import EmbeddingResult
 from src.search.service import METADATA_KEYS, CollectionNotFoundError, SearchService
 
 EMBED_DIM = 8
@@ -30,6 +31,20 @@ EMBED_DIM = 8
 
 class ToolTestFakeEmbedder:
     """Deterministic embedder for temporary Chroma integration tests."""
+
+    model_id = "tool-test-embedding"
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        return EmbeddingResult(
+            vectors=[self._hash_to_vector(text).tolist()],
+            model_id=self.model_id,
+        )
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        return EmbeddingResult(
+            vectors=[self._hash_to_vector(item).tolist() for item in texts],
+            model_id=self.model_id,
+        )
 
     def encode(self, text: str | list[str]) -> np.ndarray:
         if isinstance(text, str):
@@ -91,7 +106,7 @@ def _seed_chroma(chroma_dir: Path, embedder: ToolTestFakeEmbedder) -> str:
     client = chromadb.PersistentClient(path=str(chroma_dir))
     collection = client.get_or_create_collection(
         collection_name,
-        metadata={"hnsw:space": "cosine"},
+        metadata={"hnsw:space": "cosine", "embedding_model_id": embedder.model_id},
     )
 
     text = "Binary search trees support logarithmic lookup."
@@ -205,6 +220,10 @@ def test_build_search_payload_passes_filters_to_service() -> None:
         }
     ]
     assert payload["filters"]["topic"] == "Algorithms"
+    assert payload["providers"] == {
+        "embedding_model_id": None,
+        "rerank_model_id": None,
+    }
     assert payload["rerank"] is False
 
 
@@ -233,6 +252,10 @@ def test_build_search_payload_queries_temporary_chroma(
 
     assert payload["query"] == "binary search trees"
     assert payload["collection"] == collection_name
+    assert payload["providers"] == {
+        "embedding_model_id": "tool-test-embedding",
+        "rerank_model_id": None,
+    }
     assert payload["total"] == 1
     assert payload["results"][0]["chunk_id"] == "chunk-1"
     assert payload["results"][0]["text"] == (

@@ -15,7 +15,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.inspect_search import create_real_search_service  # noqa: E402
+from scripts.inspect_search import (  # noqa: E402
+    build_provider_metadata,
+    create_real_search_service,
+)
 from scripts.search_tooling import (  # noqa: E402
     EvalCase,
     load_eval_spec,
@@ -137,6 +140,7 @@ def evaluate_cases(
         "collection": collection,
         "limit": limit,
         "effective_limit": effective_limit,
+        "providers": build_provider_metadata(service),
         "rerank": rerank,
         "case_count": len(case_reports),
         "passed_count": passed_count,
