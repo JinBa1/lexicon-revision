@@ -19,6 +19,8 @@ def validate_key(key: str) -> None:
         raise InvalidKeyError(key)
     if "\\" in key or "\x00" in key:
         raise InvalidKeyError(key)
+    if "//" in key or "/./" in key or key.endswith("/"):
+        raise InvalidKeyError(key)
     if re.search(r"\s", key):
         raise InvalidKeyError(key)
     if "?" in key or "#" in key:

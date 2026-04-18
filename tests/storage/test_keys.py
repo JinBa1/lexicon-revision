@@ -100,6 +100,9 @@ def test_validate_key_accepts_normal_keys() -> None:
         "has#fragment",
         "has\x00null",
         "a" * 1025,
+        "has//double-slash",
+        "has/./dot-segment",
+        "trailing-slash/",
     ],
 )
 def test_validate_key_rejects_bad_keys(bad: str) -> None:
