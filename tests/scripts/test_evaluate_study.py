@@ -26,6 +26,7 @@ from src.study.models import (
     StudyScope,
     StudySource,
 )
+from src.study.planning.models import PlanningMetadata
 
 
 class ToolTestFakeStudyService:
@@ -47,6 +48,7 @@ def _response(
     answer_status: str = "ok",
     context_chunk_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
+    planning: PlanningMetadata | None = None,
 ) -> StudyResponse:
     context_chunk_ids = context_chunk_ids or ["chunk-1"]
     source_ids = source_ids or ["chunk-1"]
@@ -84,6 +86,14 @@ def _response(
             truncated_chunk_ids=[],
             filters_applied={},
             rerank=True,
+        ),
+        planning=planning
+        or PlanningMetadata(
+            status="ok",
+            planner_version="query_planner_v1",
+            original_query=query,
+            semantic_queries=[query],
+            latency_ms=5,
         ),
         generation=GenerationMetadata(
             provider="ollama",
@@ -274,13 +284,69 @@ def test_evaluate_study_cases_runs_each_variant_with_same_scope(
         "questions requiring dp",
     ]
     assert all(call.scope.collection == collection for call in service.calls)
-    assert all(call.filters == {"paper": 1} for call in service.calls)
+    assert all(
+        (call.filters.model_dump(exclude_none=True) if call.filters else {})
+        == {"paper": 1}
+        for call in service.calls
+    )
     assert all(call.top_k == 9 for call in service.calls)
     first = report["cases"][0]["variants"][0]
     assert first["retrieval"]["expected_in_context"] is True
     assert first["retrieval"]["context_chunk_ids"] == ["chunk-1", "chunk-2"]
     assert report["case_count"] == 1
     assert report["variant_count"] == 2
+
+
+def test_report_includes_planning_per_variant(tmp_path: Path) -> None:
+    collection = "cam-cs-tripos-fixture"
+    spec = load_study_eval_spec(
+        _write_eval(
+            tmp_path,
+            {
+                "name": "study_probe",
+                "collection": collection,
+                "cases": [
+                    {
+                        "id": "broad-dp",
+                        "query": "questions on dp",
+                        "expected": {"any_chunk_ids": ["chunk-1"]},
+                    }
+                ],
+            },
+        )
+    )
+    service = ToolTestFakeStudyService(
+        {
+            "questions on dp": _response(
+                query="questions on dp",
+                collection=collection,
+                planning=PlanningMetadata(
+                    status="fallback",
+                    planner_version="query_planner_v1",
+                    original_query="questions on dp",
+                    semantic_queries=["questions on dp"],
+                    error_category="provider_timeout",
+                    latency_ms=100,
+                ),
+            )
+        }
+    )
+
+    report = evaluate_study_cases(
+        service=service,  # type: ignore[arg-type]
+        spec=spec,
+        collection=collection,
+        top_k=9,
+        case_ids=None,
+        variant_ids=None,
+    )
+
+    variant = report["cases"][0]["variants"][0]
+    assert "planning" in variant
+    assert variant["planning"]["status"] == "fallback"
+    assert variant["planning"]["error_category"] == "provider_timeout"
+    assert variant["planning"]["latency_ms"] == 100
+    assert variant["planning"]["semantic_queries"] == ["questions on dp"]
 
 
 def test_render_outputs_group_variants_for_review(tmp_path: Path) -> None:

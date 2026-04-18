@@ -25,6 +25,8 @@ from scripts.search_tooling import SUPPORTED_FILTER_KEYS, truncate_text  # noqa:
 from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import StudyRequest, StudyScope  # noqa: E402
+from src.study.planning.planner import LLMQueryPlanner  # noqa: E402
+from src.study.planning.retrieval import PlannedRetrievalService  # noqa: E402
 from src.study.providers.ollama import OllamaProvider  # noqa: E402
 from src.study.service import StudyService  # noqa: E402
 
@@ -305,7 +307,12 @@ def evaluate_study_cases(
         asyncio.run(_evaluate_case(service, case, collection, top_k, variant_ids))
         for case in selected_cases
     ]
-    variant_count = sum(len(case["variants"]) for case in case_reports)
+    variants = [v for c in case_reports for v in c["variants"]]
+    variant_count = len(variants)
+    fallbacks = [
+        v for v in variants if v.get("planning", {}).get("status") == "fallback"
+    ]
+
     return {
         "name": spec.name,
         "description": spec.description,
@@ -313,6 +320,9 @@ def evaluate_study_cases(
         "top_k": top_k,
         "case_count": len(case_reports),
         "variant_count": variant_count,
+        "planner_fallback_rate": (
+            len(fallbacks) / variant_count if variant_count > 0 else 0
+        ),
         "cases": case_reports,
     }
 
@@ -377,6 +387,12 @@ async def _evaluate_variant(
                 context_chunk_ids, case.any_chunk_ids
             ),
         },
+        "planning": {
+            "status": response.planning.status,
+            "error_category": response.planning.error_category,
+            "latency_ms": response.planning.latency_ms,
+            "semantic_queries": response.planning.semantic_queries,
+        },
         "generation": {
             "provider": response.generation.provider,
             "model": response.generation.model,
@@ -439,6 +455,7 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
         )
         for variant in case["variants"]:
             retrieval = variant["retrieval"]
+            planning = variant.get("planning")
             generation = variant["generation"]
             validation = variant["validation"]
             answer = variant["answer"]
@@ -447,6 +464,16 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
                     "",
                     f"### {variant['id']}",
                     f"Query: `{variant['query']}`",
+                ]
+            )
+            if planning:
+                lines.append(
+                    f"Planning: `{planning['status']}`; "
+                    f"error `{planning['error_category'] or 'none'}`; "
+                    f"latency `{planning['latency_ms']}ms`"
+                )
+            lines.extend(
+                [
                     (
                         f"Retrieval: `{retrieval['status']}`; "
                         f"returned `{retrieval['returned_result_count']}`; "
@@ -529,8 +556,11 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
         max_retries=settings.generation.max_provider_retries,
     )
     provider = RecordingProvider(inner=inner_provider)
+    query_planner = LLMQueryPlanner(provider=provider, settings=settings.planning)
+    planned_retrieval = PlannedRetrievalService(search_service=search_service)
     study_service = StudyService(
-        search_service=search_service,
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
         provider=provider,
         settings=settings,
     )
@@ -598,6 +628,12 @@ async def _evaluate_real_cases(
                             case.any_chunk_ids,
                         ),
                     },
+                    "planning": {
+                        "status": response.planning.status,
+                        "error_category": response.planning.error_category,
+                        "latency_ms": response.planning.latency_ms,
+                        "semantic_queries": response.planning.semantic_queries,
+                    },
                     "generation": payload["generation"],
                     "validation": {
                         **payload["validation"],
@@ -637,13 +673,22 @@ async def _evaluate_real_cases(
             }
         )
 
+    variants = [v for c in case_reports for v in c["variants"]]
+    variant_count = len(variants)
+    fallbacks = [
+        v for v in variants if v.get("planning", {}).get("status") == "fallback"
+    ]
+
     return {
         "name": spec.name,
         "description": spec.description,
         "collection": collection,
         "top_k": top_k,
         "case_count": len(case_reports),
-        "variant_count": sum(len(case["variants"]) for case in case_reports),
+        "variant_count": variant_count,
+        "planner_fallback_rate": (
+            len(fallbacks) / variant_count if variant_count > 0 else 0
+        ),
         "cases": case_reports,
     }
 
