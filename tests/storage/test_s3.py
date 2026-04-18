@@ -9,6 +9,7 @@ from src.storage.base import (
     InvalidKeyError,
     ObjectNotFoundError,
     ObjectStorageAuthError,
+    ObjectStorageConfigError,
     StoredObject,
 )
 from src.storage.s3 import S3ObjectStorage
@@ -26,11 +27,17 @@ def _make_storage() -> tuple[S3ObjectStorage, Stubber]:
     storage = S3ObjectStorage(
         bucket="b",
         endpoint_url="https://example-r2.cloudflarestorage.com",
-        aws_access_key_id="k",
-        aws_secret_access_key="s",
         client=client,
     )
     return storage, stubber
+
+
+def test_init_raises_without_credentials_or_client() -> None:
+    with pytest.raises(ObjectStorageConfigError):
+        S3ObjectStorage(
+            bucket="b",
+            endpoint_url="https://example-r2.cloudflarestorage.com",
+        )
 
 
 def test_put_bytes_calls_put_object_and_returns_hash() -> None:

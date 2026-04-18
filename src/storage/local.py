@@ -96,6 +96,9 @@ class LocalObjectStorage:
         expires_in_seconds: int,
         content_type: str | None = None,
     ) -> PresignedUrl:
+        # content_type is accepted for ObjectStorage protocol compatibility.
+        # Local signed URLs are a dev-only URL-shape stub and do not bind
+        # content_type until the dev upload route exists (9B territory).
         validate_key(key)
         if expires_in_seconds <= 0:
             raise ValueError("expires_in_seconds must be positive")

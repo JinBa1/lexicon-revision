@@ -9,6 +9,7 @@ import botocore.exceptions
 from src.storage.base import (
     ObjectNotFoundError,
     ObjectStorageAuthError,
+    ObjectStorageConfigError,
     ObjectStorageError,
     PresignedUrl,
     StoredObject,
@@ -25,23 +26,27 @@ class S3ObjectStorage:
         bucket: str,
         endpoint_url: str | None = None,
         region_name: str = "auto",
-        aws_access_key_id: str,
-        aws_secret_access_key: str,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
         client: Any | None = None,
     ) -> None:
         self._bucket = bucket
         if client is not None:
             self._client = client
-        else:
-            import boto3
-
-            self._client = boto3.client(
-                "s3",
-                endpoint_url=endpoint_url,
-                region_name=region_name,
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
+            return
+        if not aws_access_key_id or not aws_secret_access_key:
+            raise ObjectStorageConfigError(
+                "S3 credentials are required when client is not provided"
             )
+        import boto3
+
+        self._client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            region_name=region_name,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
 
     def put_bytes(
         self,
