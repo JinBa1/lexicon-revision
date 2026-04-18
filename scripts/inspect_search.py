@@ -14,6 +14,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
+from src.db.config import load_database_settings  # noqa: E402
+from src.search.base import SearchBackend  # noqa: E402
+from src.search.factory import create_search_service  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
     RetrievalProviderSettings,
@@ -26,7 +29,6 @@ from src.search.service import (  # noqa: E402
     DEFAULT_COLLECTION,
     METADATA_KEYS,
     CollectionNotFoundError,
-    SearchService,
 )
 
 
@@ -124,8 +126,8 @@ def create_real_search_service(
     chroma_dir: str,
     rerank: bool,
     reranker_device: str | None = None,
-) -> SearchService:
-    """Create a SearchService backed by configured retrieval providers.
+) -> SearchBackend:
+    """Create a search backend backed by configured retrieval providers.
 
     `reranker_device` accepts "cpu", "cuda", or "auto"/None (let CrossEncoder
     pick). It only affects the local reranker provider.
@@ -140,15 +142,17 @@ def create_real_search_service(
     embedding_model = build_embedding_provider(provider_settings)
     device = None if reranker_device in (None, "auto") else reranker_device
     reranker = build_rerank_provider(provider_settings, device=device)
-    return SearchService(
-        chroma_dir=chroma_dir,
+    db_settings = load_database_settings()
+    return create_search_service(
+        database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
+        chroma_dir=chroma_dir,
     )
 
 
 def build_search_payload(
-    service: SearchService,
+    service: SearchBackend,
     query: str,
     collection: str,
     filters: dict[str, Any],

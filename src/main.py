@@ -6,6 +6,9 @@ from inspect import isawaitable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from src.db.config import load_database_settings
+from src.search.base import SearchBackend
+from src.search.factory import create_search_service
 from src.search.models import SearchResponse
 from src.search.providers.config import (
     build_embedding_provider,
@@ -13,11 +16,9 @@ from src.search.providers.config import (
     load_retrieval_provider_settings,
 )
 from src.search.service import (
-    DEFAULT_CHROMA_DIR,
     DEFAULT_COLLECTION,
     RERANK_CANDIDATE_CAP,
     CollectionNotFoundError,
-    SearchService,
 )
 from src.study.config import load_study_settings
 from src.study.models import StudyRequest, StudyResponse
@@ -40,8 +41,9 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     embedding_model = build_embedding_provider(provider_settings)
     reranker = build_rerank_provider(provider_settings)
 
-    app.state.search_service = SearchService(
-        chroma_dir=DEFAULT_CHROMA_DIR,
+    db_settings = load_database_settings()
+    app.state.search_service = create_search_service(
+        database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
     )
@@ -86,7 +88,7 @@ def _close_if_supported(provider: object | None) -> None:
 
 
 def create_app(
-    search_service: SearchService | None = None,
+    search_service: SearchBackend | None = None,
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
 ) -> FastAPI:
@@ -155,7 +157,7 @@ def create_app(
         if has_table is not None:
             filters["has_table"] = has_table
 
-        service: SearchService = request.app.state.search_service
+        service: SearchBackend = request.app.state.search_service
         if rerank and limit > RERANK_CANDIDATE_CAP:
             raise HTTPException(
                 status_code=422,
