@@ -51,7 +51,7 @@ class QueryPlanDraft(BaseModel):
 class QueryPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    planner_version: Literal["query_planner_v1"] = "query_planner_v1"
+    planner_version: str = Field(default="query_planner_v1", min_length=1)
     original_query: str = Field(min_length=1)
     semantic_queries: list[str] = Field(min_length=1, max_length=1)
 

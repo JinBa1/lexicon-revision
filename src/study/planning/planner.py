@@ -45,6 +45,11 @@ class LLMQueryPlanner:
         self._prompt: PlannerPromptTemplate = load_planner_prompt(
             Path(settings.prompt_path)
         )
+        if self._prompt.version != settings.prompt_version:
+            raise ValueError(
+                "planning.prompt_version must match planner prompt template "
+                f"version: {settings.prompt_version!r} != {self._prompt.version!r}"
+            )
 
     async def plan(
         self,
@@ -69,10 +74,19 @@ class LLMQueryPlanner:
 
         result = await self._provider.generate(request)
         draft = QueryPlanDraft.model_validate_json(result.raw_content)
-        return _build_plan(draft, raw_query)
+        return _build_plan(
+            draft,
+            raw_query,
+            planner_version=self._settings.prompt_version,
+        )
 
 
-def _build_plan(draft: QueryPlanDraft, raw_query: str) -> QueryPlan:
+def _build_plan(
+    draft: QueryPlanDraft,
+    raw_query: str,
+    *,
+    planner_version: str,
+) -> QueryPlan:
     semantic_queries = [query.strip() for query in draft.semantic_queries]
     for query in semantic_queries:
         if not query:
@@ -81,7 +95,11 @@ def _build_plan(draft: QueryPlanDraft, raw_query: str) -> QueryPlan:
             raise InvalidPlanError(
                 f"semantic query exceeds {_MAX_SEMANTIC_QUERY_WORDS} word limit"
             )
-    return QueryPlan(original_query=raw_query, semantic_queries=semantic_queries)
+    return QueryPlan(
+        planner_version=planner_version,
+        original_query=raw_query,
+        semantic_queries=semantic_queries,
+    )
 
 
 def _filters_to_dict(filters: StudyFilters | None) -> dict[str, object]:

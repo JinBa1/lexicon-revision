@@ -65,6 +65,51 @@ async def test_happy_path_builds_server_owned_plan() -> None:
 
 
 @pytest.mark.anyio
+async def test_plan_uses_configured_prompt_version_when_prompt_matches(
+    tmp_path,
+) -> None:
+    prompt_path = tmp_path / "query_planner_custom.yaml"
+    prompt_path.write_text(
+        """
+version: query_planner_custom
+system: Plan one query.
+user: "{{ raw_query }}"
+""",
+        encoding="utf-8",
+    )
+    settings = PlanningSettings(
+        prompt_version="query_planner_custom",
+        prompt_path=str(prompt_path),
+    )
+    provider = FakeProvider({"semantic_queries": ["binary trees"]})
+    planner = LLMQueryPlanner(provider, settings)
+
+    plan = await planner.plan("binary trees", None)
+
+    assert plan.planner_version == "query_planner_custom"
+
+
+def test_prompt_version_must_match_loaded_prompt_template(tmp_path) -> None:
+    prompt_path = tmp_path / "query_planner_custom.yaml"
+    prompt_path.write_text(
+        """
+version: query_planner_custom
+system: Plan one query.
+user: "{{ raw_query }}"
+""",
+        encoding="utf-8",
+    )
+    settings = PlanningSettings(
+        prompt_version="query_planner_wrong",
+        prompt_path=str(prompt_path),
+    )
+    provider = FakeProvider({"semantic_queries": ["binary trees"]})
+
+    with pytest.raises(ValueError, match="planning.prompt_version must match"):
+        LLMQueryPlanner(provider, settings)
+
+
+@pytest.mark.anyio
 async def test_sends_draft_schema_when_provider_supports_json_schema() -> None:
     provider = FakeProvider({"semantic_queries": ["recursion trees"]})
     planner = LLMQueryPlanner(provider, _settings())

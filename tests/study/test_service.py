@@ -674,6 +674,38 @@ async def test_orchestrate_planner_fallback_on_error() -> None:
 
 
 @pytest.mark.anyio
+async def test_orchestrate_planner_fallback_on_unexpected_error() -> None:
+    query_planner = FakeQueryPlanner(RuntimeError("prompt rendering bug"))
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="orig",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["orig"],
+            filters_applied={},
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="orig", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.planning.status == "fallback"
+    assert response.planning.error_category == "provider_error"
+    assert response.planning.semantic_queries == ["orig"]
+    assert planned_retrieval.calls[0]["plan"].semantic_queries == ["orig"]
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     ("planner_error", "expected_category"),
     [

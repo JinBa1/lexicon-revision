@@ -346,15 +346,7 @@ class StudyService:
                 self.settings.planning.total_planning_deadline_seconds
             ):
                 plan = await self.query_planner.plan(raw_query, hard_filters)
-        except (
-            ProviderConnectionError,
-            ProviderTimeoutError,
-            ModelNotAvailableError,
-            ProviderHTTPError,
-            ValidationError,
-            InvalidPlanError,
-            TimeoutError,
-        ) as exc:
+        except Exception as exc:
             fallback_plan = QueryPlan(
                 original_query=raw_query,
                 semantic_queries=[raw_query],
