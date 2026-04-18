@@ -123,11 +123,12 @@ def validate_local_presigned_url(
     *,
     secret: bytes,
     now: float | None = None,
+    base_url: str = "http://localhost:8000/_dev/object",
 ) -> tuple[str, str]:
     if now is None:
         now = time.time()
     try:
-        prefix = "http://localhost:8000/_dev/object/"
+        prefix = f"{base_url.rstrip('/')}/"
         if not url.startswith(prefix):
             raise ObjectStorageAuthError("invalid presigned URL")
         rest = url[len(prefix) :]
@@ -135,6 +136,8 @@ def validate_local_presigned_url(
         if len(parts) < 4:
             raise ObjectStorageAuthError("invalid presigned URL format")
         method, expires_str, sig, encoded_key = parts
+        if method not in {"GET", "PUT"}:
+            raise ObjectStorageAuthError("invalid presigned URL method")
     except (ValueError, IndexError) as exc:
         raise ObjectStorageAuthError("malformed URL") from exc
     try:

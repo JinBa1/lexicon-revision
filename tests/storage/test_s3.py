@@ -168,3 +168,6 @@ class _BodyStub:
 
     def read(self) -> bytes:
         return self._data
+
+    def close(self) -> None:
+        pass

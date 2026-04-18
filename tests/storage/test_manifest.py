@@ -88,6 +88,37 @@ def test_manifest_from_json_rejects_missing_field() -> None:
         ArtifactManifest.from_json(json.dumps(raw))
 
 
+def test_manifest_to_json_rejects_invalid_source_pdf_key() -> None:
+    manifest = ArtifactManifest(
+        conversion_run_id="run-1",
+        paper_id="p",
+        source_pdf_key="../bad/path.pdf",
+        mineru_version="1.0",
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        artifacts=(),
+    )
+    with pytest.raises(ValueError, match="source_pdf_key"):
+        manifest.to_json()
+
+
+def test_manifest_from_json_rejects_invalid_source_pdf_key() -> None:
+    raw = json.loads(_sample().to_json())
+    raw["source_pdf_key"] = "../bad"
+    with pytest.raises(ValueError):
+        ArtifactManifest.from_json(json.dumps(raw))
+
+
+def test_manifest_from_json_normalizes_created_at_to_utc() -> None:
+    from datetime import timedelta
+
+    manifest = _sample()
+    payload = json.loads(manifest.to_json())
+    payload["created_at"] = "2026-04-18T13:00:00+01:00"
+    reloaded = ArtifactManifest.from_json(json.dumps(payload))
+    assert reloaded.created_at.utcoffset() == timedelta(0)
+    assert reloaded.created_at.hour == 12
+
+
 def test_created_at_is_serialized_with_utc_suffix() -> None:
     payload = json.loads(_sample().to_json())
     assert payload["created_at"].endswith("+00:00")

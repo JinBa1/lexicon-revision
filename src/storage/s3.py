@@ -59,7 +59,10 @@ class S3ObjectStorage:
         }
         if content_type is not None:
             params["ContentType"] = content_type
-        self._client.put_object(**params)
+        try:
+            self._client.put_object(**params)
+        except botocore.exceptions.ClientError as exc:
+            raise self._map_error(exc) from exc
         return StoredObject(
             key=key,
             size_bytes=len(data),
@@ -84,7 +87,10 @@ class S3ObjectStorage:
         }
         if content_type is not None:
             params["ContentType"] = content_type
-        self._client.put_object(**params)
+        try:
+            self._client.put_object(**params)
+        except botocore.exceptions.ClientError as exc:
+            raise self._map_error(exc) from exc
         return StoredObject(
             key=key,
             size_bytes=len(data),
@@ -96,7 +102,11 @@ class S3ObjectStorage:
         validate_key(key)
         try:
             resp = self._client.get_object(Bucket=self._bucket, Key=key)
-            return resp["Body"].read()
+            body = resp["Body"]
+            try:
+                return body.read()
+            finally:
+                body.close()
         except botocore.exceptions.ClientError as exc:
             raise self._map_error(exc) from exc
 

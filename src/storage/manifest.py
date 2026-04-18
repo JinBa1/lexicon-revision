@@ -33,6 +33,10 @@ class ArtifactManifest:
         _validate_artifacts(self.artifacts)
         if self.created_at.tzinfo is None:
             raise ValueError("created_at must be timezone-aware")
+        try:
+            validate_key(self.source_pdf_key)
+        except Exception as e:
+            raise ValueError(f"invalid source_pdf_key: {e}") from e
         data = {
             "conversion_run_id": self.conversion_run_id,
             "paper_id": self.paper_id,
@@ -66,13 +70,19 @@ class ArtifactManifest:
             if field not in data:
                 raise ValueError(f"missing field: {field}")
         artifacts = tuple(_parse_artifact(a) for a in data["artifacts"])
+        source_pdf_key = data["source_pdf_key"]
+        try:
+            validate_key(source_pdf_key)
+        except Exception as e:
+            raise ValueError(f"invalid source_pdf_key: {e}") from e
         created_at = datetime.fromisoformat(data["created_at"])
         if created_at.tzinfo is None:
             raise ValueError("created_at must be timezone-aware")
+        created_at = created_at.astimezone(timezone.utc)
         return cls(
             conversion_run_id=data["conversion_run_id"],
             paper_id=data["paper_id"],
-            source_pdf_key=data["source_pdf_key"],
+            source_pdf_key=source_pdf_key,
             mineru_version=data["mineru_version"],
             created_at=created_at,
             artifacts=artifacts,

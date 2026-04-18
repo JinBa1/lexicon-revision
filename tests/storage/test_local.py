@@ -131,3 +131,30 @@ def test_validate_local_presigned_url_rejects_expired(tmp_path: Path) -> None:
     future = time.time() + 3600
     with pytest.raises(ObjectStorageError):
         validate_local_presigned_url(url.url, secret=SECRET, now=future)
+
+
+def test_validate_local_presigned_url_rejects_bad_method() -> None:
+    with pytest.raises(ObjectStorageAuthError, match="method"):
+        validate_local_presigned_url(
+            "http://localhost:8000/_dev/object/DELETE/9999999999/" + "0" * 32 + "/k",
+            secret=SECRET,
+        )
+
+
+def test_validate_local_presigned_url_uses_configured_base_url(
+    tmp_path: Path,
+) -> None:
+    storage = LocalObjectStorage(
+        root=tmp_path,
+        dev_presign_base_url="http://custom-host:9000/prefix",
+        dev_presign_secret=SECRET,
+    )
+    key = "blobs/sha256/aa/aa/" + "a" * 64 + ".pdf"
+    url = storage.presign_get(key, expires_in_seconds=60)
+    method, extracted = validate_local_presigned_url(
+        url.url,
+        secret=SECRET,
+        base_url="http://custom-host:9000/prefix",
+    )
+    assert method == "GET"
+    assert extracted == key
