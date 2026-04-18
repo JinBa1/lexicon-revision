@@ -18,6 +18,8 @@ from src.search.service import (
 )
 from src.study.config import load_study_settings
 from src.study.models import StudyRequest, StudyResponse
+from src.study.planning.planner import LLMQueryPlanner
+from src.study.planning.retrieval import PlannedRetrievalService
 from src.study.providers.ollama import OllamaProvider
 from src.study.service import StudyService
 
@@ -48,8 +50,17 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         max_retries=study_settings.generation.max_provider_retries,
     )
     app.state.generation_provider = generation_provider
-    app.state.study_service = StudyService(
+
+    query_planner = LLMQueryPlanner(
+        provider=generation_provider,
+        settings=study_settings.planning,
+    )
+    planned_retrieval = PlannedRetrievalService(
         search_service=app.state.search_service,
+    )
+    app.state.study_service = StudyService(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
         provider=generation_provider,
         settings=study_settings,
     )

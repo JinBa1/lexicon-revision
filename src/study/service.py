@@ -9,7 +9,6 @@ from typing import Any
 
 from pydantic import ValidationError
 from src.search.models import SearchResponse, SearchResult
-from src.search.service import SearchService
 from src.study.config import StudySettings
 from src.study.models import (
     AnswerStatus,
@@ -33,6 +32,15 @@ from src.study.packing import (
     format_context_blocks,
     pack_chunks,
 )
+from src.study.planning.models import (
+    InvalidPlanError,
+    PlanningErrorCategory,
+    PlanningMetadata,
+    QueryPlan,
+    StudyFilters,
+)
+from src.study.planning.planner import QueryPlanner
+from src.study.planning.retrieval import PlannedRetrievalService
 from src.study.prompts import load_prompt_template
 from src.study.providers.base import (
     GenerationProvider,
@@ -56,11 +64,13 @@ class StudyService:
     def __init__(
         self,
         *,
-        search_service: SearchService,
+        query_planner: QueryPlanner,
+        planned_retrieval: PlannedRetrievalService,
         provider: GenerationProvider,
         settings: StudySettings,
     ) -> None:
-        self.search_service = search_service
+        self.query_planner = query_planner
+        self.planned_retrieval = planned_retrieval
         self.provider = provider
         self.settings = settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
@@ -68,22 +78,29 @@ class StudyService:
     async def orchestrate(self, request: StudyRequest) -> StudyResponse:
         started = time.monotonic()
         request_id = str(uuid.uuid4())
-        filters = _effective_filters(request.filters)
+        hard_filters = request.filters
+        plan, planning_metadata = await self._plan(request.query, hard_filters)
 
         try:
-            search_response = self.search_service.search(
-                query=request.query,
+            retrieval_result = self.planned_retrieval.retrieve(
+                plan,
+                hard_filters=hard_filters,
                 collection=request.scope.collection,
-                filters=filters or None,
                 limit=request.top_k,
                 rerank=True,
             )
+            search_response = retrieval_result.search_response
+            filters = retrieval_result.filters_applied
         except Exception:
             logger.exception(
                 "study_retrieval_failed",
                 extra={
                     "request_id": request_id,
                     "collection": request.scope.collection,
+                    "planning_status": planning_metadata.status,
+                    "planning_error_category": planning_metadata.error_category,
+                    "planner_version": planning_metadata.planner_version,
+                    "planning_latency_ms": planning_metadata.latency_ms,
                 },
             )
             return self._empty_response(
@@ -91,7 +108,8 @@ class StudyService:
                 request_id=request_id,
                 answer_status="retrieval_failed",
                 retrieval_status="error",
-                filters=filters,
+                filters=_filters_to_dict(hard_filters),
+                planning=planning_metadata,
                 latency_ms=_elapsed_ms(started),
             )
 
@@ -103,6 +121,7 @@ class StudyService:
                 answer_status="insufficient_evidence",
                 retrieval_status=retrieval_status,
                 filters=filters,
+                planning=planning_metadata,
                 latency_ms=_elapsed_ms(started),
             )
 
@@ -149,6 +168,7 @@ class StudyService:
                 request_id=request_id,
                 search_response=search_response,
                 retrieval=retrieval,
+                planning=planning_metadata,
                 error_category="context_build_failed",
                 attempt_count=0,
                 latency_ms=_elapsed_ms(started),
@@ -160,6 +180,7 @@ class StudyService:
                 request_id=request_id,
                 search_response=search_response,
                 retrieval=retrieval,
+                planning=planning_metadata,
                 error_category="context_pack_failed",
                 attempt_count=0,
                 latency_ms=_elapsed_ms(started),
@@ -167,6 +188,7 @@ class StudyService:
 
         messages = self._prompt.render(
             query=request.query,
+            retrieval_queries=list(plan.semantic_queries),
             context_blocks=format_context_blocks(packing.chunks),
         )
         generation_request = GenerationRequest(
@@ -210,6 +232,7 @@ class StudyService:
                                 request_id=request_id,
                                 search_response=search_response,
                                 retrieval=retrieval,
+                                planning=planning_metadata,
                                 error_category=_provider_error_category(exc),
                                 attempt_count=attempt_count,
                                 latency_ms=_elapsed_ms(started),
@@ -222,6 +245,7 @@ class StudyService:
                             request_id=request_id,
                             search_response=search_response,
                             retrieval=retrieval,
+                            planning=planning_metadata,
                             error_category="schema_validation_failed",
                             attempt_count=attempt_count,
                             latency_ms=_elapsed_ms(started),
@@ -233,6 +257,7 @@ class StudyService:
                         request_id=request_id,
                         search_response=search_response,
                         retrieval=retrieval,
+                        planning=planning_metadata,
                         error_category=_provider_error_category(exc),
                         attempt_count=attempt_count,
                         latency_ms=_elapsed_ms(started),
@@ -243,6 +268,7 @@ class StudyService:
                 request_id=request_id,
                 search_response=search_response,
                 retrieval=retrieval,
+                planning=planning_metadata,
                 error_category="provider_timeout",
                 attempt_count=attempt_count,
                 latency_ms=_elapsed_ms(started),
@@ -258,6 +284,7 @@ class StudyService:
                 request_id=request_id,
                 search_response=search_response,
                 retrieval=retrieval,
+                planning=planning_metadata,
                 error_category=(
                     validation.error_category or "citation_validation_cascade_failure"
                 ),
@@ -271,6 +298,7 @@ class StudyService:
             request_id=request_id,
             search_response=search_response,
             retrieval=retrieval,
+            planning=planning_metadata,
             generation_result=generation_result,
             validation=validation,
             attempt_count=attempt_count,
@@ -307,6 +335,48 @@ class StudyService:
         except ValidationError:
             return None
 
+    async def _plan(
+        self,
+        raw_query: str,
+        hard_filters: StudyFilters | None,
+    ) -> tuple[QueryPlan, PlanningMetadata]:
+        started = time.monotonic()
+        try:
+            async with asyncio.timeout(
+                self.settings.planning.total_planning_deadline_seconds
+            ):
+                plan = await self.query_planner.plan(raw_query, hard_filters)
+        except (
+            ProviderConnectionError,
+            ProviderTimeoutError,
+            ModelNotAvailableError,
+            ProviderHTTPError,
+            ValidationError,
+            InvalidPlanError,
+            TimeoutError,
+        ) as exc:
+            fallback_plan = QueryPlan(
+                original_query=raw_query,
+                semantic_queries=[raw_query],
+            )
+            return fallback_plan, PlanningMetadata(
+                status="fallback",
+                planner_version=fallback_plan.planner_version,
+                original_query=fallback_plan.original_query,
+                semantic_queries=list(fallback_plan.semantic_queries),
+                error_category=_planning_error_category(exc),
+                latency_ms=_elapsed_ms(started),
+            )
+
+        return plan, PlanningMetadata(
+            status="ok",
+            planner_version=plan.planner_version,
+            original_query=plan.original_query,
+            semantic_queries=list(plan.semantic_queries),
+            error_category=None,
+            latency_ms=_elapsed_ms(started),
+        )
+
     def _empty_response(
         self,
         *,
@@ -315,6 +385,7 @@ class StudyService:
         answer_status: AnswerStatus,
         retrieval_status: RetrievalStatus,
         filters: dict[str, Any],
+        planning: PlanningMetadata,
         latency_ms: int,
     ) -> StudyResponse:
         limitation = (
@@ -344,6 +415,7 @@ class StudyService:
                 filters_applied=filters,
                 rerank=True,
             ),
+            planning=planning,
             generation=GenerationMetadata(
                 provider=self.settings.generation.provider,
                 model=self.settings.generation.model,
@@ -365,6 +437,7 @@ class StudyService:
         request_id: str,
         search_response: SearchResponse,
         retrieval: RetrievalMetadata,
+        planning: PlanningMetadata,
         error_category: ErrorCategory,
         attempt_count: int,
         latency_ms: int,
@@ -382,6 +455,7 @@ class StudyService:
             ),
             sources=_fallback_sources(search_response, retrieval),
             retrieval=retrieval,
+            planning=planning,
             generation=GenerationMetadata(
                 provider=self.settings.generation.provider,
                 model=self.settings.generation.model,
@@ -403,6 +477,7 @@ class StudyService:
         request_id: str,
         search_response: SearchResponse,
         retrieval: RetrievalMetadata,
+        planning: PlanningMetadata,
         generation_result: GenerationResult,
         validation: ValidationResult,
         attempt_count: int,
@@ -440,6 +515,7 @@ class StudyService:
                 if chunk_id in source_map
             ],
             retrieval=retrieval,
+            planning=planning,
             generation=GenerationMetadata(
                 provider=generation_result.provider,
                 model=generation_result.model,
@@ -466,6 +542,10 @@ class StudyService:
                 "packed_chunk_count": len(response.retrieval.context_chunk_ids),
                 "omitted_chunk_count": len(response.retrieval.omitted_chunk_ids),
                 "truncated_chunk_count": len(response.retrieval.truncated_chunk_ids),
+                "planning_status": response.planning.status,
+                "planning_error_category": response.planning.error_category,
+                "planner_version": response.planning.planner_version,
+                "planning_latency_ms": response.planning.latency_ms,
             },
         )
 
@@ -495,10 +575,26 @@ def _provider_error_category(exc: Exception) -> ErrorCategory:
     return "provider_error"
 
 
-def _effective_filters(filters: dict[str, Any] | None) -> dict[str, Any]:
+def _planning_error_category(exc: Exception) -> PlanningErrorCategory:
+    if isinstance(exc, ProviderTimeoutError):
+        return "provider_timeout"
+    if isinstance(exc, TimeoutError):
+        return "planning_deadline_exceeded"
+    if isinstance(exc, ProviderConnectionError):
+        return "provider_unreachable"
+    if isinstance(exc, ModelNotAvailableError):
+        return "model_not_available"
+    if isinstance(exc, ValidationError):
+        return "schema_validation_failed"
+    if isinstance(exc, InvalidPlanError):
+        return "invalid_plan"
+    return "provider_error"
+
+
+def _filters_to_dict(filters: StudyFilters | None) -> dict[str, Any]:
     if not filters:
         return {}
-    return {key: value for key, value in filters.items() if value is not None}
+    return filters.model_dump(exclude_none=True)
 
 
 def _fallback_sources(
