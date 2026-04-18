@@ -43,6 +43,14 @@ class _FakeEmbedder:
         return EmbeddingResult(vectors=[[0.0] * EMBED_DIM], model_id=self.model_id)
 
 
+class _ClosableFakeEmbedder(_FakeEmbedder):
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class FakeEmbedder:
     """Deterministic embedder that hashes text into a unit vector."""
 
@@ -306,3 +314,42 @@ def test_recreate_flag_overwrites_collection_with_new_model_id(tmp_path: Path) -
     )
     collection = client.get_collection("test-coll")
     assert collection.metadata.get("embedding_model_id") == "fake-embed-v1"
+
+
+def test_index_collection_does_not_close_caller_owned_embedding_model(
+    tmp_path: Path,
+) -> None:
+    embedder = _ClosableFakeEmbedder()
+
+    index_collection(
+        mineru_output_dir=MINERU_FIXTURES,
+        chroma_dir=str(tmp_path / "chroma"),
+        collection_name="test-coll",
+        embedding_model=embedder,
+    )
+
+    assert embedder.closed is False
+
+
+def test_index_collection_closes_owned_embedding_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    embedder = _ClosableFakeEmbedder()
+
+    monkeypatch.setattr(
+        "scripts.index_chunks.load_retrieval_provider_settings",
+        lambda: object(),
+    )
+    monkeypatch.setattr(
+        "scripts.index_chunks.build_embedding_provider",
+        lambda settings: embedder,
+    )
+
+    index_collection(
+        mineru_output_dir=MINERU_FIXTURES,
+        chroma_dir=str(tmp_path / "chroma"),
+        collection_name="test-coll",
+    )
+
+    assert embedder.closed is True

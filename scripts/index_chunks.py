@@ -193,83 +193,87 @@ def index_collection(
     documents = [chunk.text.strip() for chunk in chunks]
     embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
 
-    # Model resolution
+    owns_embedding_model = embedding_model is None
     if embedding_model is not None:
         model = embedding_model
     else:
         settings = load_retrieval_provider_settings()
         model = build_embedding_provider(settings)
 
-    embeddings = _encode_texts(model, embedding_inputs)
+    try:
+        embeddings = _encode_texts(model, embedding_inputs)
 
-    model_id = _embedding_model_id(model)
+        model_id = _embedding_model_id(model)
 
-    ids = [chunk.id for chunk in chunks]
-    metadatas = [build_metadata(chunk) for chunk in chunks]
+        ids = [chunk.id for chunk in chunks]
+        metadatas = [build_metadata(chunk) for chunk in chunks]
 
-    chroma_path = Path(chroma_dir)
-    chroma_path.mkdir(parents=True, exist_ok=True)
+        chroma_path = Path(chroma_dir)
+        chroma_path.mkdir(parents=True, exist_ok=True)
 
-    client = chromadb.PersistentClient(path=chroma_dir)
+        client = chromadb.PersistentClient(path=chroma_dir)
 
-    if recreate_collection:
+        if recreate_collection:
+            try:
+                client.delete_collection(collection_name)
+            except chromadb.errors.NotFoundError:
+                pass
+
         try:
-            client.delete_collection(collection_name)
+            collection = client.get_collection(collection_name)
         except chromadb.errors.NotFoundError:
-            pass
+            collection = client.create_collection(
+                collection_name,
+                metadata={
+                    CHROMA_DISTANCE_METADATA_KEY: "cosine",
+                    EMBEDDING_MODEL_METADATA_KEY: model_id,
+                },
+            )
+        else:
+            _ensure_collection_embedding_model(
+                collection=collection,
+                collection_name=collection_name,
+                model_id=model_id,
+            )
 
-    try:
-        collection = client.get_collection(collection_name)
-    except chromadb.errors.NotFoundError:
-        collection = client.create_collection(
-            collection_name,
-            metadata={
-                CHROMA_DISTANCE_METADATA_KEY: "cosine",
-                EMBEDDING_MODEL_METADATA_KEY: model_id,
-            },
-        )
-    else:
-        _ensure_collection_embedding_model(
-            collection=collection,
-            collection_name=collection_name,
-            model_id=model_id,
-        )
+        batch_size = 500
+        for start in range(0, len(ids), batch_size):
+            end = start + batch_size
+            collection.upsert(
+                ids=ids[start:end],
+                documents=documents[start:end],
+                embeddings=embeddings[start:end],
+                metadatas=metadatas[start:end],
+            )
 
-    batch_size = 500
-    for start in range(0, len(ids), batch_size):
-        end = start + batch_size
-        collection.upsert(
-            ids=ids[start:end],
-            documents=documents[start:end],
-            embeddings=embeddings[start:end],
-            metadatas=metadatas[start:end],
-        )
+        sidecar_path = chroma_path / f"{collection_name}_media_map.json"
+        media_map = build_media_map(chunks)
+        sidecar_json = json.dumps(media_map, indent=2, ensure_ascii=False)
 
-    sidecar_path = chroma_path / f"{collection_name}_media_map.json"
-    media_map = build_media_map(chunks)
-    sidecar_json = json.dumps(media_map, indent=2, ensure_ascii=False)
-
-    tmp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            dir=chroma_path,
-            suffix=".tmp",
-            delete=False,
-            encoding="utf-8",
-        ) as handle:
-            handle.write(sidecar_json)
-            tmp_path = Path(handle.name)
-        tmp_path.replace(sidecar_path)
-    except OSError:
-        if tmp_path is not None and tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
-        logger.exception(
-            "Failed to write media sidecar to %s. ChromaDB upserts succeeded; "
-            "re-run with the same arguments to retry sidecar creation.",
-            sidecar_path,
-        )
-        raise
+        tmp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=chroma_path,
+                suffix=".tmp",
+                delete=False,
+                encoding="utf-8",
+            ) as handle:
+                handle.write(sidecar_json)
+                tmp_path = Path(handle.name)
+            tmp_path.replace(sidecar_path)
+        except OSError:
+            if tmp_path is not None and tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            logger.exception(
+                "Failed to write media sidecar to %s. ChromaDB upserts succeeded; "
+                "re-run with the same arguments to retry sidecar creation.",
+                sidecar_path,
+            )
+            raise
+    finally:
+        if owns_embedding_model:
+            _close_if_supported(model)
 
 
 def _ensure_collection_embedding_model(
@@ -294,6 +298,12 @@ def _ensure_collection_embedding_model(
             f"{existing_model_id!r}, but this index run uses {model_id!r}. "
             "Pass --recreate-collection to overwrite it."
         )
+
+
+def _close_if_supported(provider: Any) -> None:
+    close = getattr(provider, "close", None)
+    if callable(close):
+        close()
 
 
 def main() -> None:

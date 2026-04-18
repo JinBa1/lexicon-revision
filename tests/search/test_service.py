@@ -101,6 +101,30 @@ def test_search_warns_when_collection_metadata_missing(
     assert any("embedding_model_id" in record.message for record in caplog.records)
 
 
+def test_search_warns_once_when_collection_metadata_missing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    chroma_dir = _build_collection(
+        tmp_path, name="cam-cs-tripos", embedding_model_id=None
+    )
+    service = SearchService(
+        embedding_model=_FixedEmbedder(),
+        chroma_dir=str(chroma_dir),
+        reranker=None,
+    )
+
+    with caplog.at_level("WARNING"):
+        service.search(query="first", collection="cam-cs-tripos", limit=3, rerank=False)
+        service.search(
+            query="second", collection="cam-cs-tripos", limit=3, rerank=False
+        )
+
+    warnings = [
+        record for record in caplog.records if "embedding_model_id" in record.message
+    ]
+    assert len(warnings) == 1
+
+
 def test_search_proceeds_when_collection_metadata_matches(tmp_path: Path) -> None:
     chroma_dir = _build_collection(
         tmp_path, name="cam-cs-tripos", embedding_model_id="voyage-4-lite"

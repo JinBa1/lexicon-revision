@@ -73,6 +73,7 @@ class SearchService:
         self._embedding_model = embedding_model
         self._reranker = reranker
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        self._metadata_warning_collections: set[str] = set()
 
     @property
     def embedding_model_id(self) -> str:
@@ -111,11 +112,13 @@ class SearchService:
         actual_model_id = (coll_metadata or {}).get("embedding_model_id")
 
         if actual_model_id is None:
-            logger.warning(
-                "Collection '%s' has no 'embedding_model_id' in metadata; "
-                "proceeding without validation",
-                collection,
-            )
+            if collection not in self._metadata_warning_collections:
+                logger.warning(
+                    "Collection '%s' has no 'embedding_model_id' in metadata; "
+                    "proceeding without validation",
+                    collection,
+                )
+                self._metadata_warning_collections.add(collection)
         elif actual_model_id != expected_model_id:
             raise EmbeddingModelMismatchError(
                 collection=collection,
