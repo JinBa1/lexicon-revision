@@ -14,6 +14,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
+from src.db.config import load_database_settings  # noqa: E402
+from src.search.factory import create_search_service  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
     RetrievalProviderSettings,
@@ -140,10 +142,12 @@ def create_real_search_service(
     embedding_model = build_embedding_provider(provider_settings)
     device = None if reranker_device in (None, "auto") else reranker_device
     reranker = build_rerank_provider(provider_settings, device=device)
-    return SearchService(
-        chroma_dir=chroma_dir,
+    db_settings = load_database_settings()
+    return create_search_service(
+        database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
+        chroma_dir=chroma_dir,
     )
 
 

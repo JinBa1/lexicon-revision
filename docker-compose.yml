@@ -25,5 +25,19 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
 
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      # Host PG 14 (5432) and PG 16 (5433) occupy standard ports.
+      # Revert to 5432:5432 when those are stopped/disabled.
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: rag_exam
+      POSTGRES_USER: rag_exam
+      POSTGRES_PASSWORD: rag_exam
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
 volumes:
   chroma_data:
+  postgres_data:
