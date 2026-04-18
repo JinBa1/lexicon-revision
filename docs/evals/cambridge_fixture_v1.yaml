@@ -169,7 +169,7 @@ cases:
     filters:
       year: 2025
       paper: 3
-      question: 4
+      question_number: 4
     expected:
       any_chunk_ids:
         - cam-2025-p3-q4-b

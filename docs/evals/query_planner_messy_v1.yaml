@@ -1,0 +1,74 @@
+name: query_planner_messy_v1
+description: |
+  Messy student queries for A/B comparison of raw vs planned retrieval.
+  Includes a required topic-filter pair to exercise the context-dependent
+  topic-stripping rule.
+collection: cam-cs-tripos-fixture
+default_top_k: 15
+cases:
+  - id: pinpoint-databases
+    purpose: Strips year/paper locators; preserves "databases" as domain term.
+    filters:
+      year: 2025
+      paper: 3
+    expected:
+      any_chunk_ids:
+        - cam-2025-p3-q5
+      any_topics:
+        - Databases
+    variants:
+      - id: messy
+        query: 2025 paper 3 databases outer join thing
+
+  - id: surface-code-oop
+    purpose: Strips has_code surface flag; keeps OOP expansion.
+    filters:
+      has_code: true
+    expected:
+      any_chunk_ids:
+        - cam-2024-p1-q4
+    variants:
+      - id: messy
+        query: show me any past question with code about OOP class hierarchy
+
+  - id: scoped-discrete-maths
+    purpose: Strips paper locator; expands abbreviation.
+    filters:
+      paper: 2
+    expected:
+      any_topics:
+        - Discrete Mathematics
+    variants:
+      - id: messy
+        query: paper 2 discrete maths proof by induction past questions
+
+  - id: concept-virtual-memory
+    purpose: No filters; preserves domain vocabulary with VM expansion.
+    expected:
+      any_chunk_ids:
+        - cam-2025-p2-q4
+      any_topics:
+        - Operating Systems
+    variants:
+      - id: messy
+        query: questions about VM paging and page table PTE stuff
+
+  - id: topic-pair-databases-with-filter
+    purpose: Topic filter set — planner may de-emphasize "databases" label.
+    filters:
+      topic: Databases
+    expected:
+      any_chunk_ids:
+        - cam-2025-p3-q5
+    variants:
+      - id: messy
+        query: past questions on databases outer join
+
+  - id: topic-pair-databases-without-filter
+    purpose: No topic filter — planner must preserve "databases" term.
+    expected:
+      any_chunk_ids:
+        - cam-2025-p3-q5
+    variants:
+      - id: messy
+        query: past questions on databases outer join
