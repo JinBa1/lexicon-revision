@@ -26,16 +26,28 @@ class FakeStudyService:
                 "context_chunk_ids": [],
                 "omitted_chunk_ids": [],
                 "truncated_chunk_ids": [],
-                "filters_applied": request.filters or {},
+                "filters_applied": (
+                    request.filters.model_dump(exclude_none=True)
+                    if request.filters
+                    else {}
+                ),
                 "rerank": True,
             },
             generation={
                 "provider": "ollama",
                 "model": "qwen2.5:7b-instruct",
-                "prompt_version": "study_aid_v1",
+                "prompt_version": "study_aid_v2",
                 "temperature": 0.1,
                 "attempt_count": 0,
                 "citation_drops": 0,
+                "error_category": None,
+                "latency_ms": 0,
+            },
+            planning={
+                "status": "ok",
+                "planner_version": "query_planner_v1",
+                "original_query": request.query,
+                "semantic_queries": [request.query],
                 "error_category": None,
                 "latency_ms": 0,
             },
@@ -92,7 +104,8 @@ async def test_post_study_returns_response() -> None:
         )
 
     assert response.status_code == 200
-    assert response.json()["schema_version"] == "study_answer_v1"
+    assert response.json()["schema_version"] == "study_answer_v2"
+    assert "planning" in response.json()
     assert study_service.requests[0].query == "dynamic programming"
 
 
@@ -116,6 +129,44 @@ async def test_post_study_rejects_bad_top_k() -> None:
                 "query": "dynamic programming",
                 "scope": {"collection": "cam-cs-tripos"},
                 "top_k": 51,
+            },
+        )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "bad_filters",
+    [
+        {"year": "2025"},  # String instead of int
+        {"has_code": "true"},  # String instead of bool
+        {"unknown_field": 1},
+        {"question": 4},  # Legacy/Unknown key
+        {"topic": ""},
+        {"topic": "  "},  # Blank topic (min_length=1)
+        {"topic": 123},
+    ],
+)
+async def test_post_study_rejects_invalid_filters(bad_filters: dict) -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "q",
+                "scope": {"collection": "cam-cs-tripos"},
+                "filters": bad_filters,
             },
         )
 

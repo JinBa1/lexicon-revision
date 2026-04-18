@@ -12,9 +12,16 @@ class PromptTemplate(BaseModel):
     system: str
     user: str
 
-    def render(self, *, query: str, context_blocks: str) -> list[dict[str, str]]:
+    def render(
+        self,
+        *,
+        query: str,
+        retrieval_queries: list[str],
+        context_blocks: str,
+    ) -> list[dict[str, str]]:
         user_content = Template(self.user).render(
             query=query,
+            retrieval_queries=retrieval_queries,
             context_blocks=context_blocks,
         )
         return [

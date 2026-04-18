@@ -116,12 +116,28 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
-def create_real_search_service(chroma_dir: str, rerank: bool) -> SearchService:
-    """Create a SearchService backed by real sentence-transformer models."""
+def create_real_search_service(
+    chroma_dir: str,
+    rerank: bool,
+    reranker_device: str | None = None,
+) -> SearchService:
+    """Create a SearchService backed by real sentence-transformer models.
+
+    `reranker_device` accepts "cpu", "cuda", or "auto"/None (let CrossEncoder
+    pick). Used to keep GPU off the reranker when Ollama owns the GPU.
+    """
     from sentence_transformers import CrossEncoder, SentenceTransformer
 
     embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    reranker = CrossEncoder(RERANKER_MODEL_NAME) if rerank else None
+    if rerank:
+        device = None if reranker_device in (None, "auto") else reranker_device
+        reranker = (
+            CrossEncoder(RERANKER_MODEL_NAME, device=device)
+            if device is not None
+            else CrossEncoder(RERANKER_MODEL_NAME)
+        )
+    else:
+        reranker = None
     return SearchService(
         chroma_dir=chroma_dir,
         embedding_model=embedding_model,

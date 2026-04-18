@@ -9,6 +9,7 @@ data/
 .codex
 AGENTS.md
 CLAUDE.md
+GEMINI.md
 PLAN.md
 Project Outline.md
 docs/
@@ -16,6 +17,7 @@ plans/
 scripts/audit-architecture.sh
 skills/
 .claude/
+.agents/
 config/study.local.yaml
 reports/study/
 config/study-profiles/
@@ -36,3 +38,4 @@ tests/data/mineru_fixtures/**/*_span.pdf
 tests/data/mineru_fixtures/**/*_middle.json
 tests/data/mineru_fixtures/**/*_model.json
 tests/data/mineru_fixtures/**/*_content_list_v2.json
+.omx/

@@ -18,6 +18,7 @@ from src.study.models import (
     StudySource,
     ValidationResult,
 )
+from src.study.planning.models import PlanningMetadata, StudyFilters
 
 
 def test_study_request_defaults_and_scope_shape() -> None:
@@ -29,7 +30,38 @@ def test_study_request_defaults_and_scope_shape() -> None:
 
     assert request.top_k == 15
     assert request.scope == StudyScope(collection="cam-cs-tripos")
-    assert request.filters == {"year": 2023, "paper": 2}
+    assert request.filters == StudyFilters(year=2023, paper=2)
+
+
+def test_study_request_accepts_typed_filters() -> None:
+    request = StudyRequest(
+        query="dynamic programming",
+        scope=StudyScope(collection="cam-cs-tripos"),
+        filters=StudyFilters(year=2024, has_code=True),
+    )
+
+    assert request.filters is not None
+    assert request.filters.year == 2024
+    assert request.filters.has_code is True
+
+
+def test_study_request_coerces_dict_payload_to_study_filters() -> None:
+    request = StudyRequest.model_validate(
+        {"query": "q", "scope": {"collection": "c"}, "filters": {"year": 2024}}
+    )
+
+    assert isinstance(request.filters, StudyFilters)
+    assert request.filters.year == 2024
+
+
+def test_study_request_rejects_unknown_filter_key() -> None:
+    try:
+        StudyRequest.model_validate(
+            {"query": "q", "scope": {"collection": "c"}, "filters": {"question": 4}}
+        )
+    except ValidationError:
+        return
+    raise AssertionError("unknown filter key should have been rejected")
 
 
 def test_study_request_rejects_top_k_out_of_range() -> None:
@@ -142,7 +174,7 @@ def test_final_study_response_allows_null_why_cited() -> None:
     )
 
     response = StudyResponse(
-        schema_version="study_answer_v1",
+        schema_version="study_answer_v2",
         request_id="8c6f3d2f-4f95-4d64-9c5e-8f75b5e4ce9d",
         query="dynamic programming",
         scope=StudyScope(collection="cam-cs-tripos"),
@@ -164,6 +196,14 @@ def test_final_study_response_allows_null_why_cited() -> None:
             filters_applied={"year": 2023},
             rerank=True,
         ),
+        planning=PlanningMetadata(
+            status="ok",
+            planner_version="query_planner_v1",
+            original_query="dynamic programming",
+            semantic_queries=["dynamic programming"],
+            error_category=None,
+            latency_ms=0,
+        ),
         generation=GenerationMetadata(
             provider="ollama",
             model="qwen2.5:7b-instruct",
@@ -181,6 +221,94 @@ def test_final_study_response_allows_null_why_cited() -> None:
     assert response.sources[0].paper is None
     assert response.sources[0].question_ref is None
     assert response.sources[0].topic is None
+
+
+def test_study_response_defaults_to_schema_version_v2() -> None:
+    response = StudyResponse(
+        request_id="8c6f3d2f-4f95-4d64-9c5e-8f75b5e4ce9d",
+        query="q",
+        scope=StudyScope(collection="c"),
+        answer_status="ok",
+        answer=StudyAnswer(
+            overview="Valid overview.",
+            patterns=[],
+            limitations=[],
+        ),
+        sources=[],
+        retrieval=RetrievalMetadata(
+            status="ok",
+            top_k=15,
+            returned_result_count=0,
+            context_budget_tokens=4000,
+            context_chunk_ids=[],
+            omitted_chunk_ids=[],
+            truncated_chunk_ids=[],
+            filters_applied={},
+            rerank=True,
+        ),
+        planning=PlanningMetadata(
+            status="ok",
+            planner_version="query_planner_v1",
+            original_query="q",
+            semantic_queries=["q"],
+            error_category=None,
+            latency_ms=0,
+        ),
+        generation=GenerationMetadata(
+            provider="ollama",
+            model="qwen2.5:7b-instruct",
+            prompt_version="study_aid_v1",
+            temperature=0.1,
+            attempt_count=1,
+            citation_drops=0,
+            error_category=None,
+            latency_ms=4213,
+        ),
+    )
+
+    assert response.schema_version == "study_answer_v2"
+
+
+def test_study_response_requires_planning_field() -> None:
+    response_payload = {
+        "request_id": "8c6f3d2f-4f95-4d64-9c5e-8f75b5e4ce9d",
+        "query": "q",
+        "scope": {"collection": "c"},
+        "answer_status": "ok",
+        "answer": {
+            "overview": "Valid overview.",
+            "patterns": [],
+            "limitations": [],
+        },
+        "sources": [],
+        "retrieval": {
+            "status": "ok",
+            "top_k": 15,
+            "returned_result_count": 0,
+            "context_budget_tokens": 4000,
+            "context_chunk_ids": [],
+            "omitted_chunk_ids": [],
+            "truncated_chunk_ids": [],
+            "filters_applied": {},
+            "rerank": True,
+        },
+        "generation": {
+            "provider": "ollama",
+            "model": "qwen2.5:7b-instruct",
+            "prompt_version": "study_aid_v1",
+            "temperature": 0.1,
+            "attempt_count": 1,
+            "citation_drops": 0,
+            "error_category": None,
+            "latency_ms": 4213,
+        },
+    }
+
+    try:
+        StudyResponse.model_validate(response_payload)
+    except ValidationError:
+        return
+    raise AssertionError("planning field should be required")
 
 
 def test_support_models_are_constructible() -> None:

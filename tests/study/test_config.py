@@ -13,7 +13,8 @@ def test_load_study_settings_uses_defaults_when_files_missing(tmp_path: Path) ->
     assert settings.generation.request_timeout_seconds == 60
     assert settings.context.retrieval_top_k_default == 15
     assert settings.context.budget_tokens == 4000
-    assert settings.prompt.version == "study_aid_v1"
+    assert settings.prompt.version == "study_aid_v2"
+    assert settings.prompt.path == "prompts/study_aid_v2.yaml"
 
 
 def test_load_study_settings_merges_yaml_then_local_then_env(
@@ -60,6 +61,29 @@ def test_load_study_settings_ignores_unknown_env_namespaces(
 
     assert settings.generation.model == "qwen2.5:7b-instruct"
     assert settings.context.budget_tokens == 2500
+
+
+def test_load_study_settings_has_planning_defaults(tmp_path: Path) -> None:
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.planning.temperature == 0.0
+    assert settings.planning.request_timeout_seconds == 15
+    assert settings.planning.total_planning_deadline_seconds == 20
+    assert settings.planning.prompt_version == "query_planner_v1"
+    assert settings.planning.prompt_path == "prompts/query_planner_v1.yaml"
+
+
+def test_load_study_settings_applies_planning_env_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PLANNING__REQUEST_TIMEOUT_SECONDS", "5")
+    monkeypatch.setenv("PLANNING__PROMPT_VERSION", "query_planner_v1_custom")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.planning.request_timeout_seconds == 5
+    assert settings.planning.prompt_version == "query_planner_v1_custom"
 
 
 def test_env_overrides_keeps_only_known_settings_namespaces(monkeypatch) -> None:

@@ -32,6 +32,7 @@ from src.study.models import (  # noqa: E402
     StudyResponse,
     StudyScope,
 )
+from src.study.planning.models import QueryPlanDraft  # noqa: E402
 from src.study.providers.base import GeneratorHealth  # noqa: E402
 from src.study.providers.ollama import OllamaProvider  # noqa: E402
 from src.study.service import StudyService  # noqa: E402
@@ -42,6 +43,16 @@ class _RecordedInteraction:
     request: GenerationRequest
     result: GenerationResult | None
     error: str | None
+    kind: str  # "planner" | "generation"
+
+
+def _classify_schema(schema: dict[str, object] | None) -> str:
+    if not schema:
+        return "generation"
+    title = schema.get("title") if isinstance(schema, dict) else None
+    if isinstance(title, str) and title == "QueryPlanDraft":
+        return "planner"
+    return "generation"
 
 
 @dataclass
@@ -56,15 +67,18 @@ class RecordingProvider:
         return self.inner.capabilities
 
     async def generate(self, request: GenerationRequest) -> GenerationResult:
+        kind = _classify_schema(request.response_schema)
         try:
             result = await self.inner.generate(request)
         except Exception as exc:
             self.interactions.append(
-                _RecordedInteraction(request=request, result=None, error=repr(exc))
+                _RecordedInteraction(
+                    request=request, result=None, error=repr(exc), kind=kind
+                )
             )
             raise
         self.interactions.append(
-            _RecordedInteraction(request=request, result=result, error=None)
+            _RecordedInteraction(request=request, result=result, error=None, kind=kind)
         )
         return result
 
@@ -146,6 +160,31 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional path to an alternate study settings YAML directory",
     )
+    parser.add_argument(
+        "--no-planning",
+        action="store_true",
+        help="Bypass LLM query planning and retrieve with the raw query",
+    )
+    rerank_group = parser.add_mutually_exclusive_group()
+    rerank_group.add_argument(
+        "--rerank",
+        dest="rerank",
+        action="store_true",
+        help="Apply cross-encoder reranking (default)",
+    )
+    rerank_group.add_argument(
+        "--no-rerank",
+        dest="rerank",
+        action="store_false",
+        help="Disable cross-encoder reranking (avoid GPU contention with Ollama)",
+    )
+    parser.set_defaults(rerank=True)
+    parser.add_argument(
+        "--reranker-device",
+        choices=["cpu", "cuda", "auto"],
+        default="auto",
+        help="Device for the cross-encoder reranker (default: auto)",
+    )
     return parser.parse_args()
 
 
@@ -170,28 +209,38 @@ async def _run_orchestration(
         await provider.aclose()
 
 
-def _parse_attempt_draft(raw_content: str) -> tuple[dict[str, Any] | None, str | None]:
+def _parse_attempt_draft(
+    raw_content: str, kind: str
+) -> tuple[dict[str, Any] | None, str | None]:
     try:
-        draft = StudyAnswerDraft.model_validate_json(raw_content)
+        if kind == "planner":
+            draft = QueryPlanDraft.model_validate_json(raw_content)
+        else:
+            draft = StudyAnswerDraft.model_validate_json(raw_content)
     except Exception as exc:
         return None, str(exc)
     return draft.model_dump(), None
 
 
-def _attempt_payload(interaction: _RecordedInteraction, *, kind: str) -> dict[str, Any]:
+def _attempt_payload(
+    interaction: _RecordedInteraction, *, kind: str | None = None
+) -> dict[str, Any]:
     result = interaction.result
+    display_kind = kind or interaction.kind
     if result is None:
         return {
-            "kind": kind,
+            "kind": display_kind,
             "latency_ms": None,
             "raw_content": None,
             "parsed_draft": None,
             "parse_error": None,
             "provider_error": interaction.error,
         }
-    parsed_draft, parse_error = _parse_attempt_draft(result.raw_content)
+    parsed_draft, parse_error = _parse_attempt_draft(
+        result.raw_content, interaction.kind
+    )
     return {
-        "kind": kind,
+        "kind": display_kind,
         "latency_ms": result.latency_ms,
         "raw_content": result.raw_content,
         "parsed_draft": parsed_draft,
@@ -230,20 +279,27 @@ def build_payload(
 ) -> dict[str, Any]:
     """Assemble the stable machine-readable payload."""
     response_dump = response.model_dump()
-    attempts: list[dict[str, Any]] = []
-    if interactions:
-        attempts.append(_attempt_payload(interactions[0], kind="primary"))
-        for interaction in interactions[1:]:
-            attempts.append(_attempt_payload(interaction, kind="repair"))
+
+    planner_interactions = [i for i in interactions if i.kind == "planner"]
+    generation_interactions = [i for i in interactions if i.kind == "generation"]
+
+    planner_attempts = [_attempt_payload(i) for i in planner_interactions]
+    gen_attempts: list[dict[str, Any]] = []
+    if generation_interactions:
+        gen_attempts.append(
+            _attempt_payload(generation_interactions[0], kind="primary")
+        )
+        for interaction in generation_interactions[1:]:
+            gen_attempts.append(_attempt_payload(interaction, kind="repair"))
 
     prompt_messages: list[dict[str, Any]] = []
-    if interactions:
+    if generation_interactions:
         prompt_messages = [
-            dict(message) for message in interactions[0].request.messages
+            dict(message) for message in generation_interactions[0].request.messages
         ]
 
     final_source_ids = [source["chunk_id"] for source in response_dump["sources"]]
-    last_draft = attempts[-1]["parsed_draft"] if attempts else None
+    last_draft = gen_attempts[-1]["parsed_draft"] if gen_attempts else None
     draft_referenced_ids = _cited_chunk_ids_from_draft(last_draft)
     dropped_chunk_ids = [
         chunk_id
@@ -253,6 +309,8 @@ def build_payload(
 
     retrieval = response_dump["retrieval"]
     generation = response_dump["generation"]
+    planning = response_dump["planning"]
+    planning["attempts"] = planner_attempts
 
     return {
         "query": query,
@@ -266,6 +324,7 @@ def build_payload(
             "omitted_chunk_ids": retrieval["omitted_chunk_ids"],
             "truncated_chunk_ids": retrieval["truncated_chunk_ids"],
         },
+        "planning": planning,
         "prompt": {
             "version": prompt_version,
             "messages": prompt_messages,
@@ -275,7 +334,7 @@ def build_payload(
             "model": generation["model"],
             "temperature": generation["temperature"],
             "attempt_count": generation["attempt_count"],
-            "attempts": attempts,
+            "attempts": gen_attempts,
             "error_category": generation["error_category"],
             "latency_ms": generation["latency_ms"],
         },
@@ -333,6 +392,31 @@ def render_text(
         lines.append(f"  Omitted: {retrieval['omitted_chunk_ids']}")
     if retrieval["truncated_chunk_ids"]:
         lines.append(f"  Truncated: {retrieval['truncated_chunk_ids']}")
+
+    planning = payload.get("planning")
+    if planning:
+        lines.append("")
+        lines.append(
+            f"Planning [{planning['status']} {planning['planner_version']}]: "
+            f"queries={planning['semantic_queries']} "
+            f"latency_ms={planning['latency_ms']}"
+        )
+        if planning.get("error_category"):
+            lines.append(f"  error_category: {planning['error_category']}")
+        lines.append(f"  original_query: {planning.get('original_query')}")
+        for index, attempt in enumerate(planning.get("attempts", []), start=1):
+            header = f"  Attempt {index} (planner): latency_ms={attempt['latency_ms']}"
+            if attempt["provider_error"]:
+                header = f"{header} provider_error={attempt['provider_error']}"
+            if attempt["parse_error"]:
+                header = f"{header} parse_error=yes"
+            lines.append(header)
+            if show_raw and attempt["raw_content"] is not None:
+                preview = truncate_text(attempt["raw_content"], max_text_chars * 4)
+                for content_line in preview.splitlines() or [""]:
+                    lines.append(f"    {content_line}")
+            if attempt["parse_error"]:
+                lines.append(f"    parse_error: {attempt['parse_error']}")
 
     if show_context:
         lines.append("")
@@ -465,15 +549,31 @@ def main() -> None:
         )
         top_k = args.top_k or settings.context.retrieval_top_k_default
 
-        search_service = create_real_search_service(args.chroma_dir, rerank=True)
+        search_service = create_real_search_service(
+            args.chroma_dir,
+            rerank=args.rerank,
+            reranker_device=args.reranker_device,
+        )
         inner_provider = OllamaProvider(
             base_url=settings.generation.base_url,
             model=settings.generation.model,
             max_retries=settings.generation.max_provider_retries,
         )
         provider = RecordingProvider(inner=inner_provider)
+
+        from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner
+        from src.study.planning.retrieval import PlannedRetrievalService
+
+        query_planner = (
+            RawQueryPlanner()
+            if args.no_planning
+            else LLMQueryPlanner(provider=provider, settings=settings.planning)
+        )
+        planned_retrieval = PlannedRetrievalService(search_service=search_service)
+
         study_service = StudyService(
-            search_service=search_service,
+            query_planner=query_planner,
+            planned_retrieval=planned_retrieval,
             provider=provider,
             settings=settings,
         )

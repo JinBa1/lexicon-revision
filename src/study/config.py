@@ -8,7 +8,7 @@ import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ENV_OVERRIDE_NAMESPACES = {"generation", "context", "prompt"}
+ENV_OVERRIDE_NAMESPACES = {"generation", "context", "prompt", "planning"}
 
 
 class GenerationSettings(BaseModel):
@@ -29,8 +29,16 @@ class ContextSettings(BaseModel):
 
 
 class PromptSettings(BaseModel):
-    version: str = "study_aid_v1"
-    path: str = "prompts/study_aid_v1.yaml"
+    version: str = "study_aid_v2"
+    path: str = "prompts/study_aid_v2.yaml"
+
+
+class PlanningSettings(BaseModel):
+    temperature: float = 0.0
+    request_timeout_seconds: float = 15
+    total_planning_deadline_seconds: float = 20
+    prompt_version: str = "query_planner_v1"
+    prompt_path: str = "prompts/query_planner_v1.yaml"
 
 
 class StudySettings(BaseSettings):
@@ -43,6 +51,7 @@ class StudySettings(BaseSettings):
     generation: GenerationSettings = Field(default_factory=GenerationSettings)
     context: ContextSettings = Field(default_factory=ContextSettings)
     prompt: PromptSettings = Field(default_factory=PromptSettings)
+    planning: PlanningSettings = Field(default_factory=PlanningSettings)
 
 
 def load_study_settings(config_dir: Path = Path("config")) -> StudySettings:
