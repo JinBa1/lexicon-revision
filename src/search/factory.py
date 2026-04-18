@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import Engine
 from src.db.config import DatabaseSettings, create_database_engine
+from src.search.base import SearchBackend
 from src.search.pg_repository import PgSearchRepository
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingProvider, RerankProvider
@@ -15,7 +16,7 @@ def create_search_service(
     reranker: RerankProvider | None,
     chroma_dir: str = DEFAULT_CHROMA_DIR,
     engine: Engine | None = None,
-) -> SearchService | PgSearchService:
+) -> SearchBackend:
     if database_settings.retrieval_backend == "chroma":
         return SearchService(
             embedding_model=embedding_model,

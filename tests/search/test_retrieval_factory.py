@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 from src.db.config import DatabaseSettings
+from src.search.base import SearchBackend
 from src.search.factory import create_search_service
 from src.search.service import SearchService
 
@@ -26,6 +27,7 @@ def test_factory_returns_chroma_service_for_chroma_backend(tmp_path) -> None:
     )
 
     assert isinstance(service, SearchService)
+    assert isinstance(service, SearchBackend)
 
 
 def test_factory_rejects_unknown_backend(tmp_path) -> None:
@@ -55,3 +57,4 @@ def test_factory_returns_postgres_service_for_postgres_backend(tmp_path) -> None
     )
 
     assert isinstance(service, PgSearchService)
+    assert isinstance(service, SearchBackend)

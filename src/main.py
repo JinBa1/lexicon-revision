@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from src.db.config import load_database_settings
+from src.search.base import SearchBackend
 from src.search.factory import create_search_service
 from src.search.models import SearchResponse
 from src.search.providers.config import (
@@ -18,7 +19,6 @@ from src.search.service import (
     DEFAULT_COLLECTION,
     RERANK_CANDIDATE_CAP,
     CollectionNotFoundError,
-    SearchService,
 )
 from src.study.config import load_study_settings
 from src.study.models import StudyRequest, StudyResponse
@@ -88,7 +88,7 @@ def _close_if_supported(provider: object | None) -> None:
 
 
 def create_app(
-    search_service: SearchService | None = None,
+    search_service: SearchBackend | None = None,
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
 ) -> FastAPI:
@@ -157,7 +157,7 @@ def create_app(
         if has_table is not None:
             filters["has_table"] = has_table
 
-        service: SearchService = request.app.state.search_service
+        service: SearchBackend = request.app.state.search_service
         if rerank and limit > RERANK_CANDIDATE_CAP:
             raise HTTPException(
                 status_code=422,

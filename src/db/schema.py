@@ -108,7 +108,7 @@ chunk_embeddings = Table(
     metadata,
     Column(
         "chunk_id",
-        Text,
+        String,
         ForeignKey("chunks.id"),
         nullable=False,
     ),

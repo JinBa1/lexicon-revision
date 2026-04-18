@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import String
 from src.db.schema import chunk_embeddings, chunks, collections, metadata, papers
 
 
@@ -52,6 +53,10 @@ def test_chunks_use_internal_primary_key_with_collection_scoped_chunk_ids() -> N
 def test_chunk_embeddings_primary_key() -> None:
     pk_columns = {column.name for column in chunk_embeddings.primary_key.columns}
     assert pk_columns == {"chunk_id", "embedding_model_id"}
+
+
+def test_chunk_embeddings_chunk_id_matches_chunks_id_type() -> None:
+    assert type(chunk_embeddings.c.chunk_id.type) is String
 
 
 def test_papers_unique_collection_source_pdf_constraint() -> None:

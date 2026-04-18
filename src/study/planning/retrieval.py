@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.search.service import SearchService
+from src.search.base import SearchBackend
 from src.study.planning.models import PlannedRetrievalResult, QueryPlan, StudyFilters
 
 
 class PlannedRetrievalService:
-    def __init__(self, *, search_service: SearchService) -> None:
+    def __init__(self, *, search_service: SearchBackend) -> None:
         self._search_service = search_service
 
     def retrieve(

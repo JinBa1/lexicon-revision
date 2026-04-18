@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,7 @@ from src.search.models import SearchResponse
 from src.search.pg_repository import PgChunkRow
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingResult, RerankResult
-from src.search.service import CollectionNotFoundError
+from src.search.service import DEFAULT_COLLECTION, CollectionNotFoundError
 
 
 class _Embedder:
@@ -65,6 +66,20 @@ def test_pg_search_service_returns_search_response() -> None:
     assert response.results[0].chunk_id == "cam-1"
     assert repo.calls[0]["embedding_model_id"] == "fake-v1"
     assert repo.calls[0]["embedding_dimension"] == 2
+
+
+def test_pg_search_service_uses_default_collection_constant() -> None:
+    repo = _Repo()
+    service = PgSearchService(
+        repository=repo,
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    service.search("q", filters={}, limit=3, rerank=False)
+
+    assert repo.calls[0]["collection_name"] == DEFAULT_COLLECTION
 
 
 def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
@@ -168,3 +183,56 @@ def test_pg_search_service_propagates_missing_collection() -> None:
 
     with pytest.raises(CollectionNotFoundError, match="missing"):
         service.search("q", collection="missing", filters={}, limit=2, rerank=False)
+
+
+class _InvalidChunkLevelRepo:
+    def search(self, **kwargs):
+        return [
+            PgChunkRow(
+                chunk_id="bad-1",
+                chunk_level="part",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="bad row",
+                score=0.8,
+                metadata={
+                    "chunk_level": "part",
+                    "source_pdf": "bad.pdf",
+                    "has_code": False,
+                    "has_figure": False,
+                    "has_table": False,
+                },
+            ),
+            PgChunkRow(
+                chunk_id="good-1",
+                chunk_level="question",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="good row",
+                score=0.7,
+                metadata={
+                    "chunk_level": "question",
+                    "source_pdf": "good.pdf",
+                    "has_code": False,
+                    "has_figure": False,
+                    "has_table": False,
+                },
+            ),
+        ]
+
+
+def test_pg_search_service_skips_invalid_chunk_level(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = PgSearchService(
+        repository=_InvalidChunkLevelRepo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = service.search("q", collection="fixture", filters={}, limit=5)
+
+    assert [result.chunk_id for result in response.results] == ["good-1"]
+    assert any("chunk_level" in record.message for record in caplog.records)

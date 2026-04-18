@@ -112,7 +112,7 @@ def upgrade() -> None:
         "chunk_embeddings",
         sa.Column(
             "chunk_id",
-            sa.Text,
+            sa.String,
             sa.ForeignKey("chunks.id"),
             nullable=False,
         ),

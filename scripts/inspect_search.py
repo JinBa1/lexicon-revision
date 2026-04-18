@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
 from src.db.config import load_database_settings  # noqa: E402
+from src.search.base import SearchBackend  # noqa: E402
 from src.search.factory import create_search_service  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
@@ -28,7 +29,6 @@ from src.search.service import (  # noqa: E402
     DEFAULT_COLLECTION,
     METADATA_KEYS,
     CollectionNotFoundError,
-    SearchService,
 )
 
 
@@ -126,8 +126,8 @@ def create_real_search_service(
     chroma_dir: str,
     rerank: bool,
     reranker_device: str | None = None,
-) -> SearchService:
-    """Create a SearchService backed by configured retrieval providers.
+) -> SearchBackend:
+    """Create a search backend backed by configured retrieval providers.
 
     `reranker_device` accepts "cpu", "cuda", or "auto"/None (let CrossEncoder
     pick). It only affects the local reranker provider.
@@ -152,7 +152,7 @@ def create_real_search_service(
 
 
 def build_search_payload(
-    service: SearchService,
+    service: SearchBackend,
     query: str,
     collection: str,
     filters: dict[str, Any],

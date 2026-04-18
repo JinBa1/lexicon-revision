@@ -8,7 +8,12 @@ from typing import Any
 from src.search.models import MediaRefResponse, SearchResponse, SearchResult
 from src.search.pg_repository import PgSearchRepository
 from src.search.providers.base import EmbeddingProvider, RerankProvider
-from src.search.service import DEFAULT_CHROMA_DIR, RERANK_CANDIDATE_CAP
+from src.search.service import (
+    DEFAULT_CHROMA_DIR,
+    DEFAULT_COLLECTION,
+    RERANK_CANDIDATE_CAP,
+    _is_valid_chunk_level,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +48,7 @@ class PgSearchService:
     def search(
         self,
         query: str,
-        collection: str = "default",
+        collection: str = DEFAULT_COLLECTION,
         filters: dict[str, Any] | None = None,
         limit: int = 10,
         rerank: bool = True,
@@ -99,6 +104,14 @@ class PgSearchService:
         media_map = self._load_media_map(collection)
         results = []
         for row, score in zip(rows[:limit], scores[:limit], strict=True):
+            if not _is_valid_chunk_level(row.chunk_level):
+                logger.warning(
+                    "Skipping chunk %s in collection %s due to invalid chunk_level %r",
+                    row.chunk_id,
+                    collection,
+                    row.chunk_level,
+                )
+                continue
             results.append(
                 SearchResult(
                     chunk_id=row.chunk_id,
