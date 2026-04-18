@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from src.study.planning.models import PlanningMetadata, StudyFilters
 
 DraftAnswerStatus = Literal["ok", "partial", "insufficient_evidence"]
 AnswerStatus = Literal[
@@ -36,7 +39,7 @@ class StudyRequest(BaseModel):
 
     query: str = Field(min_length=1)
     scope: StudyScope
-    filters: dict[str, Any] | None = None
+    filters: StudyFilters | None = None
     top_k: int = Field(default=15, ge=1, le=50)
 
 
@@ -89,7 +92,7 @@ class StudySource(BaseModel):
 class StudyResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["study_answer_v1"] = "study_answer_v1"
+    schema_version: Literal["study_answer_v2"] = "study_answer_v2"
     request_id: str = Field(min_length=1)
     query: str = Field(min_length=1)
     scope: StudyScope
@@ -97,6 +100,7 @@ class StudyResponse(BaseModel):
     answer: StudyAnswer
     sources: list[StudySource] = Field(default_factory=list)
     retrieval: "RetrievalMetadata"
+    planning: PlanningMetadata
     generation: "GenerationMetadata"
 
 
@@ -194,4 +198,7 @@ class ValidationResult(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+from src.study.planning.models import PlanningMetadata, StudyFilters  # noqa: E402
+
+StudyRequest.model_rebuild()
 StudyResponse.model_rebuild()
