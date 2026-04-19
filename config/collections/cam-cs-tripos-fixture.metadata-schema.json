@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "year",
+      "label": "Year",
+      "type": "integer",
+      "operators": ["eq", "gte", "lte"],
+      "exposed": true,
+      "source": "chunk.year"
+    },
+    {
+      "key": "paper",
+      "label": "Paper",
+      "type": "integer",
+      "operators": ["eq", "gte", "lte"],
+      "exposed": true,
+      "source": "chunk.paper"
+    },
+    {
+      "key": "question_number",
+      "label": "Question",
+      "type": "integer",
+      "operators": ["eq", "gte", "lte"],
+      "exposed": true,
+      "source": "chunk.question_number"
+    },
+    {
+      "key": "topic",
+      "label": "Topic",
+      "type": "string",
+      "operators": ["eq"],
+      "exposed": true,
+      "source": "chunk.topic"
+    },
+    {
+      "key": "author",
+      "label": "Author",
+      "type": "string",
+      "operators": ["eq"],
+      "exposed": false,
+      "source": "chunk.author"
+    },
+    {
+      "key": "tripos_part",
+      "label": "Tripos Part",
+      "type": "string",
+      "operators": ["eq"],
+      "exposed": true,
+      "source": "chunk.tripos_part"
+    },
+    {
+      "key": "marks",
+      "label": "Marks",
+      "type": "integer",
+      "operators": ["eq", "gte", "lte"],
+      "exposed": true,
+      "source": "chunk.marks"
+    },
+    {
+      "key": "total_marks",
+      "label": "Total Marks",
+      "type": "integer",
+      "operators": ["eq", "gte", "lte"],
+      "exposed": false,
+      "source": "chunk.total_marks"
+    },
+    {
+      "key": "has_code",
+      "label": "Has Code",
+      "type": "boolean",
+      "operators": ["eq"],
+      "exposed": true,
+      "source": "chunk.has_code"
+    },
+    {
+      "key": "has_figure",
+      "label": "Has Figure",
+      "type": "boolean",
+      "operators": ["eq"],
+      "exposed": true,
+      "source": "chunk.has_figure"
+    },
+    {
+      "key": "has_table",
+      "label": "Has Table",
+      "type": "boolean",
+      "operators": ["eq"],
+      "exposed": true,
+      "source": "chunk.has_table"
+    }
+  ]
+}
