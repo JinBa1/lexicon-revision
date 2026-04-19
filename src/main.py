@@ -24,6 +24,7 @@ from src.search.service import (
 from src.storage import (
     LocalObjectStorage,
     ObjectNotFoundError,
+    ObjectStorage,
     ObjectStorageAuthError,
     ObjectStorageError,
     build_object_storage,
@@ -105,7 +106,7 @@ def create_app(
     search_service: SearchBackend | None = None,
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
-    object_storage: object | None = None,
+    object_storage: ObjectStorage | None = None,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:

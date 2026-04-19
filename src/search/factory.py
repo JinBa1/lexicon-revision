@@ -20,17 +20,25 @@ def create_search_service(
     engine: Engine | None = None,
     object_storage: ObjectStorage | None = None,
 ) -> SearchBackend:
-    if database_settings.retrieval_backend == "chroma":
-        storage = object_storage or build_object_storage(load_object_storage_settings())
+    backend = database_settings.retrieval_backend
+    if backend not in {"chroma", "postgres"}:
+        raise ValueError(f"unsupported retrieval backend: {backend!r}")
+
+    storage = (
+        object_storage
+        if object_storage is not None
+        else build_object_storage(load_object_storage_settings())
+    )
+
+    if backend == "chroma":
         return SearchService(
             embedding_model=embedding_model,
             chroma_dir=chroma_dir,
             reranker=reranker,
             object_storage=storage,
         )
-    if database_settings.retrieval_backend == "postgres":
+    if backend == "postgres":
         pg_engine = engine or create_database_engine(database_settings)
-        storage = object_storage or build_object_storage(load_object_storage_settings())
         return PgSearchService(
             repository=PgSearchRepository(engine=pg_engine),
             embedding_model=embedding_model,
@@ -39,6 +47,4 @@ def create_search_service(
             media_dir=chroma_dir,
             object_storage=storage,
         )
-    raise ValueError(
-        f"unsupported retrieval backend: {database_settings.retrieval_backend!r}"
-    )
+    raise AssertionError("unreachable")

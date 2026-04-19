@@ -5,6 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import pytest
 from scripts.index_chunks_postgres import index_collection_postgres, parse_args
 from src.search.providers.base import EmbeddingResult
 
@@ -141,3 +142,44 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
     assert calls["chunk_count"] == calls["vector_count"]
     assert sample_ref["object_key"].startswith("artifacts/mineru/run-")
     assert "file_path" not in sample_ref
+
+
+def test_index_collection_postgres_missing_manifest_raises_before_indexing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fixture_copy = tmp_path / "mineru_fixtures"
+    shutil.copytree(MINERU_FIXTURES, fixture_copy)
+    calls: dict[str, object] = {}
+
+    class _FakeRepo:
+        def __init__(
+            self,
+            *,
+            engine,
+            embedding_model_id: str,
+            embedding_dimension: int,
+        ) -> None:
+            del engine, embedding_model_id, embedding_dimension
+
+        def recreate_collection(self, collection_name: str) -> None:
+            calls["recreated"] = collection_name
+
+        def index_chunks(self, *, collection_name: str, chunks, vectors) -> None:
+            del collection_name, chunks, vectors
+            calls["indexed"] = True
+
+    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+
+    with pytest.raises(FileNotFoundError):
+        index_collection_postgres(
+            mineru_output_dir=str(fixture_copy),
+            collection_name="fixture",
+            engine=object(),
+            embedding_model=_FakeEmbedder(),
+            embedding_dimension=2,
+            recreate_collection=True,
+        )
+
+    assert "recreated" not in calls
+    assert "indexed" not in calls

@@ -91,6 +91,12 @@ def index_collection_postgres(
         )
         return
 
+    manifests = {
+        source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
+        for source_pdf, path in load_local_manifests(Path(mineru_output_dir)).items()
+    }
+    media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
+
     embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
     result = embedding_model.embed_documents(embedding_inputs)
     vectors = result.vectors
@@ -109,14 +115,9 @@ def index_collection_postgres(
         chunks=chunks,
         vectors=vectors,
     )
-    manifests = {
-        source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
-        for source_pdf, path in load_local_manifests(Path(mineru_output_dir)).items()
-    }
     _write_media_sidecar(
         collection_name=collection_name,
-        chunks=chunks,
-        manifests=manifests,
+        media_map=media_map,
         media_dir=DEFAULT_CHROMA_DIR,
     )
 
@@ -124,8 +125,7 @@ def index_collection_postgres(
 def _write_media_sidecar(
     *,
     collection_name: str,
-    chunks: list[Any],
-    manifests: dict[str, ArtifactManifest],
+    media_map: dict[str, list[dict[str, Any]]],
     media_dir: str = DEFAULT_CHROMA_DIR,
 ) -> None:
     media_root = Path(media_dir)
@@ -134,7 +134,7 @@ def _write_media_sidecar(
     try:
         write_storage_media_map(
             output_path=sidecar_path,
-            media_map=build_storage_media_map(chunks=chunks, manifests=manifests),
+            media_map=media_map,
         )
     except OSError:
         logger.exception("Failed to write Postgres media sidecar to %s", sidecar_path)

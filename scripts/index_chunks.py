@@ -168,6 +168,12 @@ def index_collection(
         )
         return
 
+    manifests = {
+        source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
+        for source_pdf, path in load_local_manifests(Path(mineru_output_dir)).items()
+    }
+    media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
+
     documents = [chunk.text.strip() for chunk in chunks]
     embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
 
@@ -225,13 +231,6 @@ def index_collection(
             )
 
         sidecar_path = chroma_path / f"{collection_name}_media_map.json"
-        manifests = {
-            source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
-            for source_pdf, path in load_local_manifests(
-                Path(mineru_output_dir)
-            ).items()
-        }
-        media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
         try:
             write_storage_media_map(
                 output_path=sidecar_path,

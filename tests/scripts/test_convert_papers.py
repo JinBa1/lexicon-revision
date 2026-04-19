@@ -144,3 +144,49 @@ def test_main_continues_when_storage_is_misconfigured_after_conversion(
     assert (
         "Done: 1 converted, 0 skipped, 0 failed, 0 uploaded (of 1 total)" in caplog.text
     )
+
+
+def test_main_uploads_only_successfully_converted_pdfs(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    caplog.set_level(logging.INFO, logger="scripts.convert_papers")
+    pdf_dir = tmp_path / "papers"
+    output_dir = tmp_path / "output"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    success_pdf = pdf_dir / "y2025p1q7.pdf"
+    failed_pdf = pdf_dir / "y2025p1q8.pdf"
+    success_pdf.write_bytes(b"pdf-bytes")
+    failed_pdf.write_bytes(b"pdf-bytes")
+
+    def fake_run_mineru_batch(
+        pdf_paths: list[Path],
+        output_dir: Path,
+        method: str = "auto",
+        backend: str = "hybrid-auto-engine",
+        lang: str = "en",
+    ) -> bool:
+        del method, backend, lang
+        for path in pdf_paths:
+            if path.stem == success_pdf.stem:
+                _write_mineru_outputs(output_dir, stem=path.stem)
+        return True
+
+    monkeypatch.setattr(convert_papers, "run_mineru_batch", fake_run_mineru_batch)
+    monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
+    monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path / "store"))
+    monkeypatch.setenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", "dev-secret")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["convert_papers.py", str(pdf_dir), str(output_dir)],
+    )
+
+    convert_papers.main()
+
+    assert "Failed to upload converted artifacts for y2025p1q8.pdf" not in caplog.text
+    assert "Uploaded artifacts for 1 PDFs" in caplog.text
+    assert (
+        "Done: 1 converted, 0 skipped, 1 failed, 1 uploaded (of 2 total)" in caplog.text
+    )

@@ -398,3 +398,25 @@ def test_index_collection_closes_owned_embedding_provider(
     )
 
     assert embedder.closed is True
+
+
+def test_index_collection_missing_manifest_raises_before_upserts(
+    tmp_path: Path,
+    fake_embedder: FakeEmbedder,
+) -> None:
+    fixture_copy = tmp_path / "mineru_fixtures"
+    shutil.copytree(MINERU_FIXTURES, fixture_copy)
+    chroma_dir = str(tmp_path / "chroma")
+    collection_name = "test-missing-manifest"
+
+    with pytest.raises(FileNotFoundError):
+        index_collection(
+            mineru_output_dir=str(fixture_copy),
+            collection_name=collection_name,
+            chroma_dir=chroma_dir,
+            embedding_model=fake_embedder,
+        )
+
+    client = chromadb.PersistentClient(path=chroma_dir)
+    with pytest.raises(chromadb.errors.NotFoundError):
+        client.get_collection(collection_name)

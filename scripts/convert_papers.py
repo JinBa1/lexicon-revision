@@ -204,9 +204,11 @@ def main() -> None:
     # Count results
     converted = 0
     failed = 0
+    converted_pdf_paths: list[Path] = []
     for pdf_path in to_convert:
         if find_content_list(output_dir, pdf_path.stem) is not None:
             converted += 1
+            converted_pdf_paths.append(pdf_path)
         else:
             failed += 1
 
@@ -215,7 +217,7 @@ def main() -> None:
         try:
             storage = build_object_storage(load_object_storage_settings())
             manifests = upload_batch_artifacts(
-                pdf_paths=to_convert,
+                pdf_paths=converted_pdf_paths,
                 output_dir=output_dir,
                 storage=storage,
                 mineru_version=MINERU_VERSION,
