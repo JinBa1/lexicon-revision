@@ -19,8 +19,11 @@ import numpy as np
 import pytest
 from src.search.providers.base import EmbeddingResult
 from src.search.service import SearchService
+from src.storage.local import LocalObjectStorage
 
 EMBED_DIM = 8
+SECRET = b"search-api-secret"
+MEDIA_OBJECT_KEY = "artifacts/mineru/run-y2023p2q5/images/fig1.png"
 
 
 class FakeEmbedder:
@@ -116,7 +119,7 @@ def seeded_chroma(tmp_path_factory, fake_embedder: FakeEmbedder):
             {
                 "media_id": "fig1",
                 "kind": "image",
-                "file_path": "/media/fig1.png",
+                "object_key": MEDIA_OBJECT_KEY,
                 "relation": "direct",
             }
         ]
@@ -131,16 +134,26 @@ def seeded_chroma(tmp_path_factory, fake_embedder: FakeEmbedder):
 def app(seeded_chroma, fake_embedder: FakeEmbedder):
     """Create an app with SearchService injected via app.state."""
     chroma_dir, _ = seeded_chroma
+    storage = LocalObjectStorage(
+        root=Path(chroma_dir) / "object-store",
+        dev_presign_secret=SECRET,
+    )
+    storage.put_bytes(
+        key=MEDIA_OBJECT_KEY,
+        data=b"png",
+        content_type="image/png",
+    )
 
     service = SearchService(
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
         reranker=None,
+        object_storage=storage,
     )
 
     from src.main import create_app
 
-    return create_app(search_service=service)
+    return create_app(search_service=service, object_storage=storage)
 
 
 @pytest.mark.anyio
@@ -302,6 +315,8 @@ async def test_search_includes_media(app, seeded_chroma) -> None:
     assert q5 is not None
     assert len(q5["media"]) == 1
     assert q5["media"][0]["media_id"] == "fig1"
+    assert q5["media"][0]["object_key"] == MEDIA_OBJECT_KEY
+    assert q5["media"][0]["access_url"] is not None
 
 
 @pytest.mark.anyio

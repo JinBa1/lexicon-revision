@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from inspect import isawaitable
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from src.db.config import load_database_settings
 from src.search.base import SearchBackend
 from src.search.factory import create_search_service
@@ -19,6 +20,16 @@ from src.search.service import (
     DEFAULT_COLLECTION,
     RERANK_CANDIDATE_CAP,
     CollectionNotFoundError,
+)
+from src.storage import (
+    LocalObjectStorage,
+    ObjectNotFoundError,
+    ObjectStorage,
+    ObjectStorageAuthError,
+    ObjectStorageError,
+    build_object_storage,
+    load_object_storage_settings,
+    validate_local_presigned_url,
 )
 from src.study.config import load_study_settings
 from src.study.models import StudyRequest, StudyResponse
@@ -42,10 +53,13 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     reranker = build_rerank_provider(provider_settings)
 
     db_settings = load_database_settings()
+    object_storage = build_object_storage(load_object_storage_settings())
+    app.state.object_storage = object_storage
     app.state.search_service = create_search_service(
         database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
+        object_storage=object_storage,
     )
     study_settings = load_study_settings()
     generation_provider = OllamaProvider(
@@ -73,6 +87,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.generation_provider.aclose()
     _close_if_supported(embedding_model)
     _close_if_supported(reranker)
+    app.state.object_storage = None
     app.state.search_service = None
     app.state.study_service = None
     app.state.generation_provider = None
@@ -91,10 +106,12 @@ def create_app(
     search_service: SearchBackend | None = None,
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
+    object_storage: ObjectStorage | None = None,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:
         application = FastAPI(title="RAG Exam Revision Tool")
+        application.state.object_storage = object_storage
         application.state.search_service = search_service
         application.state.study_service = study_service
         application.state.generation_provider = generation_provider
@@ -107,6 +124,43 @@ def create_app(
     @application.get("/")
     async def root() -> dict[str, str]:
         return {"message": "Backend is running. Add your endpoints here."}
+
+    @application.get("/_dev/object/{method}/{expires}/{sig}/{key:path}")
+    async def dev_get_object(
+        request: Request,
+        method: str,
+        expires: str,
+        sig: str,
+        key: str,
+    ) -> Response:
+        del method, expires, sig, key
+        storage = getattr(request.app.state, "object_storage", None)
+        if not isinstance(storage, LocalObjectStorage):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        try:
+            validated_method, validated_key = validate_local_presigned_url(
+                str(request.url),
+                secret=storage.dev_presign_secret,
+                base_url=storage.dev_presign_base_url,
+            )
+        except ObjectStorageAuthError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ObjectStorageError as exc:
+            raise HTTPException(status_code=410, detail=str(exc)) from exc
+
+        if validated_method != "GET":
+            raise HTTPException(status_code=405, detail="Method not allowed")
+
+        try:
+            payload = storage.get_bytes(validated_key)
+        except ObjectNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        media_type = (
+            mimetypes.guess_type(validated_key)[0] or "application/octet-stream"
+        )
+        return Response(content=payload, media_type=media_type)
 
     @application.get("/search", response_model=SearchResponse)
     async def search(

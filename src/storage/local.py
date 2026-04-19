@@ -120,6 +120,14 @@ class LocalObjectStorage:
         expires_at = datetime.fromtimestamp(expires_unix, tz=timezone.utc)
         return PresignedUrl(url=url, expires_at=expires_at, method=method, key=key)
 
+    @property
+    def dev_presign_base_url(self) -> str:
+        return self._base_url
+
+    @property
+    def dev_presign_secret(self) -> bytes:
+        return self._secret
+
 
 def validate_local_presigned_url(
     url: str,

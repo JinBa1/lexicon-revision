@@ -11,10 +11,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +23,16 @@ if str(REPO_ROOT) not in sys.path:
 import chromadb  # noqa: E402
 from src.chunking.models import Chunk  # noqa: E402
 from src.chunking.pipeline import run_pipeline  # noqa: E402
+from src.search.media_sidecar import (  # noqa: E402
+    build_storage_media_map,
+    write_storage_media_map,
+)
 from src.search.providers.config import (  # noqa: E402
     build_embedding_provider,
     load_retrieval_provider_settings,
 )
 from src.search.service import DEFAULT_CHROMA_DIR  # noqa: E402
+from src.storage import ArtifactManifest, load_local_manifests  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -138,31 +141,6 @@ def build_metadata(chunk: Chunk) -> dict[str, Any]:
     }
 
 
-def build_media_map(chunks: list[Chunk]) -> dict[str, list[dict[str, Any]]]:
-    """Build the chunk_id -> media sidecar mapping."""
-    media_map: dict[str, list[dict[str, Any]]] = {}
-    for chunk in chunks:
-        if not chunk.media:
-            continue
-        media_map[chunk.id] = [
-            {
-                "media_id": ref.media_id,
-                "kind": ref.kind,
-                "file_path": ref.file_path,
-                "relation": ref.relation,
-                "page_number": ref.page_number,
-                "bbox": list(ref.bbox) if ref.bbox is not None else None,
-                "owner_level": ref.owner_level,
-                "owner_label": ref.owner_label,
-                "order_index": ref.order_index,
-                "text_payload": ref.text_payload,
-                "description": ref.description,
-            }
-            for ref in chunk.media
-        ]
-    return media_map
-
-
 def index_collection(
     mineru_output_dir: str,
     collection_name: str,
@@ -189,6 +167,12 @@ def index_collection(
             mineru_output_dir,
         )
         return
+
+    manifests = {
+        source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
+        for source_pdf, path in load_local_manifests(Path(mineru_output_dir)).items()
+    }
+    media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
 
     documents = [chunk.text.strip() for chunk in chunks]
     embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
@@ -247,24 +231,12 @@ def index_collection(
             )
 
         sidecar_path = chroma_path / f"{collection_name}_media_map.json"
-        media_map = build_media_map(chunks)
-        sidecar_json = json.dumps(media_map, indent=2, ensure_ascii=False)
-
-        tmp_path: Path | None = None
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                dir=chroma_path,
-                suffix=".tmp",
-                delete=False,
-                encoding="utf-8",
-            ) as handle:
-                handle.write(sidecar_json)
-                tmp_path = Path(handle.name)
-            tmp_path.replace(sidecar_path)
+            write_storage_media_map(
+                output_path=sidecar_path,
+                media_map=media_map,
+            )
         except OSError:
-            if tmp_path is not None and tmp_path.exists():
-                tmp_path.unlink(missing_ok=True)
             logger.exception(
                 "Failed to write media sidecar to %s. ChromaDB upserts succeeded; "
                 "re-run with the same arguments to retry sidecar creation.",

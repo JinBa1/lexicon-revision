@@ -10,6 +10,10 @@ from src.search.pg_repository import PgChunkRow
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingResult, RerankResult
 from src.search.service import DEFAULT_COLLECTION, CollectionNotFoundError
+from src.storage.local import LocalObjectStorage
+
+SECRET = b"pg-search-secret"
+MEDIA_OBJECT_KEY = "artifacts/mineru/run-y2023p2q5/images/fig-1.png"
 
 
 class _Embedder:
@@ -91,13 +95,22 @@ def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "/media/fig-1.png",
+                        "object_key": MEDIA_OBJECT_KEY,
                         "relation": "direct",
                     }
                 ]
             }
         ),
         encoding="utf-8",
+    )
+    storage = LocalObjectStorage(
+        root=tmp_path / "object-store",
+        dev_presign_secret=SECRET,
+    )
+    storage.put_bytes(
+        key=MEDIA_OBJECT_KEY,
+        data=b"png",
+        content_type="image/png",
     )
     repo = _Repo()
     service = PgSearchService(
@@ -106,6 +119,7 @@ def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
         embedding_dimension=2,
         reranker=None,
         media_dir=str(tmp_path),
+        object_storage=storage,
     )
 
     response = service.search(
@@ -113,6 +127,8 @@ def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
     )
 
     assert response.results[0].media[0].media_id == "fig-1"
+    assert response.results[0].media[0].object_key == MEDIA_OBJECT_KEY
+    assert response.results[0].media[0].access_url is not None
 
 
 class _Reranker:

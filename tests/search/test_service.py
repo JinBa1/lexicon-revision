@@ -22,8 +22,11 @@ from src.search.service import (
     EmbeddingModelMismatchError,
     SearchService,
 )
+from src.storage.local import LocalObjectStorage
 
 EMBED_DIM = 8
+SECRET = b"search-service-secret"
+MEDIA_OBJECT_KEY = "artifacts/mineru/run-y2023p2q5/images/figure_1.png"
 
 
 def _build_collection(
@@ -303,7 +306,7 @@ def service_with_chunks(tmp_path: Path, fake_embedder: FakeEmbedder):
             {
                 "media_id": "cam-2023-p2-q5-figure_1",
                 "kind": "image",
-                "file_path": "/media/figure_1.png",
+                "object_key": MEDIA_OBJECT_KEY,
                 "relation": "direct",
             }
         ],
@@ -312,11 +315,21 @@ def service_with_chunks(tmp_path: Path, fake_embedder: FakeEmbedder):
     }
     sidecar_path = Path(chroma_dir) / f"{collection_name}_media_map.json"
     sidecar_path.write_text(json.dumps(media_map), encoding="utf-8")
+    storage = LocalObjectStorage(
+        root=tmp_path / "object-store",
+        dev_presign_secret=SECRET,
+    )
+    storage.put_bytes(
+        key=MEDIA_OBJECT_KEY,
+        data=b"png",
+        content_type="image/png",
+    )
 
     service = SearchService(
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
         reranker=None,
+        object_storage=storage,
     )
     return service, collection_name
 
@@ -474,6 +487,8 @@ def test_search_joins_media_from_sidecar(service_with_chunks) -> None:
     assert q5 is not None
     assert len(q5.media) == 1
     assert q5.media[0].media_id == "cam-2023-p2-q5-figure_1"
+    assert q5.media[0].object_key == MEDIA_OBJECT_KEY
+    assert q5.media[0].access_url is not None
 
 
 def test_search_nonexistent_collection(service_with_chunks) -> None:
@@ -733,10 +748,10 @@ def test_search_invalid_sidecar_shape_caches_negative_lookup(
     assert sum("has invalid shape" in record.message for record in caplog.records) == 1
 
 
-def test_search_invalid_sidecar_file_path_returns_empty_media(
+def test_search_invalid_sidecar_object_key_returns_empty_media(
     tmp_path: Path, fake_embedder: FakeEmbedder
 ) -> None:
-    """A sidecar ref with a non-string file_path is treated as absent media."""
+    """A sidecar ref with a non-string object_key is treated as absent media."""
     import chromadb
 
     chroma_dir = str(tmp_path / "chroma_invalid_file_path")
@@ -771,7 +786,7 @@ def test_search_invalid_sidecar_file_path_returns_empty_media(
                     {
                         "media_id": "test-1-figure",
                         "kind": "image",
-                        "file_path": {"path": "/media/figure.png"},
+                        "object_key": {"path": "/media/figure.png"},
                         "relation": "direct",
                     }
                 ]

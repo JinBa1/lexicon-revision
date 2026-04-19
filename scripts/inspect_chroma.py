@@ -226,7 +226,7 @@ def render_text(report: dict[str, Any]) -> str:
                     f"media_id={media_ref.get('media_id')} "
                     f"kind={media_ref.get('kind')} "
                     f"relation={media_ref.get('relation')} "
-                    f"file_path={media_ref.get('file_path')}"
+                    f"object_key={media_ref.get('object_key')}"
                 )
             )
 

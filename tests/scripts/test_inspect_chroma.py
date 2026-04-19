@@ -59,7 +59,7 @@ def _seed_chroma(chroma_dir: Path) -> str:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "fig.png",
+                        "object_key": "artifacts/mineru/run-y2025p1q1/images/fig.png",
                         "relation": "direct",
                     }
                 ]
@@ -114,6 +114,7 @@ def test_render_text_includes_metadata_and_preview(tmp_path: Path) -> None:
     assert "chunk-1" in output
     assert "topic=Algorithms" in output
     assert "media=1" in output
+    assert "object_key=artifacts/mineru/run-y2025p1q1/images/fig.png" in output
     assert "Binary search trees support lookup." in output
 
 

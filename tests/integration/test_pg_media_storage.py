@@ -7,18 +7,19 @@ import shutil
 from pathlib import Path
 
 import pytest
-from scripts.index_chunks import index_collection as index_chroma
 from scripts.index_chunks_postgres import index_collection_postgres
 from sqlalchemy import create_engine, text
 from src.search.pg_repository import PgSearchRepository
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingResult
-from src.search.service import SearchService
+from src.storage.local import LocalObjectStorage
 
-MINERU_FIXTURES = "tests/data/mineru_fixtures"
+pytestmark = pytest.mark.integration
+
+MINERU_FIXTURES = Path("tests/data/mineru_fixtures")
 
 
-class _FakeEmbedder:
+class _Embedder:
     model_id = "fake-v1"
 
     def embed_documents(self, texts: list[str]) -> EmbeddingResult:
@@ -39,11 +40,12 @@ class _FakeEmbedder:
         return values
 
 
-def _fixture_copy_with_manifests(tmp_path: Path) -> str:
-    fixture_copy = tmp_path / "mineru_fixtures"
-    shutil.copytree(MINERU_FIXTURES, fixture_copy)
-    for content_list in fixture_copy.glob("**/*_content_list.json"):
+def _fixture_copy_with_manifests(tmp_path: Path) -> Path:
+    target = tmp_path / "mineru_fixtures"
+    shutil.copytree(MINERU_FIXTURES, target)
+    for content_list in target.glob("**/*_content_list.json"):
         stem = content_list.stem.replace("_content_list", "")
+        images = sorted((content_list.parent / "images").glob("*"))
         manifest = {
             "conversion_run_id": f"run-{stem}",
             "paper_id": stem,
@@ -58,7 +60,7 @@ def _fixture_copy_with_manifests(tmp_path: Path) -> str:
                     "sha256_hex": "b" * 64,
                     "size_bytes": 3,
                 }
-                for image in sorted((content_list.parent / "images").glob("*"))
+                for image in images
                 if image.is_file()
             ],
         }
@@ -66,41 +68,35 @@ def _fixture_copy_with_manifests(tmp_path: Path) -> str:
             json.dumps(manifest),
             encoding="utf-8",
         )
-    return str(fixture_copy)
+    return target
 
 
-def _clean_db(engine: object) -> None:
-    with engine.connect() as conn:
-        conn.execute(text("DELETE FROM chunk_embeddings"))
-        conn.execute(text("DELETE FROM chunks"))
-        conn.execute(text("DELETE FROM papers"))
-        conn.execute(text("DELETE FROM collections"))
-        conn.commit()
-
-
-@pytest.mark.integration
-def test_postgres_matches_chroma_top_k_id_set(tmp_path: Path) -> None:
+def test_pg_search_returns_object_key_and_access_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
 
-    engine = create_engine(database_url, future=True)
-    _clean_db(engine)
-
-    embedder = _FakeEmbedder()
-    collection = "fixture-parity"
-    chroma_dir = str(tmp_path / "chroma")
     fixture_dir = _fixture_copy_with_manifests(tmp_path)
-
-    index_chroma(
-        mineru_output_dir=fixture_dir,
-        collection_name=collection,
-        chroma_dir=chroma_dir,
-        embedding_model=embedder,
-        recreate_collection=True,
+    media_dir = tmp_path / "media"
+    storage = LocalObjectStorage(
+        root=tmp_path / "object-store",
+        dev_presign_secret=b"secret",
     )
+
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.DEFAULT_CHROMA_DIR",
+        str(media_dir),
+    )
+
+    engine = create_engine(database_url, future=True)
+    embedder = _Embedder()
+    collection = "fixture-storage"
+
     index_collection_postgres(
-        mineru_output_dir=fixture_dir,
+        mineru_output_dir=str(fixture_dir),
         collection_name=collection,
         engine=engine,
         embedding_model=embedder,
@@ -108,24 +104,32 @@ def test_postgres_matches_chroma_top_k_id_set(tmp_path: Path) -> None:
         recreate_collection=True,
     )
 
-    chroma = SearchService(embedding_model=embedder, chroma_dir=chroma_dir)
-    pg = PgSearchService(
+    sidecar_path = media_dir / f"{collection}_media_map.json"
+    media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    assert media_map
+    media_chunk_id = next(iter(media_map))
+
+    with engine.connect() as conn:
+        query_text = conn.execute(
+            text("SELECT text FROM chunks WHERE chunk_id = :chunk_id"),
+            {"chunk_id": media_chunk_id},
+        ).scalar_one()
+
+    service = PgSearchService(
         repository=PgSearchRepository(engine=engine),
         embedding_model=embedder,
         embedding_dimension=8,
+        media_dir=str(media_dir),
+        object_storage=storage,
+    )
+    response = service.search(
+        query_text,
+        collection=collection,
+        limit=5,
+        rerank=False,
     )
 
-    query = "binary search"
-    chroma_ids = {
-        result.chunk_id
-        for result in chroma.search(
-            query, collection=collection, limit=5, rerank=False
-        ).results
-    }
-    pg_ids = {
-        result.chunk_id
-        for result in pg.search(
-            query, collection=collection, limit=5, rerank=False
-        ).results
-    }
-    assert pg_ids == chroma_ids
+    refs = [ref for result in response.results for ref in result.media]
+    assert refs
+    assert refs[0].object_key is not None
+    assert refs[0].access_url is not None
