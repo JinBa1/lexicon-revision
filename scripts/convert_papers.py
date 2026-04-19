@@ -19,7 +19,17 @@ import sys
 import tempfile
 from pathlib import Path
 
+from src.storage import (
+    build_object_storage,
+    discover_converted_paper_artifacts,
+    load_object_storage_settings,
+    upload_converted_paper_artifacts,
+)
+from src.storage.base import ObjectStorage
+from src.storage.manifest import ArtifactManifest
+
 logger = logging.getLogger(__name__)
+MINERU_VERSION = "mineru-cli"
 
 
 def find_content_list(output_dir: Path, stem: str) -> Path | None:
@@ -75,6 +85,39 @@ def run_mineru_batch(
             logger.error("MinerU batch failed: %s", result.stderr[-500:])
             return False
     return True
+
+
+def upload_batch_artifacts(
+    *,
+    pdf_paths: list[Path],
+    output_dir: Path,
+    storage: ObjectStorage,
+    mineru_version: str,
+) -> list[ArtifactManifest]:
+    manifests: list[ArtifactManifest] = []
+    for pdf_path in pdf_paths:
+        try:
+            discovered = discover_converted_paper_artifacts(
+                pdf_path=pdf_path,
+                output_dir=output_dir,
+            )
+            manifest = upload_converted_paper_artifacts(
+                storage=storage,
+                artifacts=discovered,
+                conversion_run_id=f"run-{pdf_path.stem}",
+                mineru_version=mineru_version,
+            )
+            discovered.manifest_local_path.write_text(
+                manifest.to_json() + "\n",
+                encoding="utf-8",
+            )
+            manifests.append(manifest)
+        except Exception:
+            logger.exception(
+                "Failed to upload converted artifacts for %s",
+                pdf_path.name,
+            )
+    return manifests
 
 
 def main() -> None:
@@ -167,14 +210,32 @@ def main() -> None:
         else:
             failed += 1
 
+    uploaded = 0
+    if converted > 0:
+        try:
+            storage = build_object_storage(load_object_storage_settings())
+            manifests = upload_batch_artifacts(
+                pdf_paths=to_convert,
+                output_dir=output_dir,
+                storage=storage,
+                mineru_version=MINERU_VERSION,
+            )
+            uploaded = len(manifests)
+            logger.info("Uploaded artifacts for %d PDFs", uploaded)
+        except Exception:
+            logger.exception(
+                "Storage upload unavailable; leaving converted outputs in place"
+            )
+
     if not success and failed == len(to_convert):
         logger.error("MinerU batch failed for all %d PDFs", failed)
     else:
         logger.info(
-            "Done: %d converted, %d skipped, %d failed (of %d total)",
+            "Done: %d converted, %d skipped, %d failed, %d uploaded (of %d total)",
             converted,
             skipped,
             failed,
+            uploaded,
             len(pdf_files),
         )
 
