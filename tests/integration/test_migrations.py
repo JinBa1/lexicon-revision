@@ -4,8 +4,15 @@ import os
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from src.metadata_schema import default_schema_path, load_collection_schema
 
 pytestmark = pytest.mark.integration
+
+
+def _expected_legacy_schema() -> dict:
+    return load_collection_schema(
+        default_schema_path("cam-cs-tripos-fixture")
+    ).model_dump(mode="json")
 
 
 def test_alembic_upgrade_creates_retrieval_tables() -> None:
@@ -153,7 +160,7 @@ def test_alembic_cutover_backfills_metadata_and_drops_legacy_columns() -> None:
             "has_figure": False,
             "has_table": False,
         }
-        assert backfilled.metadata_schema == {}
+        assert backfilled.metadata_schema == _expected_legacy_schema()
 
         command.upgrade(config, "head")
 

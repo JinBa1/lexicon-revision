@@ -129,7 +129,11 @@ def index_collection_postgres(
         vectors=vectors,
         metadata_schema=metadata_schema,
     )
-    ensure_metadata_indexes(engine, metadata_schema)
+    ensure_metadata_indexes(
+        engine,
+        collection_name=collection_name,
+        schema=metadata_schema,
+    )
     _write_media_sidecar(
         collection_name=collection_name,
         media_map=media_map,

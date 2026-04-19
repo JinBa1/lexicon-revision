@@ -236,7 +236,8 @@ class PgSearchRepository:
                 expected_dimension=embedding_dimension,
             )
             collection_schema = _load_collection_schema(
-                getattr(collection_row, "metadata_schema", None)
+                collection_name=collection_name,
+                raw_payload=getattr(collection_row, "metadata_schema", None),
             )
 
             vec_param = cast(bindparam("query_vec"), PgVectorType)
@@ -341,32 +342,26 @@ _DIRECT_FILTER_COLUMNS = {
     "chunk_level": chunks_table.c.chunk_level,
 }
 
-_LEGACY_METADATA_FILTER_TYPES = {
-    "year": "integer",
-    "paper": "integer",
-    "question_number": "integer",
-    "topic": "string",
-    "author": "string",
-    "tripos_part": "string",
-    "marks": "integer",
-    "total_marks": "integer",
-    "has_code": "boolean",
-    "has_figure": "boolean",
-    "has_table": "boolean",
-}
 
-
-def _load_collection_schema(raw_payload: Any) -> CollectionMetadataSchema | None:
+def _load_collection_schema(
+    *,
+    collection_name: str,
+    raw_payload: Any,
+) -> CollectionMetadataSchema:
     if not isinstance(raw_payload, dict) or not raw_payload:
-        return None
+        raise ValueError(
+            f"Collection '{collection_name}' has an invalid metadata schema"
+        )
     try:
         return CollectionMetadataSchema.model_validate(raw_payload)
-    except ValidationError:
-        return None
+    except ValidationError as exc:
+        raise ValueError(
+            f"Collection '{collection_name}' has an invalid metadata schema"
+        ) from exc
 
 
 def _metadata_filter_expression(
-    collection_schema: CollectionMetadataSchema | None,
+    collection_schema: CollectionMetadataSchema,
     key: str,
 ):
     field_type = _metadata_field_type(collection_schema, key)
@@ -382,31 +377,24 @@ def _metadata_filter_expression(
 
 
 def _metadata_field_type(
-    collection_schema: CollectionMetadataSchema | None,
+    collection_schema: CollectionMetadataSchema,
     key: str,
 ) -> str | None:
-    if collection_schema is not None:
-        try:
-            return collection_schema.field(key).type
-        except KeyError:
-            pass
-    return _LEGACY_METADATA_FILTER_TYPES.get(key)
+    try:
+        return collection_schema.field(key).type
+    except KeyError:
+        return None
 
 
 def _result_metadata_from_row(
     row,
-    collection_schema: CollectionMetadataSchema | None,
+    collection_schema: CollectionMetadataSchema,
 ) -> dict[str, Any]:
     stored_metadata = dict(row.metadata or {})
-    result_metadata: dict[str, Any]
-    if collection_schema is None:
-        result_metadata = stored_metadata
-    else:
-        result_metadata = {
-            field.key: stored_metadata.get(field.key)
-            for field in collection_schema.fields
-        }
-        result_metadata.update(stored_metadata)
+    result_metadata: dict[str, Any] = {
+        field.key: stored_metadata.get(field.key) for field in collection_schema.fields
+    }
+    result_metadata.update(stored_metadata)
     result_metadata.update(
         {
             "chunk_level": row.chunk_level,

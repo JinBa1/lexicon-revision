@@ -6,7 +6,12 @@ import pytest
 from scripts.index_chunks import build_embedding_text
 from sqlalchemy import create_engine, text
 from src.chunking.pipeline import run_pipeline
-from src.metadata_schema import default_schema_path, load_collection_schema
+from src.db.metadata_indexes import ensure_metadata_indexes
+from src.metadata_schema import (
+    CollectionMetadataSchema,
+    default_schema_path,
+    load_collection_schema,
+)
 from src.search.pg_repository import PgIndexRepository, PgSearchRepository
 from src.search.service import CollectionNotFoundError
 
@@ -28,6 +33,23 @@ def _vectors(count: int, dimension: int) -> list[list[float]]:
 
 def _schema():
     return load_collection_schema(default_schema_path("cam-cs-tripos-fixture"))
+
+
+def _schema_with_field(*, key: str, field_type: str) -> CollectionMetadataSchema:
+    return CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": key,
+                    "label": key.replace("_", " ").title(),
+                    "type": field_type,
+                    "operators": ["eq"],
+                    "exposed": True,
+                }
+            ],
+        }
+    )
 
 
 def test_index_repository_indexes_fixture_chunks() -> None:
@@ -85,6 +107,90 @@ def test_search_repository_raises_for_missing_collection() -> None:
     with pytest.raises(CollectionNotFoundError, match="missing-collection"):
         repo.search(
             collection_name="missing-collection",
+            query_vector=[1.0] + [0.0] * 7,
+            embedding_model_id="fake-v1",
+            embedding_dimension=8,
+            filters={},
+            limit=3,
+        )
+
+
+def test_search_repository_rejects_invalid_collection_schema() -> None:
+    engine = _engine()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into collections (
+                    id,
+                    name,
+                    embedding_model_id,
+                    embedding_dimension,
+                    metadata_schema
+                ) values (
+                    'collection-invalid-schema',
+                    'invalid-schema',
+                    'fake-v1',
+                    8,
+                    '{}'::jsonb
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into papers (id, collection_id, source_pdf)
+                values (
+                    'paper-invalid-schema',
+                    'collection-invalid-schema',
+                    'fixture.pdf'
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into chunks (
+                    id,
+                    chunk_id,
+                    collection_id,
+                    paper_id,
+                    chunk_level,
+                    parent_chunk_id,
+                    sub_question_label,
+                    text,
+                    metadata,
+                    source_pdf
+                ) values (
+                    'chunk-invalid-schema',
+                    'cam-invalid',
+                    'collection-invalid-schema',
+                    'paper-invalid-schema',
+                    'question',
+                    null,
+                    null,
+                    'Invalid schema test',
+                    '{"year": 2025}'::jsonb,
+                    'fixture.pdf'
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into chunk_embeddings (chunk_id, embedding_model_id, embedding)
+                values ('chunk-invalid-schema', 'fake-v1', '[1,0,0,0,0,0,0,0]')
+                """
+            )
+        )
+
+    repo = PgSearchRepository(engine=engine)
+    with pytest.raises(ValueError, match="invalid metadata schema"):
+        repo.search(
+            collection_name="invalid-schema",
             query_vector=[1.0] + [0.0] * 7,
             embedding_model_id="fake-v1",
             embedding_dimension=8,
@@ -301,3 +407,59 @@ def test_index_repository_replaces_existing_chunk_ids_within_collection() -> Non
     )
 
     assert [result.chunk_id for result in results] == [chunks[0].id]
+
+
+def test_metadata_indexes_are_collection_scoped_for_conflicting_schemas() -> None:
+    engine = _engine()
+    schema_int = _schema_with_field(key="difficulty", field_type="integer")
+    schema_str = _schema_with_field(key="difficulty", field_type="string")
+
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-index-int")
+    repo.recreate_collection("fixture-index-str")
+    repo.index_chunks(
+        collection_name="fixture-index-int",
+        chunks=run_pipeline(MINERU_FIXTURES, university="cam")[:1],
+        vectors=_vectors(1, 8),
+        metadata_schema=schema_int,
+    )
+    repo.index_chunks(
+        collection_name="fixture-index-str",
+        chunks=run_pipeline(MINERU_FIXTURES, university="cam")[:1],
+        vectors=_vectors(1, 8),
+        metadata_schema=schema_str,
+    )
+
+    ensure_metadata_indexes(
+        engine,
+        collection_name="fixture-index-int",
+        schema=schema_int,
+    )
+    ensure_metadata_indexes(
+        engine,
+        collection_name="fixture-index-str",
+        schema=schema_str,
+    )
+
+    with engine.connect() as conn:
+        matching_indexes = conn.execute(
+            text(
+                """
+                select indexname, indexdef
+                from pg_indexes
+                where schemaname = current_schema()
+                  and tablename = 'chunks'
+                  and indexname like 'ix_chunks_metadata_fixture_%'
+                order by indexname
+                """
+            )
+        ).fetchall()
+
+    assert len(matching_indexes) >= 2
+    assert any("::integer" in row.indexdef for row in matching_indexes)
+    assert any("->> 'difficulty'" in row.indexdef for row in matching_indexes)
+    assert all(" where " in row.indexdef.lower() for row in matching_indexes)

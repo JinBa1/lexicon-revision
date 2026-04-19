@@ -153,10 +153,11 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
     )
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.ensure_metadata_indexes",
-        lambda engine, metadata_schema: calls.update(
+        lambda engine, *, collection_name, schema: calls.update(
             {
                 "indexed_engine": engine,
-                "indexed_schema": metadata_schema.model_dump(mode="json"),
+                "indexed_collection_name": collection_name,
+                "indexed_schema": schema.model_dump(mode="json"),
             }
         ),
     )
@@ -177,6 +178,7 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
     assert calls["recreated"] == "cam-cs-tripos-fixture"
     assert calls["indexed_collection"] == "cam-cs-tripos-fixture"
     assert calls["chunk_count"] == calls["vector_count"]
+    assert calls["indexed_collection_name"] == "cam-cs-tripos-fixture"
     assert calls["metadata_schema"] == calls["indexed_schema"]
     assert calls["metadata_schema"]["fields"][0]["key"] == "year"
     assert sample_ref["object_key"].startswith("artifacts/mineru/run-")
@@ -219,7 +221,7 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.ensure_metadata_indexes",
-        lambda engine, metadata_schema: None,
+        lambda engine, *, collection_name, schema: None,
     )
 
     with pytest.raises(FileNotFoundError):
