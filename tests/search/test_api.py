@@ -153,7 +153,7 @@ def app(seeded_chroma, fake_embedder: FakeEmbedder):
 
     from src.main import create_app
 
-    return create_app(search_service=service)
+    return create_app(search_service=service, object_storage=storage)
 
 
 @pytest.mark.anyio
