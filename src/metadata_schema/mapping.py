@@ -15,7 +15,13 @@ def build_chunk_metadata(
         if field.source is None:
             continue
         attr_name = field.source.removeprefix("chunk.")
-        value = getattr(chunk, attr_name)
+        try:
+            value = getattr(chunk, attr_name)
+        except AttributeError as exc:
+            raise ValueError(
+                "schema field "
+                f"{field.key} references unknown chunk source {field.source}"
+            ) from exc
         if value is None:
             continue
         _validate_value_type(field.key, field.type, value)

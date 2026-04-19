@@ -7,6 +7,20 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 MetadataType = Literal["string", "integer", "boolean"]
 MetadataOperator = Literal["eq", "gte", "lte"]
 MetadataScalar = int | bool | str
+_ALLOWED_CHUNK_SOURCE_FIELDS = {
+    "year",
+    "paper",
+    "question_number",
+    "topic",
+    "author",
+    "tripos_part",
+    "sub_question_label",
+    "marks",
+    "total_marks",
+    "has_code",
+    "has_figure",
+    "has_table",
+}
 MetadataKey = Annotated[
     str,
     StringConstraints(pattern=r"^[a-z][a-z0-9_]*$", min_length=1, strict=True),
@@ -40,6 +54,12 @@ class CollectionMetadataSchema(BaseModel):
         for field in self.fields:
             if field.key in seen:
                 raise ValueError(f"duplicate metadata field key: {field.key}")
+            if field.source is not None:
+                source_name = field.source.removeprefix("chunk.")
+                if source_name not in _ALLOWED_CHUNK_SOURCE_FIELDS:
+                    raise ValueError(
+                        f"invalid chunk source path for {field.key}: {field.source}"
+                    )
             seen.add(field.key)
         return self
 
