@@ -25,8 +25,11 @@ from scripts.inspect_search import (
 from src.search.models import SearchResponse, SearchResult
 from src.search.providers.base import EmbeddingResult
 from src.search.service import METADATA_KEYS, CollectionNotFoundError, SearchService
+from src.storage.local import LocalObjectStorage
 
 EMBED_DIM = 8
+SECRET = b"inspect-search-secret"
+MEDIA_OBJECT_KEY = "artifacts/mineru/run-y2025p1q1/images/fig-1.png"
 
 
 class ToolTestFakeEmbedder:
@@ -138,7 +141,7 @@ def _seed_chroma(chroma_dir: Path, embedder: ToolTestFakeEmbedder) -> str:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "/media/fig-1.png",
+                        "object_key": MEDIA_OBJECT_KEY,
                         "relation": "direct",
                     }
                 ]
@@ -233,10 +236,20 @@ def test_build_search_payload_queries_temporary_chroma(
     """Infrastructure test for temporary Chroma search behavior only."""
     embedder = ToolTestFakeEmbedder()
     collection_name = _seed_chroma(tmp_path, embedder)
+    storage = LocalObjectStorage(
+        root=tmp_path / "object-store",
+        dev_presign_secret=SECRET,
+    )
+    storage.put_bytes(
+        key=MEDIA_OBJECT_KEY,
+        data=b"png",
+        content_type="image/png",
+    )
     service = SearchService(
         chroma_dir=str(tmp_path),
         embedding_model=embedder,
         reranker=None,
+        object_storage=storage,
     )
 
     payload = build_search_payload(
@@ -309,7 +322,8 @@ def test_render_text_includes_query_collection_score_chunk_id_metadata_preview()
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "/media/fig-1.png",
+                        "object_key": MEDIA_OBJECT_KEY,
+                        "access_url": "http://localhost:8000/_dev/object/GET/...",
                         "relation": "direct",
                     }
                 ],
@@ -326,6 +340,7 @@ def test_render_text_includes_query_collection_score_chunk_id_metadata_preview()
     assert "topic=Algorithms" in output
     assert "preview: Binary search trees support logarithmic lookup." in output
     assert "media_id=fig-1" in output
+    assert f"object_key={MEDIA_OBJECT_KEY}" in output
 
 
 def test_render_json_is_parseable() -> None:
@@ -368,7 +383,8 @@ def test_render_json_is_parseable() -> None:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "/media/fig-1.png",
+                        "object_key": MEDIA_OBJECT_KEY,
+                        "access_url": "http://localhost:8000/_dev/object/GET/...",
                         "relation": "direct",
                     }
                 ],
@@ -429,7 +445,8 @@ def test_render_text_hides_media_when_not_requested() -> None:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "/media/fig-1.png",
+                        "object_key": MEDIA_OBJECT_KEY,
+                        "access_url": "http://localhost:8000/_dev/object/GET/...",
                         "relation": "direct",
                     }
                 ],

@@ -130,8 +130,8 @@ def test_materialize_media_refs_presigns_access_urls(tmp_path: Path) -> None:
         object_storage=storage,
     )
 
-    assert refs[0]["object_key"] == "artifacts/mineru/run-y2025p1q1/images/figure_1.png"
-    assert refs[0]["access_url"] is not None
+    assert refs[0].object_key == "artifacts/mineru/run-y2025p1q1/images/figure_1.png"
+    assert refs[0].access_url is not None
 
 
 def test_load_storage_media_map_rejects_old_file_path_shape(tmp_path: Path) -> None:

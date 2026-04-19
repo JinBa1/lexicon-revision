@@ -41,7 +41,8 @@ def test_search_result_with_media():
     media = MediaRefResponse(
         media_id="cam-2023-p2-q5-figure_1",
         kind="image",
-        file_path="/media/figure_1.png",
+        object_key="artifacts/mineru/run-y2023p2q5/images/figure_1.png",
+        access_url="http://localhost:8000/_dev/object/GET/...",
         relation="direct",
     )
     result = SearchResult(
@@ -56,6 +57,8 @@ def test_search_result_with_media():
     )
     assert len(result.media) == 1
     assert result.media[0].media_id == "cam-2023-p2-q5-figure_1"
+    assert result.media[0].object_key.endswith("figure_1.png")
+    assert result.media[0].access_url is not None
 
 
 def test_search_result_sub_question():
@@ -109,6 +112,7 @@ def test_media_ref_rejects_invalid_relation():
         MediaRefResponse(
             media_id="cam-2023-p2-q5-figure_1",
             kind="image",
-            file_path="/media/figure_1.png",
+            object_key="artifacts/mineru/run-y2023p2q5/images/figure_1.png",
+            access_url="http://localhost:8000/_dev/object/GET/...",
             relation="local_only",
         )

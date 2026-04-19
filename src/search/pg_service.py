@@ -5,7 +5,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from src.search.models import MediaRefResponse, SearchResponse, SearchResult
+from src.search.media_sidecar import (
+    materialize_media_refs,
+    validate_storage_media_map,
+)
+from src.search.models import SearchResponse, SearchResult
 from src.search.pg_repository import PgSearchRepository
 from src.search.providers.base import EmbeddingProvider, RerankProvider
 from src.search.service import (
@@ -14,6 +18,7 @@ from src.search.service import (
     RERANK_CANDIDATE_CAP,
     _is_valid_chunk_level,
 )
+from src.storage.base import ObjectStorage
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +32,14 @@ class PgSearchService:
         embedding_dimension: int,
         reranker: RerankProvider | None = None,
         media_dir: str = DEFAULT_CHROMA_DIR,
+        object_storage: ObjectStorage | None = None,
     ) -> None:
         self._repository = repository
         self._embedding_model = embedding_model
         self._embedding_dimension = embedding_dimension
         self._reranker = reranker
         self._media_dir = media_dir
+        self._object_storage = object_storage
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
 
     @property
@@ -121,15 +128,10 @@ class PgSearchService:
                     text=row.text,
                     score=score,
                     metadata=row.metadata,
-                    media=[
-                        MediaRefResponse(
-                            media_id=media_ref.get("media_id", ""),
-                            kind=media_ref.get("kind", ""),
-                            file_path=media_ref.get("file_path"),
-                            relation=media_ref.get("relation", ""),
-                        )
-                        for media_ref in media_map.get(row.chunk_id, [])
-                    ],
+                    media=materialize_media_refs(
+                        refs=media_map.get(row.chunk_id, []),
+                        object_storage=self._object_storage,
+                    ),
                 )
             )
 
@@ -150,8 +152,8 @@ class PgSearchService:
             return self._media_cache[collection]
 
         try:
-            media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            raw_payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             logger.warning(
                 "Failed to load media sidecar at %s; returning empty media lists",
                 sidecar_path,
@@ -159,7 +161,8 @@ class PgSearchService:
             self._media_cache[collection] = {}
             return self._media_cache[collection]
 
-        if not _is_valid_media_map(media_map):
+        media_map = validate_storage_media_map(raw_payload)
+        if media_map is None:
             logger.warning(
                 "Media sidecar at %s has invalid shape; returning empty media lists",
                 sidecar_path,
@@ -169,30 +172,3 @@ class PgSearchService:
 
         self._media_cache[collection] = media_map
         return media_map
-
-
-def _is_valid_media_map(value: Any) -> bool:
-    if not isinstance(value, dict):
-        return False
-
-    for chunk_id, refs in value.items():
-        if not isinstance(chunk_id, str) or not isinstance(refs, list):
-            return False
-        for ref in refs:
-            if not isinstance(ref, dict):
-                return False
-            if not isinstance(ref.get("media_id"), str):
-                return False
-            if ref.get("kind") not in {"image", "table"}:
-                return False
-            file_path = ref.get("file_path")
-            if file_path is not None and not isinstance(file_path, str):
-                return False
-            if ref.get("relation") not in {
-                "direct",
-                "inherited_shared",
-                "visible_from_child",
-            }:
-                return False
-
-    return True

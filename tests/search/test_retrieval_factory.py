@@ -24,6 +24,7 @@ def test_factory_returns_chroma_service_for_chroma_backend(tmp_path) -> None:
         chroma_dir=str(tmp_path),
         embedding_model=Mock(model_id="fake-v1"),
         reranker=None,
+        object_storage=Mock(),
     )
 
     assert isinstance(service, SearchService)
@@ -42,6 +43,7 @@ def test_factory_rejects_unknown_backend(tmp_path) -> None:
             chroma_dir=str(tmp_path),
             embedding_model=Mock(model_id="fake-v1"),
             reranker=None,
+            object_storage=Mock(),
         )
 
 
@@ -54,6 +56,7 @@ def test_factory_returns_postgres_service_for_postgres_backend(tmp_path) -> None
         embedding_model=Mock(model_id="fake-v1"),
         reranker=None,
         engine=Mock(),
+        object_storage=Mock(),
     )
 
     assert isinstance(service, PgSearchService)

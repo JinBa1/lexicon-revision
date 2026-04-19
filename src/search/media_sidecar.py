@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from src.chunking.models import Chunk
+from src.search.models import MediaRefResponse
 from src.storage.base import ObjectStorage
 from src.storage.keys import validate_key
 from src.storage.manifest import ArtifactManifest
@@ -121,20 +122,29 @@ def load_storage_media_map(path: Path) -> dict[str, list[StoredMediaRef]]:
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return {}
 
-    if not isinstance(payload, dict):
+    validated = validate_storage_media_map(payload)
+    if validated is None:
         return {}
+    return validated
+
+
+def validate_storage_media_map(
+    payload: Any,
+) -> dict[str, list[StoredMediaRef]] | None:
+    if not isinstance(payload, dict):
+        return None
 
     media_map: dict[str, list[StoredMediaRef]] = {}
     for chunk_id, refs in payload.items():
         if not isinstance(chunk_id, str) or not isinstance(refs, list):
-            return {}
+            return None
         validated_refs: list[StoredMediaRef] = []
         for ref in refs:
             if not isinstance(ref, dict):
-                return {}
+                return None
             validated = _validate_stored_media_ref(ref)
             if validated is None:
-                return {}
+                return None
             validated_refs.append(validated)
         media_map[chunk_id] = validated_refs
     return media_map
@@ -145,8 +155,8 @@ def materialize_media_refs(
     refs: list[dict[str, Any]],
     object_storage: ObjectStorage | None,
     expires_in_seconds: int = 900,
-) -> list[StoredMediaRef]:
-    materialized: list[StoredMediaRef] = []
+) -> list[MediaRefResponse]:
+    materialized: list[MediaRefResponse] = []
     for ref in refs:
         validated = _validate_stored_media_ref(ref)
         if validated is None:
@@ -161,7 +171,15 @@ def materialize_media_refs(
                 ).url
             except Exception:
                 access_url = None
-        materialized.append({**validated, "access_url": access_url})
+        materialized.append(
+            MediaRefResponse(
+                media_id=validated.get("media_id", ""),
+                kind=validated.get("kind", ""),
+                object_key=object_key,
+                access_url=access_url,
+                relation=validated.get("relation", ""),
+            )
+        )
     return materialized
 
 

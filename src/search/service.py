@@ -8,8 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import chromadb
-from src.search.models import MediaRefResponse, SearchResponse, SearchResult
+from src.search.media_sidecar import (
+    materialize_media_refs,
+    validate_storage_media_map,
+)
+from src.search.models import SearchResponse, SearchResult
 from src.search.providers.base import EmbeddingProvider, RerankProvider
+from src.storage.base import ObjectStorage
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +72,13 @@ class SearchService:
         embedding_model: EmbeddingProvider,
         chroma_dir: str = DEFAULT_CHROMA_DIR,
         reranker: RerankProvider | None = None,
+        object_storage: ObjectStorage | None = None,
     ) -> None:
         self._chroma_dir = chroma_dir
         self._client = chromadb.PersistentClient(path=chroma_dir)
         self._embedding_model = embedding_model
         self._reranker = reranker
+        self._object_storage = object_storage
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
         self._metadata_warning_collections: set[str] = set()
 
@@ -202,15 +209,10 @@ class SearchService:
                     text=document,
                     score=score,
                     metadata=normalized_metadata,
-                    media=[
-                        MediaRefResponse(
-                            media_id=media_ref.get("media_id", ""),
-                            kind=media_ref.get("kind", ""),
-                            file_path=media_ref.get("file_path"),
-                            relation=media_ref.get("relation", ""),
-                        )
-                        for media_ref in media_map.get(chunk_id, [])
-                    ],
+                    media=materialize_media_refs(
+                        refs=media_map.get(chunk_id, []),
+                        object_storage=self._object_storage,
+                    ),
                 )
             )
 
@@ -236,8 +238,8 @@ class SearchService:
             return self._media_cache[collection]
 
         try:
-            media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            raw_payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             logger.warning(
                 "Failed to load media sidecar at %s; returning empty media lists",
                 sidecar_path,
@@ -245,7 +247,8 @@ class SearchService:
             self._media_cache[collection] = {}
             return self._media_cache[collection]
 
-        if not _is_valid_media_map(media_map):
+        media_map = validate_storage_media_map(raw_payload)
+        if media_map is None:
             logger.warning(
                 "Media sidecar at %s has invalid shape; returning empty media lists",
                 sidecar_path,
@@ -279,34 +282,6 @@ def _build_where_clause(filters: dict[str, Any]) -> dict[str, Any] | None:
     if len(conditions) == 1:
         return conditions[0]
     return {"$and": conditions}
-
-
-def _is_valid_media_map(value: Any) -> bool:
-    """Validate the minimal expected sidecar shape before caching."""
-    if not isinstance(value, dict):
-        return False
-
-    for chunk_id, refs in value.items():
-        if not isinstance(chunk_id, str) or not isinstance(refs, list):
-            return False
-        for ref in refs:
-            if not isinstance(ref, dict):
-                return False
-            if not isinstance(ref.get("media_id"), str):
-                return False
-            if ref.get("kind") not in {"image", "table"}:
-                return False
-            file_path = ref.get("file_path")
-            if file_path is not None and not isinstance(file_path, str):
-                return False
-            if ref.get("relation") not in {
-                "direct",
-                "inherited_shared",
-                "visible_from_child",
-            }:
-                return False
-
-    return True
 
 
 def _is_valid_chunk_level(value: Any) -> bool:

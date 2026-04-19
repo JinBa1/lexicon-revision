@@ -8,7 +8,8 @@ from pydantic import BaseModel
 class MediaRefResponse(BaseModel):
     media_id: str
     kind: Literal["image", "table"]
-    file_path: str | None
+    object_key: str | None
+    access_url: str | None
     relation: Literal["direct", "inherited_shared", "visible_from_child"]
 
 
