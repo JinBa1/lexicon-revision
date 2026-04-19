@@ -113,3 +113,30 @@ def test_collection_schema_rejects_invalid_source_paths() -> None:
                 ],
             }
         )
+
+
+def test_load_collection_schema_rejects_incompatible_source_types(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "broken.metadata-schema.json"
+    path.write_text(
+        """
+        {
+          "version": 1,
+          "fields": [
+            {
+              "key": "topic",
+              "label": "Topic",
+              "type": "integer",
+              "operators": ["eq"],
+              "exposed": true,
+              "source": "chunk.topic"
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid chunk source/type combination"):
+        load_collection_schema(path)
