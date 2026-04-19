@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -76,15 +77,46 @@ def fake_embedder() -> FakeEmbedder:
     return FakeEmbedder()
 
 
+def _fixture_copy_with_manifests(tmp_path: Path) -> str:
+    fixture_copy = tmp_path / "mineru_fixtures"
+    shutil.copytree(MINERU_FIXTURES, fixture_copy)
+    for content_list in fixture_copy.glob("**/*_content_list.json"):
+        stem = content_list.stem.replace("_content_list", "")
+        manifest = {
+            "conversion_run_id": f"run-{stem}",
+            "paper_id": stem,
+            "source_pdf_key": "blobs/sha256/aa/aa/" + "a" * 64 + ".pdf",
+            "mineru_version": "test-mineru",
+            "created_at": "2026-04-18T12:00:00+00:00",
+            "artifacts": [
+                {
+                    "kind": "image",
+                    "key": f"artifacts/mineru/run-{stem}/images/{image.name}",
+                    "content_type": "image/png",
+                    "sha256_hex": "b" * 64,
+                    "size_bytes": 3,
+                }
+                for image in sorted((content_list.parent / "images").glob("*"))
+                if image.is_file()
+            ],
+        }
+        (content_list.parent / f"{stem}_artifact_manifest.json").write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+    return str(fixture_copy)
+
+
 def test_index_creates_collection_and_sidecar(
     tmp_path: Path, fake_embedder: FakeEmbedder
 ) -> None:
     """Indexing fixtures creates a ChromaDB collection and media sidecar."""
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     collection_name = "test-index"
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -105,11 +137,12 @@ def test_index_stores_raw_text_not_embedding_input(
     tmp_path: Path, fake_embedder: FakeEmbedder
 ) -> None:
     """ChromaDB documents contain raw text, not footer-appended embedding input."""
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     collection_name = "test-text"
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -131,11 +164,12 @@ def test_index_stores_metadata_correctly(
     tmp_path: Path, fake_embedder: FakeEmbedder
 ) -> None:
     """Indexed chunks carry the expected metadata fields."""
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     collection_name = "test-meta"
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -161,14 +195,15 @@ def test_index_chunk_ids_match_pipeline_output(
     """Every chunk ID from the pipeline is present in the ChromaDB collection."""
     from src.chunking.pipeline import run_pipeline
 
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     collection_name = "test-ids"
 
-    chunks = run_pipeline(mineru_output_dir=MINERU_FIXTURES, university="cam")
+    chunks = run_pipeline(mineru_output_dir=fixture_dir, university="cam")
     expected_ids = {chunk.id for chunk in chunks}
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -184,11 +219,12 @@ def test_index_chunk_ids_match_pipeline_output(
 
 def test_index_is_idempotent(tmp_path: Path, fake_embedder: FakeEmbedder) -> None:
     """Re-running indexing on the same input produces the same count and IDs."""
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     collection_name = "test-idempotent"
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -200,7 +236,7 @@ def test_index_is_idempotent(tmp_path: Path, fake_embedder: FakeEmbedder) -> Non
     ids_first = set(collection.get(include=[])["ids"])
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -221,14 +257,15 @@ def test_index_media_sidecar_has_correct_keys(
     """Media sidecar preserves representative media payload fields."""
     from src.chunking.pipeline import run_pipeline
 
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     collection_name = "test-sidecar-keys"
 
-    chunks = run_pipeline(mineru_output_dir=MINERU_FIXTURES, university="cam")
+    chunks = run_pipeline(mineru_output_dir=fixture_dir, university="cam")
     chunks_with_media = {chunk.id for chunk in chunks if chunk.media}
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         collection_name=collection_name,
         chroma_dir=chroma_dir,
         embedding_model=fake_embedder,
@@ -252,14 +289,17 @@ def test_index_media_sidecar_has_correct_keys(
     assert (
         isinstance(sample_ref["page_number"], int) or sample_ref["page_number"] is None
     )
+    assert isinstance(sample_ref["object_key"], str) or sample_ref["object_key"] is None
+    assert "file_path" not in sample_ref
     if sample_ref["bbox"] is not None:
         assert isinstance(sample_ref["bbox"], list)
         assert len(sample_ref["bbox"]) == 4
 
 
 def test_new_collection_stamps_embedding_model_id(tmp_path: Path) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         chroma_dir=str(tmp_path / "chroma"),
         collection_name="test-coll",
         embedding_model=_FakeEmbedder(),
@@ -270,11 +310,12 @@ def test_new_collection_stamps_embedding_model_id(tmp_path: Path) -> None:
 
 
 def test_legacy_collection_without_metadata_is_upgraded(tmp_path: Path) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     client = chromadb.PersistentClient(path=chroma_dir)
     client.create_collection(name="test-coll", metadata={"hnsw:space": "cosine"})
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         chroma_dir=chroma_dir,
         collection_name="test-coll",
         embedding_model=_FakeEmbedder(),
@@ -284,6 +325,7 @@ def test_legacy_collection_without_metadata_is_upgraded(tmp_path: Path) -> None:
 
 
 def test_mismatched_existing_model_raises_without_flag(tmp_path: Path) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     client = chromadb.PersistentClient(path=chroma_dir)
     client.create_collection(
@@ -291,7 +333,7 @@ def test_mismatched_existing_model_raises_without_flag(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="embedding_model_id"):
         index_collection(
-            mineru_output_dir=MINERU_FIXTURES,
+            mineru_output_dir=fixture_dir,
             chroma_dir=chroma_dir,
             collection_name="test-coll",
             embedding_model=_FakeEmbedder(),
@@ -300,13 +342,14 @@ def test_mismatched_existing_model_raises_without_flag(tmp_path: Path) -> None:
 
 
 def test_recreate_flag_overwrites_collection_with_new_model_id(tmp_path: Path) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     chroma_dir = str(tmp_path / "chroma")
     client = chromadb.PersistentClient(path=chroma_dir)
     client.create_collection(
         name="test-coll", metadata={"embedding_model_id": "other-model"}
     )
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         chroma_dir=chroma_dir,
         collection_name="test-coll",
         embedding_model=_FakeEmbedder(),
@@ -319,10 +362,11 @@ def test_recreate_flag_overwrites_collection_with_new_model_id(tmp_path: Path) -
 def test_index_collection_does_not_close_caller_owned_embedding_model(
     tmp_path: Path,
 ) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     embedder = _ClosableFakeEmbedder()
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         chroma_dir=str(tmp_path / "chroma"),
         collection_name="test-coll",
         embedding_model=embedder,
@@ -335,6 +379,7 @@ def test_index_collection_closes_owned_embedding_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
     embedder = _ClosableFakeEmbedder()
 
     monkeypatch.setattr(
@@ -347,7 +392,7 @@ def test_index_collection_closes_owned_embedding_provider(
     )
 
     index_collection(
-        mineru_output_dir=MINERU_FIXTURES,
+        mineru_output_dir=fixture_dir,
         chroma_dir=str(tmp_path / "chroma"),
         collection_name="test-coll",
     )

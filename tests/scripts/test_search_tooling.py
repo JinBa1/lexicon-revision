@@ -156,7 +156,7 @@ def test_load_media_map_reads_valid_sidecar(tmp_path: Path) -> None:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "fig.png",
+                        "object_key": "artifacts/mineru/run-1/images/fig.png",
                         "relation": "direct",
                     }
                 ]
@@ -171,7 +171,7 @@ def test_load_media_map_reads_valid_sidecar(tmp_path: Path) -> None:
     assert media_map["chunk-1"][0] == {
         "media_id": "fig-1",
         "kind": "image",
-        "file_path": "fig.png",
+        "object_key": "artifacts/mineru/run-1/images/fig.png",
         "relation": "direct",
     }
 
@@ -604,11 +604,11 @@ def test_parse_case_and_eval_spec_validate_case_shapes(
                 {
                     "media_id": "fig-1",
                     "kind": "image",
-                    "file_path": {"path": "fig.png"},
+                    "object_key": {"path": "fig.png"},
                     "relation": "direct",
                 }
             ],
-            "file_path",
+            "object_key",
         ),
     ],
 )
@@ -634,14 +634,14 @@ def test_load_media_map_preserves_valid_ref_dicts(tmp_path: Path) -> None:
                     {
                         "media_id": "fig-1",
                         "kind": "image",
-                        "file_path": "fig.png",
+                        "object_key": "artifacts/mineru/run-1/images/fig.png",
                         "relation": "direct",
                         "caption": "Figure 1",
                     },
                     {
                         "media_id": "table-1",
                         "kind": "table",
-                        "file_path": "table.csv",
+                        "object_key": "artifacts/mineru/run-1/tables/table.csv",
                         "relation": "visible_from_child",
                         "extra": {"rows": 12},
                     },
@@ -658,16 +658,38 @@ def test_load_media_map_preserves_valid_ref_dicts(tmp_path: Path) -> None:
             {
                 "media_id": "fig-1",
                 "kind": "image",
-                "file_path": "fig.png",
+                "object_key": "artifacts/mineru/run-1/images/fig.png",
                 "relation": "direct",
                 "caption": "Figure 1",
             },
             {
                 "media_id": "table-1",
                 "kind": "table",
-                "file_path": "table.csv",
+                "object_key": "artifacts/mineru/run-1/tables/table.csv",
                 "relation": "visible_from_child",
                 "extra": {"rows": 12},
             },
         ]
     }
+
+
+def test_load_media_map_rejects_old_file_path_shape(tmp_path: Path) -> None:
+    """Infrastructure test for sidecar handling only."""
+    sidecar = tmp_path / "test_media_map.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "chunk-1": [
+                    {
+                        "media_id": "fig-1",
+                        "kind": "image",
+                        "file_path": "fig.png",
+                        "relation": "direct",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_media_map(tmp_path, "test") == {}

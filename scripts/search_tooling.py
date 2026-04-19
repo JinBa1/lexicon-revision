@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+from src.search.media_sidecar import load_storage_media_map
 
 SUPPORTED_FILTER_KEYS = {
     "year",
@@ -18,13 +18,6 @@ SUPPORTED_FILTER_KEYS = {
     "has_code",
     "has_figure",
     "has_table",
-}
-
-SUPPORTED_MEDIA_KINDS = {"image", "table"}
-SUPPORTED_MEDIA_RELATIONS = {
-    "direct",
-    "inherited_shared",
-    "visible_from_child",
 }
 
 
@@ -89,40 +82,7 @@ def load_media_map(
 ) -> dict[str, list[dict[str, Any]]]:
     """Load a collection media sidecar if present and minimally valid."""
     sidecar_path = Path(chroma_dir) / f"{collection}_media_map.json"
-    if not sidecar_path.exists():
-        return {}
-
-    try:
-        payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        return {}
-
-    if not isinstance(payload, dict):
-        return {}
-
-    media_map: dict[str, list[dict[str, Any]]] = {}
-    for chunk_id, refs in payload.items():
-        if not isinstance(chunk_id, str) or not isinstance(refs, list):
-            return {}
-        validated_refs: list[dict[str, Any]] = []
-        for ref in refs:
-            if not isinstance(ref, dict):
-                return {}
-            media_id = ref.get("media_id")
-            kind = ref.get("kind")
-            file_path = ref.get("file_path")
-            relation = ref.get("relation")
-            if (
-                type(media_id) is not str
-                or not media_id
-                or kind not in SUPPORTED_MEDIA_KINDS
-                or (file_path is not None and not isinstance(file_path, str))
-                or relation not in SUPPORTED_MEDIA_RELATIONS
-            ):
-                return {}
-            validated_refs.append(dict(ref))
-        media_map[chunk_id] = validated_refs
-    return media_map
+    return load_storage_media_map(sidecar_path)
 
 
 def load_eval_spec(path: str | Path) -> EvalSpec:
