@@ -5,11 +5,26 @@ from dataclasses import dataclass
 from typing import Any
 
 from pgvector.sqlalchemy import Vector as PgVectorType
-from sqlalchemy import Engine, Float, and_, bindparam, cast, delete, insert, select
+from pydantic import ValidationError
+from sqlalchemy import (
+    Boolean,
+    Engine,
+    Float,
+    Integer,
+    Text,
+    and_,
+    bindparam,
+    cast,
+    delete,
+    insert,
+    select,
+    update,
+)
 from sqlalchemy.orm import Session
 from src.chunking.models import Chunk
 from src.db.schema import chunk_embeddings, collections, papers
 from src.db.schema import chunks as chunks_table
+from src.metadata_schema import CollectionMetadataSchema, build_chunk_metadata
 from src.search.service import CollectionNotFoundError, EmbeddingModelMismatchError
 
 
@@ -75,6 +90,7 @@ class PgIndexRepository:
         collection_name: str,
         chunks: list[Chunk],
         vectors: list[list[float]],
+        metadata_schema: CollectionMetadataSchema,
     ) -> None:
         if len(vectors) != len(chunks):
             raise ValueError(f"Got {len(chunks)} chunks but {len(vectors)} vectors")
@@ -87,6 +103,7 @@ class PgIndexRepository:
 
         with Session(self.engine) as session:
             collection_row = _load_collection_row(session, collection_name)
+            metadata_schema_payload = metadata_schema.model_dump(mode="json")
             if collection_row is None:
                 collection_id = str(uuid.uuid4())
                 session.execute(
@@ -95,6 +112,7 @@ class PgIndexRepository:
                         name=collection_name,
                         embedding_model_id=self.embedding_model_id,
                         embedding_dimension=self.embedding_dimension,
+                        metadata_schema=metadata_schema_payload,
                     )
                 )
             else:
@@ -105,6 +123,11 @@ class PgIndexRepository:
                     actual_dimension=int(collection_row.embedding_dimension),
                     expected_model_id=self.embedding_model_id,
                     expected_dimension=self.embedding_dimension,
+                )
+                session.execute(
+                    update(collections)
+                    .where(collections.c.id == collection_id)
+                    .values(metadata_schema=metadata_schema_payload)
                 )
 
             pdf_to_paper_id: dict[str, str] = {}
@@ -167,17 +190,7 @@ class PgIndexRepository:
                         parent_chunk_id=chunk.parent_chunk_id,
                         sub_question_label=chunk.sub_question_label,
                         text=chunk.text,
-                        year=chunk.year,
-                        paper=chunk.paper,
-                        question_number=chunk.question_number,
-                        topic=chunk.topic,
-                        author=chunk.author,
-                        tripos_part=chunk.tripos_part,
-                        marks=chunk.marks,
-                        total_marks=chunk.total_marks,
-                        has_code=chunk.has_code,
-                        has_figure=chunk.has_figure,
-                        has_table=chunk.has_table,
+                        metadata=build_chunk_metadata(chunk, metadata_schema),
                         source_pdf=chunk.source_pdf,
                     )
                 )
@@ -222,6 +235,9 @@ class PgSearchRepository:
                 expected_model_id=embedding_model_id,
                 expected_dimension=embedding_dimension,
             )
+            collection_schema = _load_collection_schema(
+                getattr(collection_row, "metadata_schema", None)
+            )
 
             vec_param = cast(bindparam("query_vec"), PgVectorType)
             distance_expr = chunk_embeddings.c.embedding.op("<=>", return_type=Float)(
@@ -237,19 +253,17 @@ class PgSearchRepository:
                 if value is None:
                     continue
                 if key == "marks_min":
-                    conditions.append(chunks_table.c.marks >= value)
-                elif key in (
-                    "year",
-                    "paper",
-                    "question_number",
-                    "topic",
-                    "has_code",
-                    "has_figure",
-                    "has_table",
-                    "source_pdf",
-                    "chunk_level",
-                ):
-                    conditions.append(getattr(chunks_table.c, key) == value)
+                    expression = _metadata_filter_expression(collection_schema, "marks")
+                    if expression is not None:
+                        conditions.append(expression >= value)
+                    continue
+                direct_column = _DIRECT_FILTER_COLUMNS.get(key)
+                if direct_column is not None:
+                    conditions.append(direct_column == value)
+                    continue
+                expression = _metadata_filter_expression(collection_schema, key)
+                if expression is not None:
+                    conditions.append(expression == value)
 
             stmt = (
                 select(
@@ -259,17 +273,7 @@ class PgSearchRepository:
                     chunks_table.c.sub_question_label,
                     chunks_table.c.text,
                     distance_expr,
-                    chunks_table.c.year,
-                    chunks_table.c.paper,
-                    chunks_table.c.question_number,
-                    chunks_table.c.topic,
-                    chunks_table.c.author,
-                    chunks_table.c.tripos_part,
-                    chunks_table.c.marks,
-                    chunks_table.c.total_marks,
-                    chunks_table.c.has_code,
-                    chunks_table.c.has_figure,
-                    chunks_table.c.has_table,
+                    chunks_table.c.metadata,
                     chunks_table.c.source_pdf,
                 )
                 .select_from(
@@ -294,23 +298,7 @@ class PgSearchRepository:
                     sub_question_label=row.sub_question_label,
                     text=row.text,
                     score=1.0 - row.distance,
-                    metadata={
-                        "year": row.year,
-                        "paper": row.paper,
-                        "question_number": row.question_number,
-                        "topic": row.topic,
-                        "author": row.author,
-                        "tripos_part": row.tripos_part,
-                        "chunk_level": row.chunk_level,
-                        "parent_chunk_id": row.parent_chunk_id,
-                        "sub_question_label": row.sub_question_label,
-                        "marks": row.marks,
-                        "total_marks": row.total_marks,
-                        "has_code": row.has_code,
-                        "has_figure": row.has_figure,
-                        "has_table": row.has_table,
-                        "source_pdf": row.source_pdf,
-                    },
+                    metadata=_result_metadata_from_row(row, collection_schema),
                 )
                 for row in results
             ]
@@ -321,6 +309,7 @@ def _load_collection_row(session: Session, collection_name: str):
         collections.c.id,
         collections.c.embedding_model_id,
         collections.c.embedding_dimension,
+        collections.c.metadata_schema,
     ).where(collections.c.name == collection_name)
     return session.execute(stmt).first()
 
@@ -345,3 +334,85 @@ def _validate_collection_settings(
             f"{actual_dimension} but the configured query embedder expects "
             f"{expected_dimension}"
         )
+
+
+_DIRECT_FILTER_COLUMNS = {
+    "source_pdf": chunks_table.c.source_pdf,
+    "chunk_level": chunks_table.c.chunk_level,
+}
+
+_LEGACY_METADATA_FILTER_TYPES = {
+    "year": "integer",
+    "paper": "integer",
+    "question_number": "integer",
+    "topic": "string",
+    "author": "string",
+    "tripos_part": "string",
+    "marks": "integer",
+    "total_marks": "integer",
+    "has_code": "boolean",
+    "has_figure": "boolean",
+    "has_table": "boolean",
+}
+
+
+def _load_collection_schema(raw_payload: Any) -> CollectionMetadataSchema | None:
+    if not isinstance(raw_payload, dict) or not raw_payload:
+        return None
+    try:
+        return CollectionMetadataSchema.model_validate(raw_payload)
+    except ValidationError:
+        return None
+
+
+def _metadata_filter_expression(
+    collection_schema: CollectionMetadataSchema | None,
+    key: str,
+):
+    field_type = _metadata_field_type(collection_schema, key)
+    if field_type is None:
+        return None
+
+    extracted_value = chunks_table.c.metadata.op("->>")(key)
+    if field_type == "integer":
+        return cast(extracted_value, Integer)
+    if field_type == "boolean":
+        return cast(extracted_value, Boolean)
+    return cast(extracted_value, Text)
+
+
+def _metadata_field_type(
+    collection_schema: CollectionMetadataSchema | None,
+    key: str,
+) -> str | None:
+    if collection_schema is not None:
+        try:
+            return collection_schema.field(key).type
+        except KeyError:
+            pass
+    return _LEGACY_METADATA_FILTER_TYPES.get(key)
+
+
+def _result_metadata_from_row(
+    row,
+    collection_schema: CollectionMetadataSchema | None,
+) -> dict[str, Any]:
+    stored_metadata = dict(row.metadata or {})
+    result_metadata: dict[str, Any]
+    if collection_schema is None:
+        result_metadata = stored_metadata
+    else:
+        result_metadata = {
+            field.key: stored_metadata.get(field.key)
+            for field in collection_schema.fields
+        }
+        result_metadata.update(stored_metadata)
+    result_metadata.update(
+        {
+            "chunk_level": row.chunk_level,
+            "parent_chunk_id": row.parent_chunk_id,
+            "sub_question_label": row.sub_question_label,
+            "source_pdf": row.source_pdf,
+        }
+    )
+    return result_metadata

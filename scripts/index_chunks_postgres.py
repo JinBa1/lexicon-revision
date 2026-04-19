@@ -22,6 +22,11 @@ from scripts.index_chunks import build_embedding_text  # noqa: E402
 from sqlalchemy import Engine  # noqa: E402
 from src.chunking.pipeline import run_pipeline  # noqa: E402
 from src.db.config import create_database_engine, load_database_settings  # noqa: E402
+from src.db.metadata_indexes import ensure_metadata_indexes  # noqa: E402
+from src.metadata_schema import (  # noqa: E402
+    default_schema_path,
+    load_collection_schema,
+)
 from src.search.media_sidecar import (  # noqa: E402
     build_storage_media_map,
     write_storage_media_map,
@@ -57,6 +62,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to downloader metadata.json",
     )
     parser.add_argument(
+        "--metadata-schema",
+        default=None,
+        help="Path to the collection metadata schema JSON file",
+    )
+    parser.add_argument(
         "--university",
         default="cam",
         help="University code used in chunk IDs (default: cam)",
@@ -76,6 +86,7 @@ def index_collection_postgres(
     embedding_model: Any,
     embedding_dimension: int,
     metadata_path: str | None = None,
+    metadata_schema_path: str | None = None,
     university: str = "cam",
     recreate_collection: bool = False,
 ) -> None:
@@ -100,6 +111,8 @@ def index_collection_postgres(
     embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
     result = embedding_model.embed_documents(embedding_inputs)
     vectors = result.vectors
+    schema_path = metadata_schema_path or default_schema_path(collection_name)
+    metadata_schema = load_collection_schema(schema_path)
 
     repo = PgIndexRepository(
         engine=engine,
@@ -114,7 +127,9 @@ def index_collection_postgres(
         collection_name=collection_name,
         chunks=chunks,
         vectors=vectors,
+        metadata_schema=metadata_schema,
     )
+    ensure_metadata_indexes(engine, metadata_schema)
     _write_media_sidecar(
         collection_name=collection_name,
         media_map=media_map,
@@ -157,6 +172,7 @@ def main() -> None:
                 embedding_model=embedding_model,
                 embedding_dimension=db_settings.embedding_dimension,
                 metadata_path=args.metadata,
+                metadata_schema_path=args.metadata_schema,
                 university=args.university,
                 recreate_collection=args.recreate_collection,
             )

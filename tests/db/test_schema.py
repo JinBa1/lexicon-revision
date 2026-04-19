@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import String
+from sqlalchemy.dialects.postgresql import JSONB
 from src.db.schema import chunk_embeddings, chunks, collections, metadata, papers
 
 
@@ -16,9 +17,16 @@ def test_schema_has_expected_tables() -> None:
 def test_collections_embedding_columns() -> None:
     assert "embedding_model_id" in collections.c
     assert "embedding_dimension" in collections.c
+    assert "metadata_schema" in collections.c
+    assert isinstance(collections.c.metadata_schema.type, JSONB)
 
 
-def test_chunks_filter_columns() -> None:
+def test_chunks_use_canonical_metadata_jsonb_column() -> None:
+    assert "metadata" in chunks.c
+    assert isinstance(chunks.c.metadata.type, JSONB)
+
+
+def test_chunks_drop_legacy_filter_columns() -> None:
     for name in (
         "year",
         "paper",
@@ -32,7 +40,7 @@ def test_chunks_filter_columns() -> None:
         "has_figure",
         "has_table",
     ):
-        assert name in chunks.c
+        assert name not in chunks.c
 
 
 def test_chunks_use_internal_primary_key_with_collection_scoped_chunk_ids() -> None:

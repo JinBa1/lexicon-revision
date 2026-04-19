@@ -4,12 +4,10 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
-    Index,
     Integer,
     MetaData,
     PrimaryKeyConstraint,
@@ -19,6 +17,10 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy import (
+    text as sql_text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 
 metadata = MetaData()
 
@@ -29,6 +31,12 @@ collections = Table(
     Column("name", Text, nullable=False, unique=True),
     Column("embedding_model_id", Text, nullable=False),
     Column("embedding_dimension", Integer, nullable=False),
+    Column(
+        "metadata_schema",
+        JSONB,
+        nullable=False,
+        server_default=sql_text("'{}'::jsonb"),
+    ),
     Column(
         "created_at",
         DateTime(timezone=True),
@@ -82,17 +90,12 @@ chunks = Table(
     Column("parent_chunk_id", Text, nullable=True),
     Column("sub_question_label", Text, nullable=True),
     Column("text", Text, nullable=False),
-    Column("year", Integer, nullable=True),
-    Column("paper", Integer, nullable=True),
-    Column("question_number", Integer, nullable=True),
-    Column("topic", Text, nullable=True),
-    Column("author", Text, nullable=True),
-    Column("tripos_part", Text, nullable=True),
-    Column("marks", Integer, nullable=True),
-    Column("total_marks", Integer, nullable=True),
-    Column("has_code", Boolean, nullable=False),
-    Column("has_figure", Boolean, nullable=False),
-    Column("has_table", Boolean, nullable=False),
+    Column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        server_default=sql_text("'{}'::jsonb"),
+    ),
     Column("source_pdf", Text, nullable=False),
     UniqueConstraint(
         "collection_id",
@@ -100,8 +103,6 @@ chunks = Table(
         name="uq_chunks_collection_chunk_id",
     ),
 )
-
-Index("ix_chunks_collection_year", chunks.c.collection_id, chunks.c.year)
 
 chunk_embeddings = Table(
     "chunk_embeddings",

@@ -4,8 +4,9 @@ import os
 
 import pytest
 from scripts.index_chunks import build_embedding_text
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from src.chunking.pipeline import run_pipeline
+from src.metadata_schema import default_schema_path, load_collection_schema
 from src.search.pg_repository import PgIndexRepository, PgSearchRepository
 from src.search.service import CollectionNotFoundError
 
@@ -25,6 +26,10 @@ def _vectors(count: int, dimension: int) -> list[list[float]]:
     return [[1.0] + [0.0] * (dimension - 1) for _ in range(count)]
 
 
+def _schema():
+    return load_collection_schema(default_schema_path("cam-cs-tripos-fixture"))
+
+
 def test_index_repository_indexes_fixture_chunks() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")
@@ -35,7 +40,12 @@ def test_index_repository_indexes_fixture_chunks() -> None:
         engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
     )
     repo.recreate_collection("fixture-pg")
-    repo.index_chunks(collection_name="fixture-pg", chunks=chunks, vectors=vectors)
+    repo.index_chunks(
+        collection_name="fixture-pg",
+        chunks=chunks,
+        vectors=vectors,
+        metadata_schema=_schema(),
+    )
 
     search_repo = PgSearchRepository(engine=engine)
     results = search_repo.search(
@@ -61,7 +71,10 @@ def test_index_repository_rejects_dimension_mismatch() -> None:
 
     with pytest.raises(ValueError, match="embedding dimension"):
         repo.index_chunks(
-            collection_name="bad-dim", chunks=chunks, vectors=[[1.0, 0.0]]
+            collection_name="bad-dim",
+            chunks=chunks,
+            vectors=[[1.0, 0.0]],
+            metadata_schema=_schema(),
         )
 
 
@@ -80,11 +93,12 @@ def test_search_repository_raises_for_missing_collection() -> None:
         )
 
 
-def test_search_repository_returns_full_metadata_shape() -> None:
+def test_index_repository_persists_collection_schema_and_chunk_metadata() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")
     inputs = [build_embedding_text(chunk) for chunk in chunks]
     vectors = _vectors(len(inputs), 8)
+    metadata_schema = _schema()
 
     repo = PgIndexRepository(
         engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
@@ -94,11 +108,62 @@ def test_search_repository_returns_full_metadata_shape() -> None:
         collection_name="fixture-metadata",
         chunks=chunks,
         vectors=vectors,
+        metadata_schema=metadata_schema,
+    )
+
+    with engine.connect() as conn:
+        collection_row = conn.execute(
+            text(
+                """
+                select metadata_schema
+                from collections
+                where name = :collection_name
+                """
+            ),
+            {"collection_name": "fixture-metadata"},
+        ).first()
+        chunk_row = conn.execute(
+            text(
+                """
+                select metadata
+                from chunks
+                where collection_id = (
+                    select id from collections where name = :collection_name
+                )
+                order by chunk_id
+                limit 1
+                """
+            ),
+            {"collection_name": "fixture-metadata"},
+        ).first()
+
+    assert collection_row is not None
+    assert chunk_row is not None
+    assert collection_row.metadata_schema == metadata_schema.model_dump(mode="json")
+    assert "year" in chunk_row.metadata
+    assert "source_pdf" not in chunk_row.metadata
+
+
+def test_search_repository_returns_metadata_from_canonical_storage() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")
+    inputs = [build_embedding_text(chunk) for chunk in chunks]
+    vectors = _vectors(len(inputs), 8)
+
+    repo = PgIndexRepository(
+        engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
+    )
+    repo.recreate_collection("fixture-search-metadata")
+    repo.index_chunks(
+        collection_name="fixture-search-metadata",
+        chunks=chunks,
+        vectors=vectors,
+        metadata_schema=_schema(),
     )
 
     search_repo = PgSearchRepository(engine=engine)
     result = search_repo.search(
-        collection_name="fixture-metadata",
+        collection_name="fixture-search-metadata",
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
@@ -124,6 +189,40 @@ def test_search_repository_returns_full_metadata_shape() -> None:
         "source_pdf",
     }
     assert set(result.metadata.keys()) == expected_keys
+    assert result.metadata["year"] is not None
+    assert result.metadata["source_pdf"].endswith(".pdf")
+
+
+def test_search_repository_filters_using_canonical_chunk_metadata() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")
+    inputs = [build_embedding_text(chunk) for chunk in chunks]
+    vectors = _vectors(len(inputs), 8)
+
+    repo = PgIndexRepository(
+        engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
+    )
+    repo.recreate_collection("fixture-filter-metadata")
+    repo.index_chunks(
+        collection_name="fixture-filter-metadata",
+        chunks=chunks,
+        vectors=vectors,
+        metadata_schema=_schema(),
+    )
+
+    search_repo = PgSearchRepository(engine=engine)
+    results = search_repo.search(
+        collection_name="fixture-filter-metadata",
+        query_vector=[1.0] + [0.0] * 7,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+        filters={"year": 2025, "has_code": True},
+        limit=10,
+    )
+
+    assert results
+    assert all(result.metadata["year"] == 2025 for result in results)
+    assert all(result.metadata["has_code"] is True for result in results)
 
 
 def test_index_repository_allows_same_chunk_ids_in_multiple_collections() -> None:
@@ -139,11 +238,13 @@ def test_index_repository_allows_same_chunk_ids_in_multiple_collections() -> Non
         collection_name="fixture-a",
         chunks=chunks,
         vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
     )
     repo.index_chunks(
         collection_name="fixture-b",
         chunks=chunks,
         vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
     )
 
     search_repo = PgSearchRepository(engine=engine)
@@ -180,11 +281,13 @@ def test_index_repository_replaces_existing_chunk_ids_within_collection() -> Non
         collection_name="fixture-upsert",
         chunks=chunks,
         vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
     )
     repo.index_chunks(
         collection_name="fixture-upsert",
         chunks=chunks,
         vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
     )
 
     search_repo = PgSearchRepository(engine=engine)
