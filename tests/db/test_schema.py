@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import String
+from sqlalchemy import CheckConstraint, String
 from sqlalchemy.dialects.postgresql import JSONB
 from src.db.schema import (
     chunk_embeddings,
@@ -95,11 +95,20 @@ def test_papers_unique_collection_source_pdf_constraint() -> None:
 def test_users_email_is_unique() -> None:
     constraints = {constraint.name for constraint in users.constraints}
     assert "uq_users_email" in constraints
+    assert "ck_users_email_lowercase" in constraints
+
+    checks = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in users.constraints
+        if isinstance(constraint, CheckConstraint) and constraint.name is not None
+    }
+    assert checks["ck_users_email_lowercase"] == "email = lower(email)"
 
 
 def test_communities_name_is_unique() -> None:
     constraints = {constraint.name for constraint in communities.constraints}
     assert "uq_communities_name" in constraints
+    assert "uq_communities_slug" in constraints
 
 
 def test_communities_include_slug_column() -> None:
@@ -110,6 +119,10 @@ def test_communities_include_slug_column() -> None:
 def test_community_memberships_are_unique_per_user_community_pair() -> None:
     assert "role" in community_memberships.c
     assert "status" in community_memberships.c
+
+    constraints = {constraint.name for constraint in community_memberships.constraints}
+    assert "ck_community_memberships_role_valid" in constraints
+    assert "ck_community_memberships_status_valid" in constraints
 
     unique_constraints = {
         constraint.name: {column.name for column in constraint.columns}
@@ -130,3 +143,15 @@ def test_community_memberships_are_unique_per_user_community_pair() -> None:
     }
     assert foreign_keys["user_id"] == {"users.id"}
     assert foreign_keys["community_id"] == {"communities.id"}
+
+    checks = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in community_memberships.constraints
+        if isinstance(constraint, CheckConstraint) and constraint.name is not None
+    }
+    assert checks["ck_community_memberships_role_valid"] == (
+        "role IN ('member', 'admin')"
+    )
+    assert checks["ck_community_memberships_status_valid"] == (
+        "status IN ('active', 'inactive')"
+    )

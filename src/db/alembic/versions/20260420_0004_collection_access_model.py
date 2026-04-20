@@ -28,6 +28,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
+        sa.CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
 
@@ -43,6 +44,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.UniqueConstraint("name", name="uq_communities_name"),
+        sa.UniqueConstraint("slug", name="uq_communities_slug"),
     )
 
     op.create_table(
@@ -57,6 +59,14 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
+        ),
+        sa.CheckConstraint(
+            "role IN ('member', 'admin')",
+            name="ck_community_memberships_role_valid",
+        ),
+        sa.CheckConstraint(
+            "status IN ('active', 'inactive')",
+            name="ck_community_memberships_status_valid",
         ),
         sa.ForeignKeyConstraint(
             ["community_id"],

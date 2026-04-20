@@ -4,6 +4,7 @@ import os
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 from src.metadata_schema import default_schema_path, load_collection_schema
 
 pytestmark = pytest.mark.integration
@@ -240,6 +241,20 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
             community_columns = {
                 column["name"] for column in inspector.get_columns("communities")
             }
+            community_unique_constraints = {
+                constraint["name"]
+                for constraint in inspector.get_unique_constraints("communities")
+            }
+            user_check_constraints = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints("users")
+            }
+            membership_check_constraints = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints(
+                    "community_memberships"
+                )
+            }
             collection_row = conn.execute(
                 text(
                     """
@@ -253,9 +268,24 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
         assert {"users", "communities", "community_memberships"} <= tables
         assert "community_id" in collection_columns
         assert "slug" in community_columns
+        assert "uq_communities_slug" in community_unique_constraints
+        assert "ck_users_email_lowercase" in user_check_constraints
+        assert "ck_community_memberships_role_valid" in membership_check_constraints
+        assert "ck_community_memberships_status_valid" in membership_check_constraints
         assert collection_row is not None
         assert collection_row.id == "collection-public"
         assert collection_row.community_id is None
+
+        with engine.begin() as conn:
+            with pytest.raises(IntegrityError):
+                conn.execute(
+                    text(
+                        """
+                        insert into users (id, email)
+                        values ('user-mixed-case', 'MixedCase@Example.com')
+                        """
+                    )
+                )
     finally:
         command.upgrade(config, "head")
         engine.dispose()

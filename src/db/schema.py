@@ -35,6 +35,7 @@ users = Table(
         nullable=False,
         server_default=func.now(),
     ),
+    CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
     UniqueConstraint("email", name="uq_users_email"),
 )
 
@@ -51,6 +52,7 @@ communities = Table(
         server_default=func.now(),
     ),
     UniqueConstraint("name", name="uq_communities_name"),
+    UniqueConstraint("slug", name="uq_communities_slug"),
 )
 
 community_memberships = Table(
@@ -76,6 +78,14 @@ community_memberships = Table(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
+    ),
+    CheckConstraint(
+        "role IN ('member', 'admin')",
+        name="ck_community_memberships_role_valid",
+    ),
+    CheckConstraint(
+        "status IN ('active', 'inactive')",
+        name="ck_community_memberships_status_valid",
     ),
     UniqueConstraint(
         "user_id",
