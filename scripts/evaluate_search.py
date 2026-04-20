@@ -1,4 +1,4 @@
-"""Run human-authored YAML search evals against local Chroma search."""
+"""Run human-authored YAML search evals against the local search backend."""
 
 from __future__ import annotations
 
@@ -21,10 +21,15 @@ from scripts.inspect_search import (  # noqa: E402
 )
 from scripts.search_tooling import (  # noqa: E402
     EvalCase,
+    dump_filters,
     load_eval_spec,
     truncate_text,
 )
-from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,9 +39,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("eval_path", type=Path, help="Path to the YAML eval file")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
@@ -160,7 +165,7 @@ def _evaluate_case(
     response = service.search(
         query=case.query,
         collection=collection,
-        filters=case.filters or None,
+        filters=case.filters,
         limit=limit,
         rerank=rerank,
     )
@@ -181,7 +186,7 @@ def _evaluate_case(
     return {
         "id": case.id,
         "query": case.query,
-        "filters": case.filters,
+        "filters": dump_filters(case.filters),
         "expected": {
             "any_chunk_ids": case.any_chunk_ids,
             "any_topics": case.any_topics,
@@ -239,7 +244,7 @@ def render_text(report: dict[str, Any]) -> str:
             [
                 f"- {case['id']} [{status}] matched_rank={matched_rank} top_k={top_k}",
                 f"  query: {case['query']}",
-                f"  filters: {_format_mapping(case['filters'])}",
+                f"  filters: {_format_filters(case['filters'])}",
                 f"  expected: {_format_expected(case['expected'])}",
             ]
         )
@@ -266,10 +271,13 @@ def render_text(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_mapping(mapping: dict[str, Any]) -> str:
-    if not mapping:
+def _format_filters(filters: list[dict[str, Any]]) -> str:
+    if not filters:
         return "none"
-    return " ".join(f"{key}={_format_scalar(value)}" for key, value in mapping.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {_format_scalar(item['value'])}"
+        for item in filters
+    )
 
 
 def _format_expected(expected: dict[str, Any]) -> str:
@@ -314,7 +322,7 @@ def main() -> None:
             )
 
         limit = args.limit if args.limit is not None else spec.default_top_k
-        service = create_real_search_service(args.chroma_dir, args.rerank)
+        service = create_real_search_service(args.media_dir, args.rerank)
         report = evaluate_cases(
             service=service,
             cases=spec.cases,
@@ -331,10 +339,12 @@ def main() -> None:
             file=sys.stderr,
         )
         print(
-            "Use scripts/inspect_chroma.py --list-collections to inspect available "
-            "collections.",
+            "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

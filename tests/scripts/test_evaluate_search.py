@@ -19,8 +19,9 @@ from scripts.evaluate_search import (
     render_text,
 )
 from scripts.search_tooling import EvalCase, load_eval_spec
+from src.metadata_schema.models import FilterCondition
+from src.search.errors import CollectionNotFoundError
 from src.search.models import SearchResponse, SearchResult
-from src.search.service import CollectionNotFoundError
 
 
 class ToolTestFakeSearchService:
@@ -37,7 +38,7 @@ class ToolTestFakeSearchService:
         self,
         query: str,
         collection: str,
-        filters: dict[str, object] | None = None,
+        filters: list[FilterCondition] | None = None,
         limit: int = 10,
         rerank: bool = False,
     ) -> SearchResponse:
@@ -60,7 +61,7 @@ class ToolTestMissingCollectionService:
         self,
         query: str,
         collection: str,
-        filters: dict[str, object] | None = None,
+        filters: list[FilterCondition] | None = None,
         limit: int = 10,
         rerank: bool = False,
     ) -> SearchResponse:
@@ -197,7 +198,7 @@ def test_evaluate_cases_passes_on_expected_chunk_id_within_top_k() -> None:
             EvalCase(
                 id="chunk-id-match",
                 query=query,
-                filters={},
+                filters=[],
                 any_chunk_ids=["chunk-2"],
                 any_topics=[],
                 top_k=3,
@@ -246,7 +247,7 @@ def test_evaluate_cases_passes_on_expected_topic_within_top_k() -> None:
             EvalCase(
                 id="topic-match",
                 query=query,
-                filters={},
+                filters=[],
                 any_chunk_ids=[],
                 any_topics=["Algorithms"],
                 top_k=1,
@@ -284,7 +285,7 @@ def test_evaluate_cases_fails_when_no_expectation_appears() -> None:
             EvalCase(
                 id="no-match",
                 query=query,
-                filters={},
+                filters=[],
                 any_chunk_ids=["chunk-9"],
                 any_topics=["Databases"],
                 top_k=2,
@@ -307,7 +308,7 @@ def test_evaluate_cases_fails_when_no_expectation_appears() -> None:
     }
 
 
-def test_evaluate_cases_uses_normalized_question_filter_from_eval_spec(
+def test_load_eval_spec_accepts_filter_condition_list(
     tmp_path: Path,
 ) -> None:
     """Infrastructure test for eval filter plumbing only."""
@@ -320,8 +321,12 @@ cases:
   - id: case-1
     query: binary search trees
     filters:
-      question: 3
-      paper: 1
+      - field: question_number
+        op: eq
+        value: 3
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_chunk_ids:
         - chunk-1
@@ -351,32 +356,10 @@ cases:
         name=spec.name,
     )
 
-    assert service.calls[0]["filters"] == {"question_number": 3, "paper": 1}
-
-
-def test_load_eval_spec_rejects_conflicting_question_filters(
-    tmp_path: Path,
-) -> None:
-    """Infrastructure test for eval schema validation only."""
-    eval_path = tmp_path / "eval.yaml"
-    eval_path.write_text(
-        """
-name: tool_test
-cases:
-  - id: case-1
-    query: binary search trees
-    filters:
-      question: 3
-      question_number: 4
-    expected:
-      any_chunk_ids:
-        - chunk-1
-""",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="question.*question_number"):
-        load_eval_spec(eval_path)
+    assert service.calls[0]["filters"] == [
+        FilterCondition(field="question_number", op="eq", value=3),
+        FilterCondition(field="paper", op="eq", value=1),
+    ]
 
 
 def test_render_text_includes_metrics_and_failures() -> None:
@@ -408,7 +391,7 @@ def test_render_text_includes_metrics_and_failures() -> None:
             EvalCase(
                 id="pass-case",
                 query=pass_query,
-                filters={},
+                filters=[],
                 any_chunk_ids=["chunk-1"],
                 any_topics=[],
                 top_k=1,
@@ -417,7 +400,7 @@ def test_render_text_includes_metrics_and_failures() -> None:
             EvalCase(
                 id="fail-case",
                 query=fail_query,
-                filters={},
+                filters=[],
                 any_chunk_ids=["chunk-9"],
                 any_topics=["Algorithms"],
                 top_k=2,
@@ -460,7 +443,7 @@ def test_render_json_is_parseable() -> None:
             EvalCase(
                 id="json-case",
                 query=query,
-                filters={},
+                filters=[],
                 any_chunk_ids=["chunk-1"],
                 any_topics=[],
                 top_k=1,

@@ -24,8 +24,17 @@ from scripts.inspect_search import (  # noqa: E402
     create_real_search_service,
 )
 from scripts.inspect_study import RecordingProvider, build_payload  # noqa: E402
-from scripts.search_tooling import SUPPORTED_FILTER_KEYS, truncate_text  # noqa: E402
-from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
+from scripts.search_tooling import (  # noqa: E402
+    dump_filters,
+    parse_authored_filters,
+    truncate_text,
+)
+from src.metadata_schema.models import FilterCondition  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import StudyRequest, StudyScope  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner  # noqa: E402
@@ -44,7 +53,7 @@ class StudyVariant:
 class StudyEvalCase:
     id: str
     purpose: str | None
-    filters: dict[str, Any]
+    filters: list[FilterCondition]
     any_chunk_ids: list[str]
     any_topics: list[str]
     variants: list[StudyVariant]
@@ -66,9 +75,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("eval_path", type=Path, help="Path to study eval YAML/JSON")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
@@ -207,7 +216,7 @@ def _parse_case(raw_case: Any) -> StudyEvalCase:
         raise ValueError("Each study eval case must be a mapping")
 
     case_id = _required_string(raw_case.get("id"), "case id")
-    filters = _parse_filters(case_id, raw_case.get("filters") or {})
+    filters = _parse_filters(case_id, raw_case.get("filters"))
     expected = raw_case.get("expected") or {}
     if not isinstance(expected, dict):
         raise ValueError(f"Study eval case '{case_id}' expected must be a mapping")
@@ -258,39 +267,11 @@ def _parse_variants(case_id: str, raw_case: dict[str, Any]) -> list[StudyVariant
     return variants
 
 
-def _parse_filters(case_id: str, value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError(f"Study eval case '{case_id}' filters must be a mapping")
-    unknown_filters = set(value) - (SUPPORTED_FILTER_KEYS | {"question"})
-    if unknown_filters:
-        unknown = ", ".join(sorted(unknown_filters))
-        raise ValueError(
-            f"Study eval case '{case_id}' has unsupported filters: {unknown}"
-        )
-
-    parsed: dict[str, Any] = {}
-    for key, raw_value in value.items():
-        normalized = "question_number" if key == "question" else key
-        if normalized in {"year", "paper", "question_number", "marks_min"}:
-            if type(raw_value) is not int:
-                raise ValueError(
-                    f"Study eval case '{case_id}' filter '{normalized}' must be "
-                    "an integer"
-                )
-        elif normalized in {"has_code", "has_figure", "has_table"}:
-            if type(raw_value) is not bool:
-                raise ValueError(
-                    f"Study eval case '{case_id}' filter '{normalized}' must be "
-                    "a boolean"
-                )
-        elif normalized == "topic":
-            if type(raw_value) is not str or not raw_value:
-                raise ValueError(
-                    f"Study eval case '{case_id}' filter '{normalized}' must be "
-                    "a non-empty string"
-                )
-        parsed[normalized] = raw_value
-    return parsed
+def _parse_filters(case_id: str, value: Any) -> list[FilterCondition]:
+    return parse_authored_filters(
+        value,
+        context=f"Study eval case '{case_id}'",
+    )
 
 
 def _parse_string_list(value: Any, field_name: str) -> list[str]:
@@ -374,7 +355,7 @@ async def _evaluate_case(
     return {
         "id": case.id,
         "purpose": case.purpose,
-        "filters": case.filters,
+        "filters": dump_filters(case.filters),
         "expected": {
             "any_chunk_ids": case.any_chunk_ids,
             "any_topics": case.any_topics,
@@ -393,14 +374,18 @@ async def _evaluate_variant(
     request = StudyRequest(
         query=variant.query,
         scope=StudyScope(collection=collection),
-        filters=case.filters or None,
+        filters=list(case.filters),
         top_k=top_k,
     )
     response = await service.orchestrate(request)
     response_dump = response.model_dump()
     context_chunk_ids = response.retrieval.context_chunk_ids
     source_chunk_ids = [source.chunk_id for source in response.sources]
-    source_topics = [source.topic for source in response.sources if source.topic]
+    source_topics = [
+        topic
+        for source in response.sources
+        if isinstance((topic := source.metadata.get("topic")), str)
+    ]
 
     return {
         "id": variant.id,
@@ -548,7 +533,7 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
                     lines.append(
                         "- "
                         f"`{source['chunk_id']}` "
-                        f"topic=`{source.get('topic')}` "
+                        f"topic=`{source.get('metadata', {}).get('topic')}` "
                         f"score=`{source['score']:.4f}` "
                         f"excerpt={truncate_text(source['excerpt'], max_text_chars)}"
                     )
@@ -556,10 +541,12 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
     return "\n".join(lines)
 
 
-def _format_mapping(mapping: dict[str, Any]) -> str:
-    if not mapping:
+def _format_mapping(filters: list[dict[str, Any]]) -> str:
+    if not filters:
         return "none"
-    return " ".join(f"{key}={value}" for key, value in mapping.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {item['value']}" for item in filters
+    )
 
 
 def _format_list(values: list[Any]) -> str:
@@ -581,7 +568,7 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
     top_k = args.top_k or spec.default_top_k or settings.context.retrieval_top_k_default
 
     search_service = create_real_search_service(
-        args.chroma_dir,
+        args.media_dir,
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )
@@ -644,7 +631,7 @@ async def _evaluate_real_cases(
             request = StudyRequest(
                 query=variant.query,
                 scope=StudyScope(collection=collection),
-                filters=case.filters or None,
+                filters=list(case.filters),
                 top_k=top_k,
             )
             response = await study_service.orchestrate(request)
@@ -652,7 +639,7 @@ async def _evaluate_real_cases(
             payload = build_payload(
                 query=variant.query,
                 collection=collection,
-                filters=case.filters,
+                filters=list(case.filters),
                 top_k=top_k,
                 response=response,
                 interactions=interactions,
@@ -690,9 +677,9 @@ async def _evaluate_real_cases(
                         "expected_topic_in_sources": bool(
                             set(case.any_topics)
                             & {
-                                source.get("topic")
+                                source.get("metadata", {}).get("topic")
                                 for source in payload["sources"]
-                                if source.get("topic")
+                                if source.get("metadata", {}).get("topic")
                             }
                         ),
                     },
@@ -707,7 +694,7 @@ async def _evaluate_real_cases(
             {
                 "id": case.id,
                 "purpose": case.purpose,
-                "filters": case.filters,
+                "filters": dump_filters(case.filters),
                 "expected": {
                     "any_chunk_ids": case.any_chunk_ids,
                     "any_topics": case.any_topics,
@@ -743,6 +730,9 @@ def main() -> None:
         report = asyncio.run(_run_real_report(args))
     except CollectionNotFoundError as exc:
         print(f"Collection '{exc.collection_name}' not found.", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

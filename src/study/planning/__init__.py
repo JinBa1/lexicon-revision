@@ -8,7 +8,6 @@ from src.study.planning.models import (
     PlanningStatus,
     QueryPlan,
     QueryPlanDraft,
-    StudyFilters,
 )
 from src.study.planning.planner import LLMQueryPlanner, QueryPlanner, RawQueryPlanner
 from src.study.planning.retrieval import PlannedRetrievalService
@@ -25,5 +24,4 @@ __all__ = [
     "QueryPlanDraft",
     "QueryPlanner",
     "RawQueryPlanner",
-    "StudyFilters",
 ]

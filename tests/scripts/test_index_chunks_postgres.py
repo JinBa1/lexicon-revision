@@ -6,7 +6,13 @@ import sys
 from pathlib import Path
 
 import pytest
-from scripts.index_chunks_postgres import index_collection_postgres, parse_args
+from scripts.index_chunks_postgres import (
+    build_embedding_text,
+    index_collection_postgres,
+    parse_args,
+)
+from src.chunking.models import Chunk
+from src.metadata_schema import CollectionMetadataSchema, build_chunk_metadata
 from src.search.providers.base import EmbeddingResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +76,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
 
     assert args.input == "tests/data/mineru_fixtures"
     assert args.collection == "fixture"
+    assert args.metadata_schema is None
     assert args.recreate_collection is False
 
 
@@ -88,6 +95,89 @@ def test_parse_args_supports_recreate(monkeypatch) -> None:
     )
 
     assert parse_args().recreate_collection is True
+
+
+def test_parse_args_supports_metadata_schema(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "index_chunks_postgres.py",
+            "--input",
+            "tests/data/mineru_fixtures",
+            "--collection",
+            "fixture",
+            "--metadata-schema",
+            "config/collections/cam-cs-tripos-fixture.metadata-schema.json",
+        ],
+    )
+
+    assert parse_args().metadata_schema.endswith(".metadata-schema.json")
+
+
+def test_build_embedding_text_uses_schema_rendering() -> None:
+    schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "year",
+                    "label": "Year",
+                    "type": "integer",
+                    "operators": ["eq"],
+                    "exposed": False,
+                    "source": "chunk.year",
+                },
+                {
+                    "key": "author",
+                    "label": "Author",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.author",
+                },
+                {
+                    "key": "tripos_part",
+                    "label": "Tripos Part",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.tripos_part",
+                },
+            ],
+        }
+    )
+    chunk = Chunk(
+        id="cam-2024-p2-q5",
+        chunk_level="question",
+        parent_chunk_id=None,
+        text="Binary search trees support efficient lookup.",
+        year=2024,
+        paper=2,
+        question_number=5,
+        topic="Algorithms",
+        author="abc123",
+        tripos_part="Part IB",
+        sub_question_label=None,
+        marks=10,
+        total_marks=20,
+        has_code=True,
+        has_figure=False,
+        has_table=False,
+        media=[],
+        source_pdf="y2024p2.pdf",
+        warnings=[],
+    )
+
+    rendered = build_embedding_text(
+        chunk,
+        schema=schema,
+        metadata=build_chunk_metadata(chunk, schema),
+    )
+
+    assert "Author: abc123" in rendered
+    assert "Tripos Part: Part IB" in rendered
+    assert "Year:" not in rendered
 
 
 def test_index_collection_postgres_writes_storage_backed_sidecar(
@@ -113,33 +203,54 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
         def recreate_collection(self, collection_name: str) -> None:
             calls["recreated"] = collection_name
 
-        def index_chunks(self, *, collection_name: str, chunks, vectors) -> None:
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+        ) -> None:
             calls["indexed_collection"] = collection_name
             calls["chunk_count"] = len(chunks)
             calls["vector_count"] = len(vectors)
+            calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_CHROMA_DIR",
+        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
         str(media_dir),
+    )
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: calls.update(
+            {
+                "indexed_engine": engine,
+                "indexed_collection_name": collection_name,
+                "indexed_schema": schema.model_dump(mode="json"),
+            }
+        ),
     )
 
     index_collection_postgres(
         mineru_output_dir=fixture_dir,
-        collection_name="fixture",
+        collection_name="cam-cs-tripos-fixture",
         engine=object(),
         embedding_model=_FakeEmbedder(),
         embedding_dimension=2,
         recreate_collection=True,
     )
 
-    sidecar_path = media_dir / "fixture_media_map.json"
+    sidecar_path = media_dir / "cam-cs-tripos-fixture_media_map.json"
     media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
     sample_ref = next(iter(media_map.values()))[0]
 
-    assert calls["recreated"] == "fixture"
-    assert calls["indexed_collection"] == "fixture"
+    assert calls["recreated"] == "cam-cs-tripos-fixture"
+    assert calls["indexed_collection"] == "cam-cs-tripos-fixture"
     assert calls["chunk_count"] == calls["vector_count"]
+    assert calls["indexed_collection_name"] == "cam-cs-tripos-fixture"
+    assert calls["metadata_schema"] == calls["indexed_schema"]
+    assert calls["metadata_schema"]["fields"][0]["key"] == "year"
     assert sample_ref["object_key"].startswith("artifacts/mineru/run-")
     assert "file_path" not in sample_ref
 
@@ -165,16 +276,28 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
         def recreate_collection(self, collection_name: str) -> None:
             calls["recreated"] = collection_name
 
-        def index_chunks(self, *, collection_name: str, chunks, vectors) -> None:
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+        ) -> None:
             del collection_name, chunks, vectors
+            del metadata_schema
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: None,
+    )
 
     with pytest.raises(FileNotFoundError):
         index_collection_postgres(
             mineru_output_dir=str(fixture_copy),
-            collection_name="fixture",
+            collection_name="cam-cs-tripos-fixture",
             engine=object(),
             embedding_model=_FakeEmbedder(),
             embedding_dimension=2,

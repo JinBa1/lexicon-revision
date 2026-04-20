@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
-
+from src.metadata_schema.models import FilterCondition
 from src.search.base import SearchBackend
-from src.study.planning.models import PlannedRetrievalResult, QueryPlan, StudyFilters
+from src.study.planning.models import PlannedRetrievalResult, QueryPlan
 
 
 class PlannedRetrievalService:
@@ -14,16 +13,24 @@ class PlannedRetrievalService:
         self,
         plan: QueryPlan,
         *,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
         collection: str,
         limit: int,
         rerank: bool = True,
     ) -> PlannedRetrievalResult:
-        filter_dict = _filters_to_dict(hard_filters)
+        applied_filters = list(hard_filters or [])
+        collection_schema = None
+        get_collection_schema = getattr(
+            self._search_service,
+            "get_collection_schema",
+            None,
+        )
+        if callable(get_collection_schema):
+            collection_schema = get_collection_schema(collection)
         search_response = self._search_service.search(
             query=plan.semantic_queries[0],
             collection=collection,
-            filters=filter_dict or None,
+            filters=applied_filters or None,
             limit=limit,
             rerank=rerank,
         )
@@ -31,11 +38,6 @@ class PlannedRetrievalService:
         return PlannedRetrievalResult(
             search_response=search_response,
             executed_queries=list(plan.semantic_queries),
-            filters_applied=filter_dict,
+            filters_applied=applied_filters,
+            collection_schema=collection_schema,
         )
-
-
-def _filters_to_dict(filters: StudyFilters | None) -> dict[str, Any]:
-    if filters is None:
-        return {}
-    return filters.model_dump(exclude_none=True)

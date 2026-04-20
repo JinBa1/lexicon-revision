@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StrictBool,
-    StrictInt,
-    StringConstraints,
     model_validator,
 )
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.search.models import SearchResponse
 
 PlanningStatus = Literal["ok", "fallback"]
@@ -23,23 +21,6 @@ PlanningErrorCategory = Literal[
     "schema_validation_failed",
     "invalid_plan",
 ]
-TopicString = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, min_length=1, strict=True),
-]
-
-
-class StudyFilters(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    year: StrictInt | None = None
-    paper: StrictInt | None = None
-    question_number: StrictInt | None = None
-    topic: TopicString | None = None
-    has_code: StrictBool | None = None
-    has_figure: StrictBool | None = None
-    has_table: StrictBool | None = None
-    marks_min: StrictInt | None = None
 
 
 class QueryPlanDraft(BaseModel):
@@ -80,7 +61,8 @@ class PlannedRetrievalResult(BaseModel):
 
     search_response: SearchResponse
     executed_queries: list[str]
-    filters_applied: dict[str, Any]
+    filters_applied: list[FilterCondition]
+    collection_schema: CollectionMetadataSchema | None = None
 
 
 class InvalidPlanError(Exception):

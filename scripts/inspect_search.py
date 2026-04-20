@@ -13,9 +13,20 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
+from scripts.search_tooling import (  # noqa: E402
+    dump_filters,
+    parse_filter_conditions,
+    truncate_text,
+)
 from src.db.config import load_database_settings  # noqa: E402
+from src.metadata_schema.models import FilterCondition  # noqa: E402
 from src.search.base import SearchBackend  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_COLLECTION,
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 from src.search.factory import create_search_service  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
@@ -23,12 +34,6 @@ from src.search.providers.config import (  # noqa: E402
     build_embedding_provider,
     build_rerank_provider,
     load_retrieval_provider_settings,
-)
-from src.search.service import (  # noqa: E402
-    DEFAULT_CHROMA_DIR,
-    DEFAULT_COLLECTION,
-    METADATA_KEYS,
-    CollectionNotFoundError,
 )
 
 
@@ -39,14 +44,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("query", help="Search query text")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
         default=DEFAULT_COLLECTION,
-        help=f"ChromaDB collection name (default: {DEFAULT_COLLECTION})",
+        help=f"Search collection name (default: {DEFAULT_COLLECTION})",
     )
     parser.add_argument(
         "--limit",
@@ -68,29 +73,12 @@ def parse_args() -> argparse.Namespace:
         help="Disable cross-encoder reranking",
     )
     parser.set_defaults(rerank=True)
-    parser.add_argument("--year", type=int, help="Filter by year")
-    parser.add_argument("--paper", type=int, help="Filter by paper number")
-    parser.add_argument("--topic", help="Filter by topic")
-    parser.add_argument("--question", type=int, help="Filter by question number")
     parser.add_argument(
-        "--marks-min",
-        type=int,
-        help="Minimum marks filter",
-    )
-    parser.add_argument(
-        "--has-code",
-        action="store_true",
-        help="Filter for chunks with code",
-    )
-    parser.add_argument(
-        "--has-figure",
-        action="store_true",
-        help="Filter for chunks with figures",
-    )
-    parser.add_argument(
-        "--has-table",
-        action="store_true",
-        help="Filter for chunks with tables",
+        "--filter",
+        dest="filters",
+        action="append",
+        default=[],
+        help="Repeatable filter in field:op:value form, e.g. year:eq:2024",
     )
     parser.add_argument(
         "--show-media",
@@ -123,7 +111,7 @@ def _positive_int(value: str) -> int:
 
 
 def create_real_search_service(
-    chroma_dir: str,
+    media_dir: str,
     rerank: bool,
     reranker_device: str | None = None,
 ) -> SearchBackend:
@@ -147,7 +135,7 @@ def create_real_search_service(
         database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
-        chroma_dir=chroma_dir,
+        media_dir=media_dir,
     )
 
 
@@ -155,7 +143,7 @@ def build_search_payload(
     service: SearchBackend,
     query: str,
     collection: str,
-    filters: dict[str, Any],
+    filters: list[FilterCondition],
     limit: int,
     rerank: bool,
     show_media: bool,
@@ -173,7 +161,7 @@ def build_search_payload(
     payload = response.model_dump()
     payload.update(
         {
-            "filters": filters,
+            "filters": dump_filters(filters),
             "limit": limit,
             "providers": build_provider_metadata(service),
             "rerank": rerank,
@@ -249,32 +237,32 @@ def render_text(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_filters(filters: dict[str, Any]) -> str:
+def _format_filters(filters: list[dict[str, Any]]) -> str:
     if not filters:
         return "none"
-    return " ".join(f"{key}={value}" for key, value in filters.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {item['value']}" for item in filters
+    )
 
 
 def _format_metadata(metadata: dict[str, Any]) -> str:
-    return " ".join(f"{key}={metadata.get(key)}" for key in METADATA_KEYS)
+    return " ".join(
+        f"{key}={metadata[key]}"
+        for key in sorted(metadata)
+        if metadata.get(key) is not None
+    )
 
 
 def main() -> None:
     """Run the local search inspection CLI."""
     args = parse_args()
-    filters = build_filters(
-        year=args.year,
-        paper=args.paper,
-        topic=args.topic,
-        question=args.question,
-        marks_min=args.marks_min,
-        has_code=True if args.has_code else None,
-        has_figure=True if args.has_figure else None,
-        has_table=True if args.has_table else None,
-    )
+    filters = parse_filter_conditions(args.filters)
 
     try:
-        service = create_real_search_service(args.chroma_dir, args.rerank)
+        service = create_real_search_service(
+            args.media_dir,
+            args.rerank,
+        )
         payload = build_search_payload(
             service=service,
             query=args.query,
@@ -291,10 +279,12 @@ def main() -> None:
             file=sys.stderr,
         )
         print(
-            "Use scripts/inspect_chroma.py --list-collections to inspect available "
-            "collections.",
+            "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)

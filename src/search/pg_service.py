@@ -5,6 +5,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
+from src.search.errors import (
+    DEFAULT_COLLECTION,
+    DEFAULT_MEDIA_DIR,
+    RERANK_CANDIDATE_CAP,
+)
+from src.search.filtering import validate_filter_conditions
 from src.search.media_sidecar import (
     materialize_media_refs,
     validate_storage_media_map,
@@ -12,12 +19,6 @@ from src.search.media_sidecar import (
 from src.search.models import SearchResponse, SearchResult
 from src.search.pg_repository import PgSearchRepository
 from src.search.providers.base import EmbeddingProvider, RerankProvider
-from src.search.service import (
-    DEFAULT_CHROMA_DIR,
-    DEFAULT_COLLECTION,
-    RERANK_CANDIDATE_CAP,
-    _is_valid_chunk_level,
-)
 from src.storage.base import ObjectStorage
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class PgSearchService:
         embedding_model: EmbeddingProvider,
         embedding_dimension: int,
         reranker: RerankProvider | None = None,
-        media_dir: str = DEFAULT_CHROMA_DIR,
+        media_dir: str = DEFAULT_MEDIA_DIR,
         object_storage: ObjectStorage | None = None,
     ) -> None:
         self._repository = repository
@@ -41,6 +42,7 @@ class PgSearchService:
         self._media_dir = media_dir
         self._object_storage = object_storage
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        self._schema_cache: dict[str, CollectionMetadataSchema] = {}
 
     @property
     def embedding_model_id(self) -> str:
@@ -52,11 +54,18 @@ class PgSearchService:
             return None
         return self._reranker.model_id
 
+    def get_collection_schema(self, collection: str) -> CollectionMetadataSchema:
+        if collection not in self._schema_cache:
+            self._schema_cache[collection] = self._repository.get_collection_schema(
+                collection
+            )
+        return self._schema_cache[collection]
+
     def search(
         self,
         query: str,
         collection: str = DEFAULT_COLLECTION,
-        filters: dict[str, Any] | None = None,
+        filters: list[FilterCondition] | None = None,
         limit: int = 10,
         rerank: bool = True,
     ) -> SearchResponse:
@@ -68,6 +77,8 @@ class PgSearchService:
             )
 
         n_candidates = min(limit * 3, RERANK_CANDIDATE_CAP) if rerank else limit
+        collection_schema = self.get_collection_schema(collection)
+        validated_filters = validate_filter_conditions(filters, collection_schema)
 
         embedding_result = self._embedding_model.embed_query(query)
         if len(embedding_result.vectors) != 1:
@@ -79,7 +90,7 @@ class PgSearchService:
             query_vector=query_vector,
             embedding_model_id=self._embedding_model.model_id,
             embedding_dimension=self._embedding_dimension,
-            filters=filters or {},
+            filters=validated_filters,
             limit=n_candidates,
         )
 
@@ -172,3 +183,7 @@ class PgSearchService:
 
         self._media_cache[collection] = media_map
         return media_map
+
+
+def _is_valid_chunk_level(value: Any) -> bool:
+    return value in {"question", "sub_question"}

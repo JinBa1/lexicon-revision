@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+from src.metadata_schema.models import FilterCondition
 
 
 class MediaRefResponse(BaseModel):
@@ -29,3 +30,13 @@ class SearchResponse(BaseModel):
     collection: str
     results: list[SearchResult]
     total: int
+
+
+class SearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1)
+    collection: str = Field(min_length=1)
+    filters: list[FilterCondition] = Field(default_factory=list)
+    limit: int = Field(default=10, ge=1, le=100)
+    rerank: bool = True

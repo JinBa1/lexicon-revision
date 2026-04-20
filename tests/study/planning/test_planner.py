@@ -4,9 +4,10 @@ import json
 
 import pytest
 from pydantic import ValidationError
+from src.metadata_schema.models import FilterCondition
 from src.study.config import PlanningSettings
 from src.study.models import GenerationRequest, GenerationResult, ProviderCapabilities
-from src.study.planning.models import InvalidPlanError, QueryPlanDraft, StudyFilters
+from src.study.planning.models import InvalidPlanError, QueryPlanDraft
 from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner
 from src.study.providers.base import GeneratorHealth
 
@@ -55,7 +56,10 @@ async def test_happy_path_builds_server_owned_plan() -> None:
 
     plan = await planner.plan(
         "  2024 paper 2 binary search invariant proofs  ",
-        StudyFilters(year=2024, paper=2),
+        [
+            FilterCondition(field="year", op="eq", value=2024),
+            FilterCondition(field="paper", op="eq", value=2),
+        ],
     )
 
     assert plan.planner_version == "query_planner_v1"
@@ -142,7 +146,13 @@ async def test_empty_semantic_query_raises_invalid_plan_error() -> None:
     planner = LLMQueryPlanner(provider, _settings())
 
     with pytest.raises(InvalidPlanError):
-        await planner.plan("2024 paper 1", StudyFilters(year=2024, paper=1))
+        await planner.plan(
+            "2024 paper 1",
+            [
+                FilterCondition(field="year", op="eq", value=2024),
+                FilterCondition(field="paper", op="eq", value=1),
+            ],
+        )
 
 
 @pytest.mark.anyio
@@ -180,7 +190,15 @@ async def test_prompt_messages_include_raw_query_and_filters() -> None:
     provider = FakeProvider({"semantic_queries": ["relational algebra joins"]})
     planner = LLMQueryPlanner(provider, _settings())
 
-    await planner.plan(raw_query, StudyFilters(year=2025, topic="Databases"))
+    await planner.plan(
+        raw_query,
+        [
+            FilterCondition(field="year", op="eq", value=2025),
+            FilterCondition(field="topic", op="eq", value="Databases"),
+            FilterCondition(field="marks", op="gte", value=10),
+            FilterCondition(field="difficulty_band", op="eq", value="hard"),
+        ],
+    )
 
     messages = provider.calls[0].messages
     system = messages[0]["content"]
@@ -188,9 +206,13 @@ async def test_prompt_messages_include_raw_query_and_filters() -> None:
 
     assert messages[0]["role"] == "system"
     assert "year" in system
-    assert "- topic:" not in system
+    assert "topic" in system
+    assert "difficulty_band" in system
     assert raw_query in user
-    assert "Databases" in user
+    assert '"field": "topic"' in user
+    assert '"op": "gte"' in user
+    assert '"field": "marks"' in user
+    assert '"field": "difficulty_band"' in user
 
 
 @pytest.mark.anyio
@@ -198,7 +220,10 @@ async def test_raw_query_planner_returns_raw_query_without_provider_call() -> No
     provider = FakeProvider({"semantic_queries": ["unused"]})
     planner = RawQueryPlanner()
 
-    plan = await planner.plan("messy original query", StudyFilters(year=2025))
+    plan = await planner.plan(
+        "messy original query",
+        [FilterCondition(field="year", op="eq", value=2025)],
+    )
 
     assert plan.original_query == "messy original query"
     assert plan.semantic_queries == ["messy original query"]

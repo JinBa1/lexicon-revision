@@ -19,11 +19,16 @@ from scripts.inspect_search import (  # noqa: E402
     build_provider_metadata,
     create_real_search_service,
 )
-from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
-from src.search.service import (  # noqa: E402
-    DEFAULT_CHROMA_DIR,
+from scripts.search_tooling import (  # noqa: E402
+    dump_filters,
+    parse_filter_conditions,
+    truncate_text,
+)
+from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
+    DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
+    InvalidMetadataFilterError,
 )
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import (  # noqa: E402
@@ -101,14 +106,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("query", help="Study query text")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
         default=DEFAULT_COLLECTION,
-        help=f"ChromaDB collection name (default: {DEFAULT_COLLECTION})",
+        help=f"Search collection name (default: {DEFAULT_COLLECTION})",
     )
     parser.add_argument(
         "--top-k",
@@ -116,19 +121,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Retrieval top-k (default: StudySettings.context.retrieval_top_k_default)",
     )
-    parser.add_argument("--year", type=int, help="Filter by year")
-    parser.add_argument("--paper", type=int, help="Filter by paper number")
-    parser.add_argument("--topic", help="Filter by topic")
-    parser.add_argument("--question", type=int, help="Filter by question number")
-    parser.add_argument("--marks-min", type=int, help="Minimum marks filter")
     parser.add_argument(
-        "--has-code", action="store_true", help="Filter for chunks with code"
-    )
-    parser.add_argument(
-        "--has-figure", action="store_true", help="Filter for chunks with figures"
-    )
-    parser.add_argument(
-        "--has-table", action="store_true", help="Filter for chunks with tables"
+        "--filter",
+        dest="filters",
+        action="append",
+        default=[],
+        help="Repeatable filter in field:op:value form, e.g. year:eq:2024",
     )
     parser.add_argument(
         "--format",
@@ -274,7 +272,7 @@ def build_payload(
     *,
     query: str,
     collection: str,
-    filters: dict[str, Any],
+    filters: list[dict[str, Any]] | list[Any],
     top_k: int,
     response: StudyResponse,
     interactions: list[_RecordedInteraction],
@@ -318,7 +316,11 @@ def build_payload(
     return {
         "query": query,
         "collection": collection,
-        "filters": filters,
+        "filters": (
+            filters
+            if not filters or isinstance(filters[0], dict)
+            else dump_filters(filters)  # type: ignore[arg-type]
+        ),
         "top_k": top_k,
         "retrieval": {
             "status": retrieval["status"],
@@ -524,27 +526,20 @@ def render_text(
     return "\n".join(lines)
 
 
-def _format_mapping(mapping: dict[str, Any]) -> str:
-    if not mapping:
+def _format_mapping(filters: list[dict[str, Any]]) -> str:
+    if not filters:
         return "none"
-    return " ".join(f"{key}={value}" for key, value in mapping.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {item['value']}" for item in filters
+    )
 
 
 def main() -> None:
     """Run the local study inspection CLI."""
     args = parse_args()
-    filters = build_filters(
-        year=args.year,
-        paper=args.paper,
-        topic=args.topic,
-        question=args.question,
-        marks_min=args.marks_min,
-        has_code=True if args.has_code else None,
-        has_figure=True if args.has_figure else None,
-        has_table=True if args.has_table else None,
-    )
 
     try:
+        filters = parse_filter_conditions(args.filters)
         settings = (
             load_study_settings(args.settings)
             if args.settings is not None
@@ -553,7 +548,7 @@ def main() -> None:
         top_k = args.top_k or settings.context.retrieval_top_k_default
 
         search_service = create_real_search_service(
-            args.chroma_dir,
+            args.media_dir,
             rerank=args.rerank,
             reranker_device=args.reranker_device,
         )
@@ -584,17 +579,19 @@ def main() -> None:
         request = StudyRequest(
             query=args.query,
             scope=StudyScope(collection=args.collection),
-            filters=filters or None,
+            filters=filters,
             top_k=top_k,
         )
         response = asyncio.run(_run_orchestration(study_service, provider, request))
     except CollectionNotFoundError as exc:
         print(f"Collection '{exc.collection_name}' not found.", file=sys.stderr)
         print(
-            "Use scripts/inspect_chroma.py --list-collections to inspect available "
-            "collections.",
+            "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

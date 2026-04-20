@@ -2,7 +2,12 @@
 
 import pytest
 from pydantic import ValidationError
-from src.search.models import MediaRefResponse, SearchResponse, SearchResult
+from src.search.models import (
+    MediaRefResponse,
+    SearchRequest,
+    SearchResponse,
+    SearchResult,
+)
 
 
 def test_search_result_construction():
@@ -116,3 +121,23 @@ def test_media_ref_rejects_invalid_relation():
             access_url="http://localhost:8000/_dev/object/GET/...",
             relation="local_only",
         )
+
+
+def test_search_request_accepts_repeated_filter_conditions() -> None:
+    request = SearchRequest.model_validate(
+        {
+            "query": "binary search",
+            "collection": "cam-cs-tripos-fixture",
+            "filters": [
+                {"field": "year", "op": "gte", "value": 2020},
+                {"field": "year", "op": "lte", "value": 2024},
+            ],
+            "limit": 10,
+            "rerank": False,
+        }
+    )
+
+    assert [item.model_dump() for item in request.filters] == [
+        {"field": "year", "op": "gte", "value": 2020},
+        {"field": "year", "op": "lte", "value": 2024},
+    ]

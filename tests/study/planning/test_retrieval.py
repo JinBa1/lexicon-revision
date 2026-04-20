@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse
-from src.study.planning.models import QueryPlan, StudyFilters
-from src.study.planning.retrieval import PlannedRetrievalService, _filters_to_dict
+from src.study.planning.models import QueryPlan
+from src.study.planning.retrieval import PlannedRetrievalService
 
 
 class FakeSearchService:
@@ -16,7 +17,7 @@ class FakeSearchService:
         *,
         query: str,
         collection: str,
-        filters: dict[str, Any] | None,
+        filters: list[FilterCondition] | None,
         limit: int,
         rerank: bool,
     ) -> SearchResponse:
@@ -42,10 +43,14 @@ def _plan() -> QueryPlan:
 def test_retrieve_calls_search_with_semantic_query_and_filters() -> None:
     search_service = FakeSearchService()
     service = PlannedRetrievalService(search_service=search_service)
+    filters = [
+        FilterCondition(field="year", op="eq", value=2025),
+        FilterCondition(field="paper", op="eq", value=3),
+    ]
 
     result = service.retrieve(
         _plan(),
-        hard_filters=StudyFilters(year=2025, paper=3),
+        hard_filters=filters,
         collection="cam",
         limit=15,
         rerank=True,
@@ -55,13 +60,16 @@ def test_retrieve_calls_search_with_semantic_query_and_filters() -> None:
         {
             "query": "dynamic programming exam questions",
             "collection": "cam",
-            "filters": {"year": 2025, "paper": 3},
+            "filters": [
+                FilterCondition(field="year", op="eq", value=2025),
+                FilterCondition(field="paper", op="eq", value=3),
+            ],
             "limit": 15,
             "rerank": True,
         }
     ]
     assert result.executed_queries == ["dynamic programming exam questions"]
-    assert result.filters_applied == {"year": 2025, "paper": 3}
+    assert result.filters_applied == filters
 
 
 def test_retrieve_passes_none_when_no_filters() -> None:
@@ -76,27 +84,26 @@ def test_retrieve_passes_none_when_no_filters() -> None:
     )
 
     assert search_service.calls[0]["filters"] is None
-    assert result.filters_applied == {}
+    assert result.filters_applied == []
 
 
-def test_retrieve_passes_none_when_all_filters_are_none() -> None:
+def test_retrieve_preserves_repeated_filter_conditions() -> None:
     search_service = FakeSearchService()
     service = PlannedRetrievalService(search_service=search_service)
+    filters = [
+        FilterCondition(field="year", op="gte", value=2020),
+        FilterCondition(field="year", op="lte", value=2024),
+    ]
 
-    service.retrieve(
+    result = service.retrieve(
         _plan(),
-        hard_filters=StudyFilters(),
+        hard_filters=filters,
         collection="cam",
         limit=10,
     )
 
-    assert search_service.calls[0]["filters"] is None
-
-
-def test_filters_to_dict_drops_none_values() -> None:
-    assert _filters_to_dict(None) == {}
-    assert _filters_to_dict(StudyFilters()) == {}
-    assert _filters_to_dict(StudyFilters(year=2025)) == {"year": 2025}
-    assert _filters_to_dict(
-        StudyFilters(year=2025, topic="Databases", has_code=True)
-    ) == {"year": 2025, "topic": "Databases", "has_code": True}
+    assert search_service.calls[0]["filters"] == filters
+    assert result.filters_applied == [
+        FilterCondition(field="year", op="gte", value=2020),
+        FilterCondition(field="year", op="lte", value=2024),
+    ]

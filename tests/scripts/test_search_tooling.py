@@ -11,14 +11,14 @@ from pathlib import Path
 
 import pytest
 from scripts.search_tooling import (
-    SUPPORTED_FILTER_KEYS,
     EvalCase,
     EvalSpec,
-    build_filters,
     load_eval_spec,
     load_media_map,
+    parse_filter_conditions,
     truncate_text,
 )
+from src.metadata_schema.models import FilterCondition
 
 
 def test_truncate_text_compacts_whitespace_and_truncates() -> None:
@@ -28,52 +28,25 @@ def test_truncate_text_compacts_whitespace_and_truncates() -> None:
     assert truncate_text(text, 14) == "alpha beta..."
 
 
-def test_build_filters_omits_none_values() -> None:
-    """Infrastructure test for CLI filter construction only."""
-    filters = build_filters(
-        year=2025,
-        paper=None,
-        topic="Algorithms",
-        question=None,
-        marks_min=None,
-        has_code=False,
-        has_figure=None,
-        has_table=True,
+def test_parse_filter_conditions_supports_repeated_range_filters() -> None:
+    filters = parse_filter_conditions(
+        ["year:gte:2020", "year:lte:2024", "has_code:eq:true"]
     )
 
-    assert filters == {
-        "year": 2025,
-        "topic": "Algorithms",
-        "has_code": False,
-        "has_table": True,
-    }
+    assert filters == [
+        FilterCondition(field="year", op="gte", value=2020),
+        FilterCondition(field="year", op="lte", value=2024),
+        FilterCondition(field="has_code", op="eq", value=True),
+    ]
 
 
-def test_build_filters_includes_full_supported_filter_set() -> None:
-    """Infrastructure test for CLI filter construction only."""
-    filters = build_filters(
-        year=2025,
-        paper=3,
-        topic="Algorithms",
-        question=7,
-        marks_min=10,
-        has_code=True,
-        has_figure=False,
-        has_table=True,
-    )
+def test_parse_filter_conditions_accepts_schema_native_unknown_field() -> None:
+    filters = parse_filter_conditions(["tripos_part:eq:II"])
 
-    assert set(filters) == SUPPORTED_FILTER_KEYS
-    assert filters["question_number"] == 7
+    assert filters == [FilterCondition(field="tripos_part", op="eq", value="II")]
 
 
-def test_build_filters_maps_question_to_question_number() -> None:
-    """Infrastructure test for CLI filter construction only."""
-    assert build_filters(question=7) == {"question_number": 7}
-
-
-def test_load_eval_spec_normalizes_question_filter_to_question_number(
-    tmp_path: Path,
-) -> None:
+def test_load_eval_spec_accepts_filter_condition_list(tmp_path: Path) -> None:
     """Infrastructure test for eval schema validation only."""
     eval_path = tmp_path / "eval.yaml"
     eval_path.write_text(
@@ -83,8 +56,12 @@ cases:
   - id: case-1
     query: algorithms practice
     filters:
-      question: 3
-      paper: 1
+      - field: question_number
+        op: eq
+        value: 3
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_topics:
         - Algorithms
@@ -94,13 +71,13 @@ cases:
 
     spec = load_eval_spec(eval_path)
 
-    assert spec.cases[0].filters == {"question_number": 3, "paper": 1}
+    assert spec.cases[0].filters == [
+        FilterCondition(field="question_number", op="eq", value=3),
+        FilterCondition(field="paper", op="eq", value=1),
+    ]
 
 
-def test_load_eval_spec_rejects_question_and_question_number_conflict(
-    tmp_path: Path,
-) -> None:
-    """Infrastructure test for eval schema validation only."""
+def test_load_eval_spec_accepts_schema_native_unknown_field(tmp_path: Path) -> None:
     eval_path = tmp_path / "eval.yaml"
     eval_path.write_text(
         """
@@ -109,8 +86,9 @@ cases:
   - id: case-1
     query: algorithms practice
     filters:
-      question: 3
-      question_number: 4
+      - field: tripos_part
+        op: eq
+        value: II
     expected:
       any_topics:
         - Algorithms
@@ -118,7 +96,58 @@ cases:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="question.*question_number"):
+    spec = load_eval_spec(eval_path)
+
+    assert spec.cases[0].filters == [
+        FilterCondition(field="tripos_part", op="eq", value="II")
+    ]
+
+
+def test_load_eval_spec_reports_missing_filter_key_clearly(tmp_path: Path) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text(
+        """
+name: tool_test
+cases:
+  - id: case-1
+    query: algorithms practice
+    filters:
+      - field: tripos_part
+        value: II
+    expected:
+      any_topics:
+        - Algorithms
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"filter #1 is invalid: op: Field required"):
+        load_eval_spec(eval_path)
+
+
+def test_load_eval_spec_rejects_non_integer_range_filter_value(tmp_path: Path) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text(
+        """
+name: tool_test
+cases:
+  - id: case-1
+    query: algorithms practice
+    filters:
+      - field: year
+        op: gte
+        value: "2024"
+    expected:
+      any_topics:
+        - Algorithms
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"filter #1 field 'year' uses op 'gte', which requires an integer value",
+    ):
         load_eval_spec(eval_path)
 
 
@@ -188,7 +217,9 @@ cases:
   - id: case-1
     query: algorithms practice
     filters:
-      paper: 1
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_topics:
         - Algorithms
@@ -204,7 +235,7 @@ cases:
     assert spec.cases[0] == EvalCase(
         id="case-1",
         query="algorithms practice",
-        filters={"paper": 1},
+        filters=[FilterCondition(field="paper", op="eq", value=1)],
         any_chunk_ids=[],
         any_topics=["Algorithms"],
         top_k=3,
@@ -247,9 +278,7 @@ name: tool_test
 cases:
   - id: case-1
     query: algorithms practice
-    filters:
-      paper: null
-      has_code: null
+    filters: null
     expected:
       any_topics:
         - Algorithms
@@ -259,7 +288,7 @@ cases:
 
     spec = load_eval_spec(eval_path)
 
-    assert spec.cases[0].filters == {}
+    assert spec.cases[0].filters == []
 
 
 @pytest.mark.parametrize(
@@ -428,7 +457,7 @@ def test_load_eval_spec_validates_optional_string_fields(
                 "filters": ["not", "a", "mapping"],
                 "expected": {"any_chunk_ids": ["c"]},
             },
-            "filters must be a mapping",
+            "filters must be a list",
         ),
         (
             {
@@ -437,61 +466,7 @@ def test_load_eval_spec_validates_optional_string_fields(
                 "filters": False,
                 "expected": {"any_chunk_ids": ["c"]},
             },
-            "filters must be a mapping",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": {"unknown": True},
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "unsupported filters",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": {"paper": False},
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'paper'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": {"year": True},
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'year'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": {"marks_min": False},
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'marks_min'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": {"topic": ""},
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'topic'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": {"has_code": "false"},
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'has_code'",
+            "filters must be a list",
         ),
         (
             {"id": "case-1", "query": "question", "expected": ["not", "a", "mapping"]},

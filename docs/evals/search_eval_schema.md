@@ -19,7 +19,9 @@ cases:
   - id: binary-search-tree-practice
     query: practice questions about binary search trees and lookup complexity
     filters:
-      paper: 1
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_chunk_ids:
         - cam-2025-p1-q1
@@ -51,20 +53,36 @@ Each case must provide at least one of:
 - `cases[].expected.top_k`
 - `cases[].notes`
 
-Supported filters are:
+`cases[].filters` is a schema-driven `FilterCondition` list. Use any metadata
+field exposed by the target collection schema; the tooling preserves authored
+conditions in order and does not hard-code field names.
 
-- `year`
-- `paper`
-- `topic`
-- `question`
-- `question_number`
-- `marks_min`
-- `has_code`
-- `has_figure`
-- `has_table`
+Each filter entry has:
 
-`question` is the preferred human-facing spelling. It is normalized to
-`question_number` before running search. Do not provide both in the same case.
+- `field`: collection metadata field key
+- `op`: `eq`, `gte`, or `lte`
+- `value`: string, integer, or boolean scalar
+
+Repeat the same field when you need ranges or compound constraints.
+
+Canonical example:
+
+```yaml
+cases:
+  - id: algorithms-year-filter
+    query: binary search trees
+    filters:
+      - field: year
+        op: eq
+        value: 2024
+      - field: has_code
+        op: eq
+        value: false
+    expected:
+      any_chunk_ids:
+        - cam-2024-p2-q5
+      top_k: 5
+```
 
 ## Pass Criteria
 

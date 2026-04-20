@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
+from src.metadata_schema.models import FilterCondition
+from src.search.errors import InvalidMetadataFilterError
 from src.search.models import SearchResponse, SearchResult
 from src.study.config import StudySettings
 from src.study.models import (
@@ -37,7 +39,6 @@ from src.study.planning.models import (
     PlanningErrorCategory,
     PlanningMetadata,
     QueryPlan,
-    StudyFilters,
 )
 from src.study.planning.planner import QueryPlanner
 from src.study.planning.retrieval import PlannedRetrievalService
@@ -91,6 +92,9 @@ class StudyService:
             )
             search_response = retrieval_result.search_response
             filters = retrieval_result.filters_applied
+            collection_schema = retrieval_result.collection_schema
+        except InvalidMetadataFilterError:
+            raise
         except Exception:
             logger.exception(
                 "study_retrieval_failed",
@@ -108,7 +112,7 @@ class StudyService:
                 request_id=request_id,
                 answer_status="retrieval_failed",
                 retrieval_status="error",
-                filters=_filters_to_dict(hard_filters),
+                filters=list(hard_filters or []),
                 planning=planning_metadata,
                 latency_ms=_elapsed_ms(started),
             )
@@ -189,7 +193,7 @@ class StudyService:
         messages = self._prompt.render(
             query=request.query,
             retrieval_queries=list(plan.semantic_queries),
-            context_blocks=format_context_blocks(packing.chunks),
+            context_blocks=format_context_blocks(packing.chunks, collection_schema),
         )
         generation_request = GenerationRequest(
             messages=messages,
@@ -338,7 +342,7 @@ class StudyService:
     async def _plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> tuple[QueryPlan, PlanningMetadata]:
         started = time.monotonic()
         try:
@@ -376,7 +380,7 @@ class StudyService:
         request_id: str,
         answer_status: AnswerStatus,
         retrieval_status: RetrievalStatus,
-        filters: dict[str, Any],
+        filters: list[FilterCondition],
         planning: PlanningMetadata,
         latency_ms: int,
     ) -> StudyResponse:
@@ -583,12 +587,6 @@ def _planning_error_category(exc: Exception) -> PlanningErrorCategory:
     return "provider_error"
 
 
-def _filters_to_dict(filters: StudyFilters | None) -> dict[str, Any]:
-    if not filters:
-        return {}
-    return filters.model_dump(exclude_none=True)
-
-
 def _fallback_sources(
     search_response: SearchResponse,
     retrieval: RetrievalMetadata,
@@ -608,31 +606,14 @@ def _study_source(result: SearchResult, why_cited: str | None) -> StudySource:
     metadata = result.metadata
     return StudySource(
         chunk_id=result.chunk_id,
-        year=metadata.get("year"),
-        paper=metadata.get("paper"),
-        question_ref=_question_ref(
-            question_number=metadata.get("question_number"),
-            sub_question_label=metadata.get("sub_question_label"),
-        ),
         chunk_level=result.chunk_level,
-        topic=metadata.get("topic"),
+        parent_chunk_id=result.parent_chunk_id,
+        sub_question_label=result.sub_question_label,
         score=result.score,
         excerpt=result.text[:500],
+        metadata=metadata,
         why_cited=why_cited,
     )
-
-
-def _question_ref(
-    *,
-    question_number: Any,
-    sub_question_label: Any,
-) -> str | None:
-    if question_number is None:
-        return None
-    question_ref = f"Q{question_number}"
-    if sub_question_label:
-        question_ref = f"{question_ref}{sub_question_label}"
-    return question_ref
 
 
 def _ordered_unique(values: list[str]) -> list[str]:

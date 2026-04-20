@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Literal
 
 from sqlalchemy import Engine, create_engine
 
@@ -10,21 +9,18 @@ DEFAULT_DATABASE_URL = "postgresql+psycopg://rag_exam:rag_exam@localhost:5434/ra
 DEFAULT_EMBEDDING_MODEL_ID = "BAAI/bge-base-en-v1.5"
 DEFAULT_EMBEDDING_DIMENSION = 768
 
-RetrievalBackend = Literal["chroma", "postgres"]
-
 
 @dataclass(frozen=True)
 class DatabaseSettings:
     database_url: str
-    retrieval_backend: RetrievalBackend
     embedding_model_id: str
     embedding_dimension: int
 
 
 def load_database_settings() -> DatabaseSettings:
-    backend = os.environ.get("RETRIEVAL_BACKEND", "postgres").lower()
-    if backend not in ("chroma", "postgres"):
-        raise ValueError("RETRIEVAL_BACKEND must be 'chroma' or 'postgres'")
+    backend = os.environ.get("RETRIEVAL_BACKEND")
+    if backend is not None and backend.lower() != "postgres":
+        raise ValueError("RETRIEVAL_BACKEND is Postgres-only in this branch")
     dimension = _positive_int(
         os.environ.get("EMBEDDING_DIMENSION"),
         default=DEFAULT_EMBEDDING_DIMENSION,
@@ -32,7 +28,6 @@ def load_database_settings() -> DatabaseSettings:
     )
     return DatabaseSettings(
         database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),
-        retrieval_backend=backend,
         embedding_model_id=os.environ.get(
             "EMBEDDING_MODEL_ID",
             DEFAULT_EMBEDDING_MODEL_ID,

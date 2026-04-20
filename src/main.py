@@ -6,20 +6,20 @@ from contextlib import asynccontextmanager
 from inspect import isawaitable
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from src.db.config import load_database_settings
 from src.search.base import SearchBackend
+from src.search.errors import (
+    RERANK_CANDIDATE_CAP,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 from src.search.factory import create_search_service
-from src.search.models import SearchResponse
+from src.search.models import SearchRequest, SearchResponse
 from src.search.providers.config import (
     build_embedding_provider,
     build_rerank_provider,
     load_retrieval_provider_settings,
-)
-from src.search.service import (
-    DEFAULT_COLLECTION,
-    RERANK_CANDIDATE_CAP,
-    CollectionNotFoundError,
 )
 from src.storage import (
     LocalObjectStorage,
@@ -162,57 +162,10 @@ def create_app(
         )
         return Response(content=payload, media_type=media_type)
 
-    @application.get("/search", response_model=SearchResponse)
-    async def search(
-        request: Request,
-        q: str = Query(..., description="Search query text"),
-        collection: str = Query(
-            DEFAULT_COLLECTION,
-            description="Target collection",
-        ),
-        year: int | None = Query(None, description="Filter by year"),
-        paper: int | None = Query(None, description="Filter by paper"),
-        topic: str | None = Query(None, description="Filter by topic"),
-        question_number: int | None = Query(
-            None,
-            description="Filter by question number",
-        ),
-        marks_min: int | None = Query(None, description="Minimum marks filter"),
-        has_code: bool | None = Query(
-            None,
-            description="Filter for code questions",
-        ),
-        has_figure: bool | None = Query(
-            None,
-            description="Filter for figure questions",
-        ),
-        has_table: bool | None = Query(
-            None,
-            description="Filter for table questions",
-        ),
-        limit: int = Query(10, ge=1, le=100, description="Max results"),
-        rerank: bool = Query(True, description="Apply cross-encoder reranking"),
-    ) -> SearchResponse:
-        filters: dict[str, object] = {}
-        if year is not None:
-            filters["year"] = year
-        if paper is not None:
-            filters["paper"] = paper
-        if topic is not None:
-            filters["topic"] = topic
-        if question_number is not None:
-            filters["question_number"] = question_number
-        if marks_min is not None:
-            filters["marks_min"] = marks_min
-        if has_code is not None:
-            filters["has_code"] = has_code
-        if has_figure is not None:
-            filters["has_figure"] = has_figure
-        if has_table is not None:
-            filters["has_table"] = has_table
-
+    @application.post("/search", response_model=SearchResponse)
+    async def search(request: Request, payload: SearchRequest) -> SearchResponse:
         service: SearchBackend = request.app.state.search_service
-        if rerank and limit > RERANK_CANDIDATE_CAP:
+        if payload.rerank and payload.limit > RERANK_CANDIDATE_CAP:
             raise HTTPException(
                 status_code=422,
                 detail=(
@@ -223,17 +176,19 @@ def create_app(
 
         try:
             return service.search(
-                query=q,
-                collection=collection,
-                filters=filters or None,
-                limit=limit,
-                rerank=rerank,
+                query=payload.query,
+                collection=payload.collection,
+                filters=payload.filters or None,
+                limit=payload.limit,
+                rerank=payload.rerank,
             )
         except CollectionNotFoundError as exc:
             raise HTTPException(
                 status_code=404,
                 detail=f"Collection '{exc.collection_name}' not found",
             ) from exc
+        except InvalidMetadataFilterError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.post("/study", response_model=StudyResponse)
     async def study(request: Request, payload: StudyRequest) -> StudyResponse:
@@ -243,7 +198,10 @@ def create_app(
                 status_code=503,
                 detail="Study service is not configured",
             )
-        return await service.orchestrate(payload)
+        try:
+            return await service.orchestrate(payload)
+        except InvalidMetadataFilterError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.get("/health")
     async def health(request: Request) -> dict[str, str]:

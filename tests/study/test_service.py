@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse, SearchResult
 from src.study.config import (
     ContextSettings,
@@ -19,7 +20,6 @@ from src.study.planning.models import (
     InvalidPlanError,
     PlannedRetrievalResult,
     QueryPlan,
-    StudyFilters,
 )
 from src.study.providers.base import (
     ModelNotAvailableError,
@@ -41,7 +41,7 @@ class FakeQueryPlanner:
     async def plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> QueryPlan:
         self.calls.append({"raw_query": raw_query, "hard_filters": hard_filters})
         if self.delay:
@@ -66,7 +66,7 @@ class FakePlannedRetrieval:
         self,
         plan: QueryPlan,
         *,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
         collection: str,
         limit: int,
         rerank: bool = True,
@@ -117,12 +117,16 @@ class FakeProvider:
 def search_result(
     chunk_id: str = "a",
     text: str = "dynamic programming recurrence",
+    *,
+    chunk_level: str = "question",
+    parent_chunk_id: str | None = None,
+    sub_question_label: str | None = None,
 ) -> SearchResult:
     return SearchResult(
         chunk_id=chunk_id,
-        chunk_level="question",
-        parent_chunk_id=None,
-        sub_question_label=None,
+        chunk_level=chunk_level,
+        parent_chunk_id=parent_chunk_id,
+        sub_question_label=sub_question_label,
         text=text,
         score=0.9,
         metadata={
@@ -130,9 +134,6 @@ def search_result(
             "paper": 2,
             "question_number": 4,
             "topic": "Algorithms",
-            "chunk_level": "question",
-            "parent_chunk_id": None,
-            "sub_question_label": None,
         },
         media=[],
     )
@@ -223,7 +224,7 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
                 total=1,
             ),
             executed_queries=["dynamic programming recurrence"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -245,11 +246,18 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     assert response.planning.semantic_queries == ["dynamic programming recurrence"]
     assert response.planning.error_category is None
     assert response.generation.error_category is None
+    assert response.sources[0].metadata == {
+        "year": 2025,
+        "paper": 2,
+        "question_number": 4,
+        "topic": "Algorithms",
+    }
+    assert response.sources[0].sub_question_label is None
 
     assert planned_retrieval.calls[0]["plan"] is plan
     assert planned_retrieval.calls[0] == {
         "plan": plan,
-        "hard_filters": None,
+        "hard_filters": [],
         "collection": "cam-cs-tripos",
         "limit": 15,
         "rerank": True,
@@ -258,6 +266,46 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     user_prompt = provider.calls[0].messages[1]["content"]
     assert "Original student query: 2025 dp" in user_prompt
     assert "dynamic programming recurrence" in user_prompt
+
+
+@pytest.mark.anyio
+async def test_orchestrate_preserves_sub_question_label_on_sources() -> None:
+    query_planner = FakeQueryPlanner(
+        QueryPlan(original_query="q", semantic_queries=["dynamic programming"])
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="dynamic programming",
+                collection="cam-cs-tripos",
+                results=[
+                    search_result(
+                        "a",
+                        chunk_level="sub_question",
+                        parent_chunk_id="parent-1",
+                        sub_question_label="b",
+                    )
+                ],
+                total=1,
+            ),
+            executed_queries=["dynamic programming"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="q", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.sources[0].chunk_level == "sub_question"
+    assert response.sources[0].parent_chunk_id == "parent-1"
+    assert response.sources[0].sub_question_label == "b"
 
 
 @pytest.mark.anyio
@@ -271,7 +319,7 @@ async def test_orchestrate_empty_retrieval_skips_generation() -> None:
                 query="missing", collection="cam-cs-tripos", results=[], total=0
             ),
             executed_queries=["missing"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider([])
@@ -301,7 +349,7 @@ async def test_orchestrate_filtered_empty_retrieval() -> None:
                 query="filtered", collection="cam-cs-tripos", results=[], total=0
             ),
             executed_queries=["filtered"],
-            filters_applied={"year": 2025},
+            filters_applied=[FilterCondition(field="year", op="eq", value=2025)],
         )
     )
     provider = FakeProvider([])
@@ -317,7 +365,9 @@ async def test_orchestrate_filtered_empty_retrieval() -> None:
 
     assert response.answer_status == "insufficient_evidence"
     assert response.retrieval.status == "filtered_empty"
-    assert response.retrieval.filters_applied == {"year": 2025}
+    assert response.retrieval.filters_applied == [
+        FilterCondition(field="year", op="eq", value=2025)
+    ]
 
 
 @pytest.mark.anyio
@@ -355,7 +405,7 @@ async def test_orchestrate_provider_failure_returns_fallback_sources() -> None:
                 total=1,
             ),
             executed_queries=["fail"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(ProviderConnectionError("llm down"))
@@ -400,7 +450,7 @@ async def test_orchestrate_maps_provider_failures(
                 total=1,
             ),
             executed_queries=["fail"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(provider_error)
@@ -434,7 +484,7 @@ async def test_orchestrate_schema_repair_success() -> None:
                 total=1,
             ),
             executed_queries=["repair"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
 
@@ -485,7 +535,7 @@ async def test_orchestrate_does_not_repair_when_retry_count_is_zero() -> None:
                 total=1,
             ),
             executed_queries=["repair"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(
@@ -530,7 +580,7 @@ async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> N
                 total=1,
             ),
             executed_queries=["repair"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(
@@ -581,7 +631,7 @@ async def test_orchestrate_generation_timeout() -> None:
                 total=1,
             ),
             executed_queries=["slow"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
 
@@ -620,7 +670,7 @@ async def test_orchestrate_citation_cascade_failure() -> None:
                 total=1,
             ),
             executed_queries=["bad_cite"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
 
@@ -652,7 +702,7 @@ async def test_orchestrate_planner_fallback_on_error() -> None:
                 total=1,
             ),
             executed_queries=["orig"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -685,7 +735,7 @@ async def test_orchestrate_planner_fallback_on_unexpected_error() -> None:
                 total=1,
             ),
             executed_queries=["orig"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -730,7 +780,7 @@ async def test_orchestrate_planner_error_categories(
                 total=1,
             ),
             executed_queries=["orig"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -764,7 +814,7 @@ async def test_orchestrate_planner_deadline_exceeded() -> None:
                 total=1,
             ),
             executed_queries=["slow"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -801,7 +851,9 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
                 total=1,
             ),
             executed_queries=["cat"],
-            filters_applied={"topic": "Algorithms"},
+            filters_applied=[
+                FilterCondition(field="topic", op="eq", value="Algorithms")
+            ],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -811,7 +863,7 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
         provider=provider,
     )
 
-    filters = StudyFilters(topic="Algorithms")
+    filters = [FilterCondition(field="topic", op="eq", value="Algorithms")]
     response = await service.orchestrate(
         StudyRequest(
             query="cat", scope={"collection": "cam-cs-tripos"}, filters=filters
@@ -820,4 +872,4 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
 
     assert query_planner.calls[0]["hard_filters"] == filters
     assert planned_retrieval.calls[0]["hard_filters"] == filters
-    assert response.retrieval.filters_applied == {"topic": "Algorithms"}
+    assert response.retrieval.filters_applied == filters

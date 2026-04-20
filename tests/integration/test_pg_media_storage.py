@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from scripts.index_chunks_postgres import index_collection_postgres
 from sqlalchemy import create_engine, text
+from src.metadata_schema import default_schema_path
 from src.search.pg_repository import PgSearchRepository
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingResult
@@ -87,7 +88,7 @@ def test_pg_search_returns_object_key_and_access_url(
     )
 
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_CHROMA_DIR",
+        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
         str(media_dir),
     )
 
@@ -101,6 +102,7 @@ def test_pg_search_returns_object_key_and_access_url(
         engine=engine,
         embedding_model=embedder,
         embedding_dimension=8,
+        metadata_schema_path=str(default_schema_path("cam-cs-tripos-fixture")),
         recreate_collection=True,
     )
 

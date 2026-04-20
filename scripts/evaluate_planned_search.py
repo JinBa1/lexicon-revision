@@ -20,10 +20,15 @@ from scripts.inspect_search import (  # noqa: E402
     build_provider_metadata,
     create_real_search_service,
 )
+from scripts.search_tooling import dump_filters, parse_authored_filters  # noqa: E402
+from src.metadata_schema.models import FilterCondition  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 from src.search.models import SearchResponse  # noqa: E402
-from src.search.service import DEFAULT_CHROMA_DIR  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
-from src.study.planning.models import StudyFilters  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, QueryPlanner  # noqa: E402
 from src.study.planning.retrieval import PlannedRetrievalService  # noqa: E402
 from src.study.providers.ollama import OllamaProvider  # noqa: E402
@@ -40,7 +45,7 @@ class MessyVariant:
 @dataclass(frozen=True)
 class MessyCase:
     id: str
-    filters: dict[str, Any]
+    filters: list[FilterCondition]
     any_chunk_ids: list[str]
     any_topics: list[str]
     variants: list[MessyVariant]
@@ -73,7 +78,10 @@ def load_messy_eval_spec(path: Path) -> MessyEvalSpec:
         cases.append(
             MessyCase(
                 id=entry["id"],
-                filters=dict(entry.get("filters") or {}),
+                filters=parse_authored_filters(
+                    entry.get("filters"),
+                    context=f"Planner eval case '{entry['id']}'",
+                ),
                 any_chunk_ids=list(expected.get("any_chunk_ids") or []),
                 any_topics=list(expected.get("any_topics") or []),
                 variants=variants,
@@ -104,19 +112,14 @@ async def compare_cases(
     planned_retrieval = PlannedRetrievalService(search_service=search_service)
 
     for case in spec.cases:
-        filters_model = _parse_filters(case.filters)
-        filters_dict = (
-            filters_model.model_dump(exclude_none=True)
-            if filters_model is not None
-            else None
-        )
+        filters = list(case.filters)
 
         for variant in case.variants:
             total_variants += 1
             raw_response = search_service.search(
                 query=variant.query,
                 collection=collection,
-                filters=filters_dict,
+                filters=filters,
                 limit=top_k,
                 rerank=rerank,
             )
@@ -126,10 +129,10 @@ async def compare_cases(
             planning_error: str | None = None
             planned_query = variant.query
             try:
-                plan = await planner.plan(variant.query, filters_model)
+                plan = await planner.plan(variant.query, filters)
                 planned_result = planned_retrieval.retrieve(
                     plan,
-                    hard_filters=filters_model,
+                    hard_filters=filters,
                     collection=collection,
                     limit=top_k,
                     rerank=rerank,
@@ -143,7 +146,7 @@ async def compare_cases(
                 planned_response = search_service.search(
                     query=planned_query,
                     collection=collection,
-                    filters=filters_dict,
+                    filters=filters,
                     limit=top_k,
                     rerank=rerank,
                 )
@@ -152,7 +155,7 @@ async def compare_cases(
             case_reports.append(
                 {
                     "id": f"{case.id}/{variant.id}",
-                    "filters": case.filters,
+                    "filters": dump_filters(case.filters),
                     "expected": {
                         "any_chunk_ids": case.any_chunk_ids,
                         "any_topics": case.any_topics,
@@ -207,12 +210,6 @@ def _hit(response: SearchResponse, case: MessyCase) -> bool:
     return False
 
 
-def _parse_filters(raw: dict[str, Any]) -> StudyFilters | None:
-    if not raw:
-        return None
-    return StudyFilters.model_validate(raw)
-
-
 def render_report(report: dict[str, Any]) -> str:
     lines = [
         f"# Planner A/B report: {report['name']}",
@@ -240,7 +237,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("eval_path", type=Path)
     parser.add_argument("--collection", default=None)
     parser.add_argument("--top-k", type=int, default=None)
-    parser.add_argument("--chroma-dir", default=DEFAULT_CHROMA_DIR)
+    parser.add_argument("--media-dir", default=DEFAULT_MEDIA_DIR)
     parser.add_argument("--json", action="store_true")
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
@@ -274,7 +271,7 @@ async def _run(args: argparse.Namespace) -> None:
 
     settings = load_study_settings()
     search_service = create_real_search_service(
-        args.chroma_dir,
+        args.media_dir,
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )
@@ -303,7 +300,17 @@ async def _run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    asyncio.run(_run(parse_args()))
+    try:
+        asyncio.run(_run(parse_args()))
+    except CollectionNotFoundError as exc:
+        print(f"Collection '{exc.collection_name}' not found.", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

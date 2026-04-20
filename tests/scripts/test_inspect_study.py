@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 import sys
+from types import SimpleNamespace
 
-from scripts.inspect_study import _classify_schema, parse_args, render_text
+import pytest
+from scripts.inspect_study import _classify_schema, main, parse_args, render_text
+from src.metadata_schema.models import FilterCondition
 
 
 def test_classify_schema_identifies_planner_calls() -> None:
@@ -34,6 +38,142 @@ def test_parse_args_rerank_defaults_and_flags(monkeypatch) -> None:
     args = parse_args()
     assert args.rerank is False
     assert args.reranker_device == "cpu"
+
+
+def test_parse_args_collects_repeatable_filter_conditions(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "inspect_study.py",
+            "q",
+            "--filter",
+            "tripos_part:eq:II",
+            "--filter",
+            "year:gte:2020",
+        ],
+    )
+
+    args = parse_args()
+
+    assert args.filters == ["tripos_part:eq:II", "year:gte:2020"]
+
+
+def test_parse_args_rejects_legacy_fixed_filter_flags(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["inspect_study.py", "q", "--year", "2024"],
+    )
+
+    with pytest.raises(SystemExit):
+        parse_args()
+
+
+def test_main_forwards_repeatable_filter_conditions(
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeSearchService:
+        embedding_model_id = "tool-test-embedding"
+        rerank_model_id = None
+
+    class _FakeProvider:
+        capabilities = SimpleNamespace()
+
+    async def _fake_run_orchestration(service, provider, request):
+        del service, provider
+        captured["filters"] = request.filters
+        return object()
+
+    def _fake_build_payload(**kwargs):
+        filters = kwargs["filters"]
+        return {
+            "filters": [item.model_dump(mode="json") for item in filters],
+            "query": kwargs["query"],
+            "collection": kwargs["collection"],
+        }
+
+    monkeypatch.setattr(
+        "scripts.inspect_study.load_study_settings",
+        lambda path=None: SimpleNamespace(
+            context=SimpleNamespace(retrieval_top_k_default=15),
+            generation=SimpleNamespace(
+                base_url="http://localhost:11434",
+                model="qwen2.5:7b-instruct",
+                max_provider_retries=1,
+            ),
+            prompt=SimpleNamespace(version="study_aid_v2"),
+        ),
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_study.create_real_search_service",
+        lambda media_dir, rerank, reranker_device=None: _FakeSearchService(),
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_study.OllamaProvider",
+        lambda **kwargs: _FakeProvider(),
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_study.StudyService",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_study._run_orchestration", _fake_run_orchestration
+    )
+    monkeypatch.setattr("scripts.inspect_study.build_payload", _fake_build_payload)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "inspect_study.py",
+            "page table questions",
+            "--collection",
+            "cam",
+            "--no-planning",
+            "--filter",
+            "tripos_part:eq:II",
+            "--filter",
+            "year:gte:2020",
+            "--format",
+            "json",
+        ],
+    )
+
+    main()
+
+    assert captured["filters"] == [
+        FilterCondition(field="tripos_part", op="eq", value="II"),
+        FilterCondition(field="year", op="gte", value=2020),
+    ]
+    assert json.loads(capsys.readouterr().out)["filters"] == [
+        {"field": "tripos_part", "op": "eq", "value": "II"},
+        {"field": "year", "op": "gte", "value": 2020},
+    ]
+
+
+def test_main_reports_invalid_filter_without_traceback(
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "inspect_study.py",
+            "page table questions",
+            "--filter",
+            "year:gte:not-an-int",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 1
+    assert "requires an integer value" in capsys.readouterr().err
 
 
 def test_render_text_includes_planning_original_query() -> None:
