@@ -30,7 +30,7 @@ from src.search.errors import (
     EmbeddingModelMismatchError,
     InvalidMetadataFilterError,
 )
-from src.search.filtering import build_pg_conditions
+from src.search.filtering import build_pg_conditions, validate_filter_conditions
 
 
 @dataclass(frozen=True)
@@ -257,6 +257,7 @@ class PgSearchRepository:
                 collection_name=collection_name,
                 raw_payload=getattr(collection_row, "metadata_schema", None),
             )
+            validated_filters = validate_filter_conditions(filters, collection_schema)
 
             vec_param = cast(bindparam("query_vec"), PgVectorType)
             distance_expr = chunk_embeddings.c.embedding.op("<=>", return_type=Float)(
@@ -267,7 +268,7 @@ class PgSearchRepository:
                 chunks_table.c.collection_id == collection_row.id,
                 chunk_embeddings.c.embedding_model_id == embedding_model_id,
             ]
-            conditions.extend(build_pg_conditions(filters))
+            conditions.extend(build_pg_conditions(validated_filters))
 
             stmt = (
                 select(

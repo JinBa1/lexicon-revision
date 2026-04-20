@@ -8,6 +8,19 @@ from src.db.schema import chunks as chunks_table
 from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.search.errors import InvalidMetadataFilterError
 
+_STRUCTURAL_FILTER_FIELDS: dict[str, dict[str, Any]] = {
+    "source_pdf": {
+        "type": "string",
+        "operators": {"eq"},
+        "expression": chunks_table.c.source_pdf,
+    },
+    "chunk_level": {
+        "type": "string",
+        "operators": {"eq"},
+        "expression": chunks_table.c.chunk_level,
+    },
+}
+
 
 def validate_filter_conditions(
     filters: list[FilterCondition] | None,
@@ -15,6 +28,14 @@ def validate_filter_conditions(
 ) -> list[FilterCondition]:
     normalized = filters or []
     for item in normalized:
+        structural_field = _STRUCTURAL_FILTER_FIELDS.get(item.field)
+        if structural_field is not None:
+            if item.op not in structural_field["operators"]:
+                raise InvalidMetadataFilterError(
+                    f"Filter field '{item.field}' does not allow operator {item.op!r}"
+                )
+            _validate_value_type(item, structural_field["type"])
+            continue
         try:
             field = schema.field(item.field)
         except KeyError as exc:
@@ -33,13 +54,12 @@ def validate_filter_conditions(
 def build_pg_conditions(filters: list[FilterCondition]) -> list[Any]:
     conditions: list[Any] = []
     for item in filters:
-        value_expr = chunks_table.c.metadata.op("->>")(item.field)
-        if type(item.value) is bool:
-            typed_expr = cast(value_expr, Boolean)
-        elif type(item.value) is int:
-            typed_expr = cast(value_expr, Integer)
+        structural_field = _STRUCTURAL_FILTER_FIELDS.get(item.field)
+        if structural_field is not None:
+            typed_expr = structural_field["expression"]
         else:
-            typed_expr = value_expr
+            value_expr = chunks_table.c.metadata.op("->>")(item.field)
+            typed_expr = _typed_expression(value_expr, item.value)
 
         if item.op == "eq":
             conditions.append(typed_expr == item.value)
@@ -79,3 +99,11 @@ def _validate_value_type(item: FilterCondition, field_type: str) -> None:
         raise InvalidMetadataFilterError(f"{item.field!r} requires an integer value")
     if field_type == "string" and type(item.value) is not str:
         raise InvalidMetadataFilterError(f"{item.field!r} requires a string value")
+
+
+def _typed_expression(value_expr: Any, value: object) -> Any:
+    if type(value) is bool:
+        return cast(value_expr, Boolean)
+    if type(value) is int:
+        return cast(value_expr, Integer)
+    return value_expr

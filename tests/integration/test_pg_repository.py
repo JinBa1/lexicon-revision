@@ -358,6 +358,48 @@ def test_search_repository_filters_using_canonical_chunk_metadata() -> None:
     assert all(result.metadata["has_code"] is True for result in results)
 
 
+def test_search_repository_filters_structural_fields_outside_metadata_schema() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")
+    inputs = [build_embedding_text(chunk) for chunk in chunks]
+    vectors = _vectors(len(inputs), 8)
+
+    repo = PgIndexRepository(
+        engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
+    )
+    repo.recreate_collection("fixture-structural-filter")
+    repo.index_chunks(
+        collection_name="fixture-structural-filter",
+        chunks=chunks,
+        vectors=vectors,
+        metadata_schema=_schema(),
+    )
+
+    search_repo = PgSearchRepository(engine=engine)
+    results = search_repo.search(
+        collection_name="fixture-structural-filter",
+        query_vector=[1.0] + [0.0] * 7,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+        filters=[
+            FilterCondition(field="chunk_level", op="eq", value="question"),
+            FilterCondition(
+                field="source_pdf",
+                op="eq",
+                value="tests/data/papers/2024/paper_1.pdf",
+            ),
+        ],
+        limit=10,
+    )
+
+    assert results
+    assert all(result.chunk_level == "question" for result in results)
+    assert all(
+        result.metadata["source_pdf"] == "tests/data/papers/2024/paper_1.pdf"
+        for result in results
+    )
+
+
 def test_search_repository_rejects_filter_field_absent_from_collection_schema() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")
