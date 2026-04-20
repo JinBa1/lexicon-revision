@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from src.metadata_schema.models import FilterCondition
 
 if TYPE_CHECKING:
-    from src.study.planning.models import PlanningMetadata, StudyFilters
+    from src.study.planning.models import PlanningMetadata
 
 DraftAnswerStatus = Literal["ok", "partial", "insufficient_evidence"]
 AnswerStatus = Literal[
@@ -39,7 +40,7 @@ class StudyRequest(BaseModel):
 
     query: str = Field(min_length=1)
     scope: StudyScope
-    filters: StudyFilters | None = None
+    filters: list[FilterCondition] = Field(default_factory=list)
     top_k: int = Field(default=15, ge=1, le=50)
 
 
@@ -79,13 +80,12 @@ class StudySource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     chunk_id: str = Field(min_length=1)
-    year: int | None
-    paper: int | None
-    question_ref: str | None
     chunk_level: Literal["question", "sub_question"]
-    topic: str | None
+    parent_chunk_id: str | None
     score: float
     excerpt: str
+    question_ref: str | None
+    metadata: dict[str, Any]
     why_cited: str | None = Field(max_length=400)
 
 
@@ -114,7 +114,7 @@ class RetrievalMetadata(BaseModel):
     context_chunk_ids: list[str] = Field(default_factory=list)
     omitted_chunk_ids: list[str] = Field(default_factory=list)
     truncated_chunk_ids: list[str] = Field(default_factory=list)
-    filters_applied: dict[str, Any]
+    filters_applied: list[FilterCondition]
     rerank: bool
 
 
@@ -198,7 +198,7 @@ class ValidationResult(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
-from src.study.planning.models import PlanningMetadata, StudyFilters  # noqa: E402
+from src.study.planning.models import PlanningMetadata  # noqa: E402
 
 StudyRequest.model_rebuild()
 StudyResponse.model_rebuild()

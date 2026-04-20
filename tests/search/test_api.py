@@ -110,14 +110,14 @@ def app() -> object:
 
 
 @pytest.mark.anyio
-async def test_search_returns_200_with_results(app) -> None:
+async def test_post_search_returns_200_with_results(app) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get(
+        response = await client.post(
             "/search",
-            params={"q": "binary search trees", "collection": "fixture"},
+            json={"query": "binary search trees", "collection": "fixture"},
         )
 
     assert response.status_code == 200
@@ -129,22 +129,24 @@ async def test_search_returns_200_with_results(app) -> None:
 
 
 @pytest.mark.anyio
-async def test_search_converts_query_filters_to_filter_conditions(app) -> None:
+async def test_post_search_accepts_schema_native_filters(app) -> None:
     service = app.state.search_service
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get(
+        response = await client.post(
             "/search",
-            params={
-                "q": "algorithms",
+            json={
+                "query": "algorithms",
                 "collection": "fixture",
-                "year": 2024,
-                "paper": 1,
-                "marks_min": 10,
-                "has_code": True,
+                "filters": [
+                    {"field": "year", "op": "eq", "value": 2024},
+                    {"field": "paper", "op": "eq", "value": 1},
+                    {"field": "marks", "op": "gte", "value": 10},
+                    {"field": "has_code", "op": "eq", "value": True},
+                ],
             },
         )
 
@@ -158,7 +160,7 @@ async def test_search_converts_query_filters_to_filter_conditions(app) -> None:
 
 
 @pytest.mark.anyio
-async def test_search_nonexistent_collection_returns_404() -> None:
+async def test_post_search_nonexistent_collection_returns_404() -> None:
     from src.main import create_app
 
     app = create_app(search_service=MissingCollectionSearchService())
@@ -167,30 +169,30 @@ async def test_search_nonexistent_collection_returns_404() -> None:
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get(
+        response = await client.post(
             "/search",
-            params={"q": "anything", "collection": "nonexistent"},
+            json={"query": "anything", "collection": "nonexistent"},
         )
 
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_search_rejects_limit_above_rerank_cap(app) -> None:
+async def test_post_search_rejects_limit_above_rerank_cap(app) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get(
+        response = await client.post(
             "/search",
-            params={"q": "algorithms", "collection": "fixture", "limit": 51},
+            json={"query": "algorithms", "collection": "fixture", "limit": 51},
         )
 
     assert response.status_code == 422
 
 
 @pytest.mark.anyio
-async def test_search_invalid_metadata_filter_returns_422() -> None:
+async def test_post_search_invalid_metadata_filter_returns_422() -> None:
     from src.main import create_app
 
     app = create_app(search_service=InvalidFilterSearchService())
@@ -199,9 +201,13 @@ async def test_search_invalid_metadata_filter_returns_422() -> None:
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get(
+        response = await client.post(
             "/search",
-            params={"q": "algorithms", "collection": "fixture", "topic": "Trees"},
+            json={
+                "query": "algorithms",
+                "collection": "fixture",
+                "filters": [{"field": "topic", "op": "eq", "value": "Trees"}],
+            },
         )
 
     assert response.status_code == 422

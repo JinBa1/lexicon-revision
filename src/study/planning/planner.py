@@ -3,13 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from src.metadata_schema.models import FilterCondition
 from src.study.config import PlanningSettings
 from src.study.models import GenerationRequest
 from src.study.planning.models import (
     InvalidPlanError,
     QueryPlan,
     QueryPlanDraft,
-    StudyFilters,
 )
 from src.study.planning.prompts import PlannerPromptTemplate, load_planner_prompt
 from src.study.providers.base import GenerationProvider
@@ -21,7 +21,7 @@ class QueryPlanner(Protocol):
     async def plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> QueryPlan: ...
 
 
@@ -29,7 +29,7 @@ class RawQueryPlanner:
     async def plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> QueryPlan:
         return QueryPlan(original_query=raw_query, semantic_queries=[raw_query])
 
@@ -54,11 +54,13 @@ class LLMQueryPlanner:
     async def plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> QueryPlan:
         messages = self._prompt.render(
             raw_query=raw_query,
-            applied_filters=_filters_to_dict(hard_filters),
+            applied_filters=[
+                condition.model_dump(mode="json") for condition in hard_filters or []
+            ],
         )
         request = GenerationRequest(
             messages=messages,
@@ -100,9 +102,3 @@ def _build_plan(
         original_query=raw_query,
         semantic_queries=semantic_queries,
     )
-
-
-def _filters_to_dict(filters: StudyFilters | None) -> dict[str, object]:
-    if filters is None:
-        return {}
-    return filters.model_dump(exclude_none=True)

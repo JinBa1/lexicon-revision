@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
-
 from src.metadata_schema.models import FilterCondition
 from src.search.base import SearchBackend
-from src.search.filtering import filter_conditions_from_mapping
-from src.study.planning.models import PlannedRetrievalResult, QueryPlan, StudyFilters
+from src.study.planning.models import PlannedRetrievalResult, QueryPlan
 
 
 class PlannedRetrievalService:
@@ -16,17 +13,16 @@ class PlannedRetrievalService:
         self,
         plan: QueryPlan,
         *,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
         collection: str,
         limit: int,
         rerank: bool = True,
     ) -> PlannedRetrievalResult:
-        filter_dict = _filters_to_dict(hard_filters)
-        filter_conditions = _filters_to_conditions(hard_filters)
+        applied_filters = list(hard_filters or [])
         search_response = self._search_service.search(
             query=plan.semantic_queries[0],
             collection=collection,
-            filters=filter_conditions or None,
+            filters=applied_filters or None,
             limit=limit,
             rerank=rerank,
         )
@@ -34,15 +30,5 @@ class PlannedRetrievalService:
         return PlannedRetrievalResult(
             search_response=search_response,
             executed_queries=list(plan.semantic_queries),
-            filters_applied=filter_dict,
+            filters_applied=applied_filters,
         )
-
-
-def _filters_to_dict(filters: StudyFilters | None) -> dict[str, Any]:
-    if filters is None:
-        return {}
-    return filters.model_dump(exclude_none=True)
-
-
-def _filters_to_conditions(filters: StudyFilters | None) -> list[FilterCondition]:
-    return filter_conditions_from_mapping(_filters_to_dict(filters))

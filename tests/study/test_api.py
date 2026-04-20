@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from src.metadata_schema.models import FilterCondition
 from src.search.errors import InvalidMetadataFilterError
 from src.study.config import (
     ContextSettings,
@@ -36,11 +37,7 @@ class FakeStudyService:
                 "context_chunk_ids": [],
                 "omitted_chunk_ids": [],
                 "truncated_chunk_ids": [],
-                "filters_applied": (
-                    request.filters.model_dump(exclude_none=True)
-                    if request.filters
-                    else {}
-                ),
+                "filters_applied": request.filters,
                 "rerank": True,
             },
             generation={
@@ -189,7 +186,7 @@ async def test_post_study_invalid_metadata_filter_returns_422() -> None:
             json={
                 "query": "trees",
                 "scope": {"collection": "fixture"},
-                "filters": {"topic": "Trees"},
+                "filters": [{"field": "topic", "op": "eq", "value": "Trees"}],
             },
         )
 
@@ -227,16 +224,14 @@ async def test_post_study_rejects_bad_top_k() -> None:
 @pytest.mark.parametrize(
     "bad_filters",
     [
-        {"year": "2025"},  # String instead of int
-        {"has_code": "true"},  # String instead of bool
-        {"unknown_field": 1},
-        {"question": 4},  # Legacy/Unknown key
-        {"topic": ""},
-        {"topic": "  "},  # Blank topic (min_length=1)
-        {"topic": 123},
+        {"topic": "Trees"},  # Legacy dict shape
+        [{"field": "", "op": "eq", "value": "Trees"}],
+        [{"field": "topic", "op": "contains", "value": "Trees"}],
+        [{"field": "topic", "value": "Trees"}],
+        [{"field": "topic", "op": "eq"}],
     ],
 )
-async def test_post_study_rejects_invalid_filters(bad_filters: dict) -> None:
+async def test_post_study_rejects_invalid_filters(bad_filters: object) -> None:
     from src.main import create_app
 
     app = create_app(
@@ -259,6 +254,43 @@ async def test_post_study_rejects_invalid_filters(bad_filters: dict) -> None:
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_post_study_accepts_repeated_filter_conditions() -> None:
+    study_service = FakeStudyService()
+
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+    )
+
+    filters = [
+        {"field": "year", "op": "gte", "value": 2020},
+        {"field": "year", "op": "lte", "value": 2024},
+    ]
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+                "filters": filters,
+            },
+        )
+
+    assert response.status_code == 200
+    assert study_service.requests[0].filters == [
+        FilterCondition(field="year", op="gte", value=2020),
+        FilterCondition(field="year", op="lte", value=2024),
+    ]
 
 
 @pytest.mark.anyio

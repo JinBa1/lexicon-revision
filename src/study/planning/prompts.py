@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import yaml
 from jinja2 import Template
@@ -37,7 +38,7 @@ class PlannerPromptTemplate(BaseModel):
         self,
         *,
         raw_query: str,
-        applied_filters: dict[str, object],
+        applied_filters: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
         system_content = Template(self.system).render(
             strip_fields=_describe_strip_filter_schema(),

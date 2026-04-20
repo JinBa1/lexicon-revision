@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse
 from src.study.planning.models import (
     InvalidPlanError,
@@ -9,38 +10,22 @@ from src.study.planning.models import (
     PlanningMetadata,
     QueryPlan,
     QueryPlanDraft,
-    StudyFilters,
 )
 
 
-def test_study_filters_rejects_string_boolean() -> None:
+def test_filter_condition_rejects_invalid_operator() -> None:
     with pytest.raises(ValidationError):
-        StudyFilters(has_code="true")  # type: ignore[arg-type]
+        FilterCondition(field="has_code", op="contains", value=True)  # type: ignore[arg-type]
 
 
-def test_study_filters_rejects_string_integer() -> None:
+def test_filter_condition_rejects_invalid_field_name() -> None:
     with pytest.raises(ValidationError):
-        StudyFilters(year="2025")  # type: ignore[arg-type]
+        FilterCondition(field="question-number", op="eq", value=4)
 
 
-def test_study_filters_rejects_unknown_key_including_question_alias() -> None:
-    with pytest.raises(ValidationError):
-        StudyFilters.model_validate({"question": 4})
-    with pytest.raises(ValidationError):
-        StudyFilters.model_validate({"unknown_field": 1})
-
-
-def test_study_filters_rejects_blank_topic() -> None:
-    with pytest.raises(ValidationError):
-        StudyFilters(topic="")
-    with pytest.raises(ValidationError):
-        StudyFilters(topic="   ")
-
-
-def test_study_filters_accepts_all_none() -> None:
-    filters = StudyFilters()
-    assert filters.year is None
-    assert filters.has_code is None
+def test_filter_condition_accepts_scalar_values() -> None:
+    condition = FilterCondition(field="year", op="eq", value=2025)
+    assert condition.value == 2025
 
 
 def test_query_plan_draft_rejects_empty_or_multi() -> None:
@@ -99,10 +84,12 @@ def test_planned_retrieval_result_composes_search_response() -> None:
     result = PlannedRetrievalResult(
         search_response=SearchResponse(query="q", collection="c", results=[], total=0),
         executed_queries=["q"],
-        filters_applied={"year": 2024},
+        filters_applied=[FilterCondition(field="year", op="eq", value=2024)],
     )
     assert result.executed_queries == ["q"]
-    assert result.filters_applied == {"year": 2024}
+    assert result.filters_applied == [
+        FilterCondition(field="year", op="eq", value=2024)
+    ]
 
 
 def test_invalid_plan_error_is_exception() -> None:

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse, SearchResult
 from src.study.config import (
     ContextSettings,
@@ -19,7 +20,6 @@ from src.study.planning.models import (
     InvalidPlanError,
     PlannedRetrievalResult,
     QueryPlan,
-    StudyFilters,
 )
 from src.study.providers.base import (
     ModelNotAvailableError,
@@ -41,7 +41,7 @@ class FakeQueryPlanner:
     async def plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> QueryPlan:
         self.calls.append({"raw_query": raw_query, "hard_filters": hard_filters})
         if self.delay:
@@ -66,7 +66,7 @@ class FakePlannedRetrieval:
         self,
         plan: QueryPlan,
         *,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
         collection: str,
         limit: int,
         rerank: bool = True,
@@ -223,7 +223,7 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
                 total=1,
             ),
             executed_queries=["dynamic programming recurrence"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -249,7 +249,7 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     assert planned_retrieval.calls[0]["plan"] is plan
     assert planned_retrieval.calls[0] == {
         "plan": plan,
-        "hard_filters": None,
+        "hard_filters": [],
         "collection": "cam-cs-tripos",
         "limit": 15,
         "rerank": True,
@@ -271,7 +271,7 @@ async def test_orchestrate_empty_retrieval_skips_generation() -> None:
                 query="missing", collection="cam-cs-tripos", results=[], total=0
             ),
             executed_queries=["missing"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider([])
@@ -301,7 +301,7 @@ async def test_orchestrate_filtered_empty_retrieval() -> None:
                 query="filtered", collection="cam-cs-tripos", results=[], total=0
             ),
             executed_queries=["filtered"],
-            filters_applied={"year": 2025},
+            filters_applied=[FilterCondition(field="year", op="eq", value=2025)],
         )
     )
     provider = FakeProvider([])
@@ -317,7 +317,9 @@ async def test_orchestrate_filtered_empty_retrieval() -> None:
 
     assert response.answer_status == "insufficient_evidence"
     assert response.retrieval.status == "filtered_empty"
-    assert response.retrieval.filters_applied == {"year": 2025}
+    assert response.retrieval.filters_applied == [
+        FilterCondition(field="year", op="eq", value=2025)
+    ]
 
 
 @pytest.mark.anyio
@@ -355,7 +357,7 @@ async def test_orchestrate_provider_failure_returns_fallback_sources() -> None:
                 total=1,
             ),
             executed_queries=["fail"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(ProviderConnectionError("llm down"))
@@ -400,7 +402,7 @@ async def test_orchestrate_maps_provider_failures(
                 total=1,
             ),
             executed_queries=["fail"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(provider_error)
@@ -434,7 +436,7 @@ async def test_orchestrate_schema_repair_success() -> None:
                 total=1,
             ),
             executed_queries=["repair"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
 
@@ -485,7 +487,7 @@ async def test_orchestrate_does_not_repair_when_retry_count_is_zero() -> None:
                 total=1,
             ),
             executed_queries=["repair"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(
@@ -530,7 +532,7 @@ async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> N
                 total=1,
             ),
             executed_queries=["repair"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(
@@ -581,7 +583,7 @@ async def test_orchestrate_generation_timeout() -> None:
                 total=1,
             ),
             executed_queries=["slow"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
 
@@ -620,7 +622,7 @@ async def test_orchestrate_citation_cascade_failure() -> None:
                 total=1,
             ),
             executed_queries=["bad_cite"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
 
@@ -652,7 +654,7 @@ async def test_orchestrate_planner_fallback_on_error() -> None:
                 total=1,
             ),
             executed_queries=["orig"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -685,7 +687,7 @@ async def test_orchestrate_planner_fallback_on_unexpected_error() -> None:
                 total=1,
             ),
             executed_queries=["orig"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -730,7 +732,7 @@ async def test_orchestrate_planner_error_categories(
                 total=1,
             ),
             executed_queries=["orig"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -764,7 +766,7 @@ async def test_orchestrate_planner_deadline_exceeded() -> None:
                 total=1,
             ),
             executed_queries=["slow"],
-            filters_applied={},
+            filters_applied=[],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -801,7 +803,9 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
                 total=1,
             ),
             executed_queries=["cat"],
-            filters_applied={"topic": "Algorithms"},
+            filters_applied=[
+                FilterCondition(field="topic", op="eq", value="Algorithms")
+            ],
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -811,7 +815,7 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
         provider=provider,
     )
 
-    filters = StudyFilters(topic="Algorithms")
+    filters = [FilterCondition(field="topic", op="eq", value="Algorithms")]
     response = await service.orchestrate(
         StudyRequest(
             query="cat", scope={"collection": "cam-cs-tripos"}, filters=filters
@@ -820,4 +824,4 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
 
     assert query_planner.calls[0]["hard_filters"] == filters
     assert planned_retrieval.calls[0]["hard_filters"] == filters
-    assert response.retrieval.filters_applied == {"topic": "Algorithms"}
+    assert response.retrieval.filters_applied == filters

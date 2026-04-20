@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pydantic import ValidationError
+from src.metadata_schema.models import FilterCondition
 from src.study.models import (
     CitedSource,
     GenerationMetadata,
@@ -18,50 +19,85 @@ from src.study.models import (
     StudySource,
     ValidationResult,
 )
-from src.study.planning.models import PlanningMetadata, StudyFilters
+from src.study.planning.models import PlanningMetadata
 
 
 def test_study_request_defaults_and_scope_shape() -> None:
     request = StudyRequest(
         query="dynamic programming",
         scope={"collection": "cam-cs-tripos"},
-        filters={"year": 2023, "paper": 2},
+        filters=[
+            {"field": "year", "op": "eq", "value": 2023},
+            {"field": "paper", "op": "eq", "value": 2},
+        ],
     )
 
     assert request.top_k == 15
     assert request.scope == StudyScope(collection="cam-cs-tripos")
-    assert request.filters == StudyFilters(year=2023, paper=2)
+    assert request.filters == [
+        FilterCondition(field="year", op="eq", value=2023),
+        FilterCondition(field="paper", op="eq", value=2),
+    ]
 
 
-def test_study_request_accepts_typed_filters() -> None:
+def test_study_request_accepts_filter_condition_lists() -> None:
     request = StudyRequest(
         query="dynamic programming",
         scope=StudyScope(collection="cam-cs-tripos"),
-        filters=StudyFilters(year=2024, has_code=True),
+        filters=[
+            FilterCondition(field="year", op="eq", value=2024),
+            FilterCondition(field="has_code", op="eq", value=True),
+        ],
     )
 
-    assert request.filters is not None
-    assert request.filters.year == 2024
-    assert request.filters.has_code is True
+    assert request.filters == [
+        FilterCondition(field="year", op="eq", value=2024),
+        FilterCondition(field="has_code", op="eq", value=True),
+    ]
 
 
-def test_study_request_coerces_dict_payload_to_study_filters() -> None:
+def test_study_request_coerces_payload_to_filter_conditions() -> None:
     request = StudyRequest.model_validate(
-        {"query": "q", "scope": {"collection": "c"}, "filters": {"year": 2024}}
+        {
+            "query": "q",
+            "scope": {"collection": "c"},
+            "filters": [{"field": "year", "op": "eq", "value": 2024}],
+        }
     )
 
-    assert isinstance(request.filters, StudyFilters)
-    assert request.filters.year == 2024
+    assert request.filters == [FilterCondition(field="year", op="eq", value=2024)]
 
 
-def test_study_request_rejects_unknown_filter_key() -> None:
+def test_study_request_rejects_legacy_filter_dict_shape() -> None:
     try:
         StudyRequest.model_validate(
-            {"query": "q", "scope": {"collection": "c"}, "filters": {"question": 4}}
+            {
+                "query": "q",
+                "scope": {"collection": "c"},
+                "filters": {"question": 4},
+            }
         )
     except ValidationError:
         return
-    raise AssertionError("unknown filter key should have been rejected")
+    raise AssertionError("legacy filter dict shape should have been rejected")
+
+
+def test_study_request_preserves_repeated_filter_conditions() -> None:
+    request = StudyRequest.model_validate(
+        {
+            "query": "q",
+            "scope": {"collection": "c"},
+            "filters": [
+                {"field": "year", "op": "gte", "value": 2020},
+                {"field": "year", "op": "lte", "value": 2024},
+            ],
+        }
+    )
+
+    assert request.filters == [
+        FilterCondition(field="year", op="gte", value=2020),
+        FilterCondition(field="year", op="lte", value=2024),
+    ]
 
 
 def test_study_request_rejects_top_k_out_of_range() -> None:
@@ -160,16 +196,32 @@ def test_cited_source_rejects_none_why_cited() -> None:
     raise AssertionError("why_cited=None should have been rejected")
 
 
+def test_study_source_uses_metadata_bag() -> None:
+    source = StudySource.model_validate(
+        {
+            "chunk_id": "cam-2024-p2-q5",
+            "chunk_level": "question",
+            "parent_chunk_id": None,
+            "score": 0.91,
+            "excerpt": "Binary search trees support efficient lookup.",
+            "question_ref": "2024 Q5",
+            "metadata": {"year": 2024, "paper": 2, "topic": "Algorithms"},
+            "why_cited": "Introduces balanced tree lookup costs.",
+        }
+    )
+
+    assert source.metadata["paper"] == 2
+
+
 def test_final_study_response_allows_null_why_cited() -> None:
     nullable_source = StudySource(
         chunk_id="cam-2023-p2-q4",
-        year=None,
-        paper=None,
-        question_ref=None,
         chunk_level="question",
-        topic=None,
+        parent_chunk_id=None,
         score=0.82,
         excerpt="Consider a dynamic programming recurrence.",
+        question_ref=None,
+        metadata={},
         why_cited=None,
     )
 
@@ -193,7 +245,7 @@ def test_final_study_response_allows_null_why_cited() -> None:
             context_chunk_ids=["cam-2023-p2-q4"],
             omitted_chunk_ids=[],
             truncated_chunk_ids=[],
-            filters_applied={"year": 2023},
+            filters_applied=[FilterCondition(field="year", op="eq", value=2023)],
             rerank=True,
         ),
         planning=PlanningMetadata(
@@ -217,10 +269,8 @@ def test_final_study_response_allows_null_why_cited() -> None:
     )
 
     assert response.sources[0].why_cited is None
-    assert response.sources[0].year is None
-    assert response.sources[0].paper is None
     assert response.sources[0].question_ref is None
-    assert response.sources[0].topic is None
+    assert response.sources[0].metadata == {}
 
 
 def test_study_response_defaults_to_schema_version_v2() -> None:
@@ -243,7 +293,7 @@ def test_study_response_defaults_to_schema_version_v2() -> None:
             context_chunk_ids=[],
             omitted_chunk_ids=[],
             truncated_chunk_ids=[],
-            filters_applied={},
+            filters_applied=[],
             rerank=True,
         ),
         planning=PlanningMetadata(
@@ -289,7 +339,7 @@ def test_study_response_requires_planning_field() -> None:
             "context_chunk_ids": [],
             "omitted_chunk_ids": [],
             "truncated_chunk_ids": [],
-            "filters_applied": {},
+            "filters_applied": [],
             "rerank": True,
         },
         "generation": {
