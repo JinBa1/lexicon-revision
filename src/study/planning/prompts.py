@@ -7,25 +7,30 @@ import yaml
 from jinja2 import Template
 from pydantic import BaseModel
 
-_STRIP_FILTER_SCHEMA = {
-    "year": "Exam year already applied as a hard filter.",
-    "paper": "Exam paper number already applied as a hard filter.",
-    "question_number": "Question number already applied as a hard filter.",
-    "marks": "Marks lower bound already applied as a hard filter.",
-    "has_code": "Whether code presence is already applied as a hard filter.",
-    "has_figure": "Whether figure presence is already applied as a hard filter.",
-    "has_table": "Whether table presence is already applied as a hard filter.",
-}
+
+def _describe_strip_filter_schema_keys(
+    applied_filters: list[dict[str, Any]],
+) -> list[str]:
+    seen: set[str] = set()
+    ordered_keys: list[str] = []
+    for condition in applied_filters:
+        field = condition.get("field")
+        if not isinstance(field, str) or field in seen:
+            continue
+        seen.add(field)
+        ordered_keys.append(field)
+    return ordered_keys
 
 
-def _describe_strip_filter_schema_keys() -> list[str]:
-    return list(_STRIP_FILTER_SCHEMA.keys())
-
-
-def _describe_strip_filter_schema() -> list[dict[str, str]]:
+def _describe_strip_filter_schema(
+    applied_filters: list[dict[str, Any]],
+) -> list[dict[str, str]]:
     return [
-        {"name": name, "description": description}
-        for name, description in _STRIP_FILTER_SCHEMA.items()
+        {
+            "name": field,
+            "description": "This field is already applied as a hard filter.",
+        }
+        for field in _describe_strip_filter_schema_keys(applied_filters)
     ]
 
 
@@ -40,9 +45,10 @@ class PlannerPromptTemplate(BaseModel):
         raw_query: str,
         applied_filters: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
+        strip_fields = _describe_strip_filter_schema(applied_filters)
         system_content = Template(self.system).render(
-            strip_fields=_describe_strip_filter_schema(),
-            strip_field_names=_describe_strip_filter_schema_keys(),
+            strip_fields=strip_fields,
+            strip_field_names=[field["name"] for field in strip_fields],
         )
         user_content = Template(self.user).render(
             raw_query=raw_query,

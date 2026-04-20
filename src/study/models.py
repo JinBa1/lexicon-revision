@@ -84,7 +84,6 @@ class StudySource(BaseModel):
     parent_chunk_id: str | None
     score: float
     excerpt: str
-    question_ref: str | None
     metadata: dict[str, Any]
     why_cited: str | None = Field(max_length=400)
 

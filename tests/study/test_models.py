@@ -204,7 +204,6 @@ def test_study_source_uses_metadata_bag() -> None:
             "parent_chunk_id": None,
             "score": 0.91,
             "excerpt": "Binary search trees support efficient lookup.",
-            "question_ref": "2024 Q5",
             "metadata": {"year": 2024, "paper": 2, "topic": "Algorithms"},
             "why_cited": "Introduces balanced tree lookup costs.",
         }
@@ -220,7 +219,6 @@ def test_final_study_response_allows_null_why_cited() -> None:
         parent_chunk_id=None,
         score=0.82,
         excerpt="Consider a dynamic programming recurrence.",
-        question_ref=None,
         metadata={},
         why_cited=None,
     )
@@ -269,7 +267,6 @@ def test_final_study_response_allows_null_why_cited() -> None:
     )
 
     assert response.sources[0].why_cited is None
-    assert response.sources[0].question_ref is None
     assert response.sources[0].metadata == {}
 
 

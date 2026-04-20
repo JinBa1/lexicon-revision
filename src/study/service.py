@@ -609,26 +609,9 @@ def _study_source(result: SearchResult, why_cited: str | None) -> StudySource:
         parent_chunk_id=result.parent_chunk_id,
         score=result.score,
         excerpt=result.text[:500],
-        question_ref=_question_ref(
-            question_number=metadata.get("question_number"),
-            sub_question_label=result.sub_question_label,
-        ),
         metadata=metadata,
         why_cited=why_cited,
     )
-
-
-def _question_ref(
-    *,
-    question_number: object,
-    sub_question_label: object,
-) -> str | None:
-    if question_number is None:
-        return None
-    question_ref = f"Q{question_number}"
-    if sub_question_label:
-        question_ref = f"{question_ref}{sub_question_label}"
-    return question_ref
 
 
 def _ordered_unique(values: list[str]) -> list[str]:

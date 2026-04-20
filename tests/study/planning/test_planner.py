@@ -196,6 +196,7 @@ async def test_prompt_messages_include_raw_query_and_filters() -> None:
             FilterCondition(field="year", op="eq", value=2025),
             FilterCondition(field="topic", op="eq", value="Databases"),
             FilterCondition(field="marks", op="gte", value=10),
+            FilterCondition(field="difficulty_band", op="eq", value="hard"),
         ],
     )
 
@@ -205,11 +206,13 @@ async def test_prompt_messages_include_raw_query_and_filters() -> None:
 
     assert messages[0]["role"] == "system"
     assert "year" in system
-    assert "- topic:" not in system
+    assert "topic" in system
+    assert "difficulty_band" in system
     assert raw_query in user
     assert '"field": "topic"' in user
     assert '"op": "gte"' in user
     assert '"field": "marks"' in user
+    assert '"field": "difficulty_band"' in user
 
 
 @pytest.mark.anyio
