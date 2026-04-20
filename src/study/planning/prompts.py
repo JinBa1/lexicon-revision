@@ -11,7 +11,7 @@ _STRIP_FILTER_SCHEMA = {
     "year": "Exam year already applied as a hard filter.",
     "paper": "Exam paper number already applied as a hard filter.",
     "question_number": "Question number already applied as a hard filter.",
-    "marks_min": "Minimum mark value already applied as a hard filter.",
+    "marks": "Marks lower bound already applied as a hard filter.",
     "has_code": "Whether code presence is already applied as a hard filter.",
     "has_figure": "Whether figure presence is already applied as a hard filter.",
     "has_table": "Whether table presence is already applied as a hard filter.",

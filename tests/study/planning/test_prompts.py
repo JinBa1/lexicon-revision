@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.study.planning.models import StudyFilters
+from src.metadata_schema.models import FilterCondition
 from src.study.planning.prompts import (
     _describe_strip_filter_schema_keys,
     load_planner_prompt,
@@ -13,7 +13,15 @@ def test_strip_filter_schema_keys_exclude_topic_but_cover_others() -> None:
     schema_keys = set(_describe_strip_filter_schema_keys())
 
     assert "topic" not in schema_keys
-    assert schema_keys | {"topic"} == set(StudyFilters.model_fields.keys())
+    assert schema_keys == {
+        "year",
+        "paper",
+        "question_number",
+        "marks",
+        "has_code",
+        "has_figure",
+        "has_table",
+    }
 
 
 def test_planner_prompt_renders_raw_query_and_applied_filters(tmp_path: Path) -> None:
@@ -37,7 +45,7 @@ user: |
     template = load_planner_prompt(prompt_path)
     messages = template.render(
         raw_query="paper 3 recursion in 2023",
-        applied_filters={"paper": 3},
+        applied_filters=[FilterCondition(field="paper", op="eq", value=3).model_dump()],
     )
 
     assert messages[0]["role"] == "system"
@@ -46,7 +54,9 @@ user: |
     assert "paper" in messages[0]["content"]
     assert "topic" not in messages[0]["content"]
     assert "paper 3 recursion in 2023" in messages[1]["content"]
-    assert '"paper": 3' in messages[1]["content"]
+    assert '"field": "paper"' in messages[1]["content"]
+    assert '"op": "eq"' in messages[1]["content"]
+    assert '"value": 3' in messages[1]["content"]
 
 
 def test_planner_prompt_render_accepts_no_applied_filters(tmp_path: Path) -> None:
@@ -64,7 +74,7 @@ user: |
     )
 
     template = load_planner_prompt(prompt_path)
-    messages = template.render(raw_query="recursion", applied_filters={})
+    messages = template.render(raw_query="recursion", applied_filters=[])
 
     assert "Applied:\nnone" in messages[1]["content"]
 
@@ -74,7 +84,7 @@ def test_real_planner_prompt_loads() -> None:
 
     messages = template.render(
         raw_query="paper 2 dynamic programming tables",
-        applied_filters={"paper": 2},
+        applied_filters=[FilterCondition(field="paper", op="eq", value=2).model_dump()],
     )
     system = messages[0]["content"]
     user = messages[1]["content"]
@@ -83,7 +93,8 @@ def test_real_planner_prompt_loads() -> None:
     assert "year" in system
     assert "paper" in system
     assert "question_number" in system
-    assert "marks_min" in system
+    assert "marks" in system
+    assert "marks_min" not in system
     assert "has_code" in system
     assert "has_figure" in system
     assert "has_table" in system
