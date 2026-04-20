@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.metadata_schema.models import CollectionMetadataSchema
 from src.study.models import RankedChunk
 from src.study.packing import (
     HeuristicTokenEstimator,
@@ -7,6 +8,37 @@ from src.study.packing import (
     format_context_blocks,
     pack_chunks,
 )
+
+
+def _schema() -> CollectionMetadataSchema:
+    return CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "year",
+                    "label": "Year",
+                    "type": "integer",
+                    "operators": ["eq"],
+                    "exposed": False,
+                },
+                {
+                    "key": "author",
+                    "label": "Author",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                },
+                {
+                    "key": "tripos_part",
+                    "label": "Tripos Part",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                },
+            ],
+        }
+    )
 
 
 def chunk(
@@ -25,10 +57,8 @@ def chunk(
         score=score,
         metadata={
             "year": 2023,
-            "paper": 2,
-            "question_number": 4,
-            "sub_question_label": None,
-            "topic": "Algorithms",
+            "author": "abc123",
+            "tripos_part": "Part IB",
         },
     )
 
@@ -91,9 +121,11 @@ def test_format_context_blocks_includes_stable_metadata() -> None:
         estimator=HeuristicTokenEstimator(),
     )
 
-    rendered = format_context_blocks(packed.chunks)
+    rendered = format_context_blocks(packed.chunks, _schema())
 
     assert "[SOURCE 1]" in rendered
     assert "chunk_id: cam-2023-p2-q4" in rendered
-    assert "year: 2023" in rendered
+    assert "year:" not in rendered.lower()
+    assert "Author: abc123" in rendered
+    assert "Tripos Part: Part IB" in rendered
     assert "text:\nrecurrence text" in rendered

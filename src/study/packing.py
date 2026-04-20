@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Protocol
 
+from src.metadata_schema.models import CollectionMetadataSchema
+from src.metadata_schema.rendering import render_metadata_lines
 from src.study.models import PackedChunk, PackingResult, RankedChunk
 
 TRUNCATION_MARKER = "[...truncated for context budget]"
@@ -90,21 +92,23 @@ def pack_chunks(
     )
 
 
-def format_context_blocks(chunks: list[PackedChunk]) -> str:
+def format_context_blocks(
+    chunks: list[PackedChunk],
+    schema: CollectionMetadataSchema | None = None,
+) -> str:
     blocks = []
     for index, packed in enumerate(chunks, start=1):
-        metadata = packed.chunk.metadata
+        metadata_lines = []
+        if schema is not None:
+            metadata_lines = render_metadata_lines(schema, packed.chunk.metadata)
         blocks.append(
             "\n".join(
                 [
                     f"[SOURCE {index}]",
                     f"chunk_id: {packed.chunk.chunk_id}",
-                    f"year: {metadata.get('year')}",
-                    f"paper: {metadata.get('paper')}",
-                    f"question: {metadata.get('question_number')}",
                     f"chunk_level: {packed.chunk.chunk_level}",
-                    f"topic: {metadata.get('topic')}",
                     f"score: {packed.chunk.score:.4f}",
+                    *metadata_lines,
                     "",
                     "text:",
                     packed.text,

@@ -5,6 +5,11 @@ from src.metadata_schema.models import (
     FilterCondition,
     MetadataField,
 )
+from src.metadata_schema.rendering import (
+    iter_renderable_metadata_fields,
+    render_metadata_lines,
+    render_metadata_summary,
+)
 
 __all__ = [
     "CollectionMetadataSchema",
@@ -12,5 +17,8 @@ __all__ = [
     "MetadataField",
     "build_chunk_metadata",
     "default_schema_path",
+    "iter_renderable_metadata_fields",
     "load_collection_schema",
+    "render_metadata_lines",
+    "render_metadata_summary",
 ]

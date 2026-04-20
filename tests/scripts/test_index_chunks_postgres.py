@@ -6,8 +6,13 @@ import sys
 from pathlib import Path
 
 import pytest
-from scripts.index_chunks_postgres import index_collection_postgres, parse_args
-from src.metadata_schema import CollectionMetadataSchema
+from scripts.index_chunks_postgres import (
+    build_embedding_text,
+    index_collection_postgres,
+    parse_args,
+)
+from src.chunking.models import Chunk
+from src.metadata_schema import CollectionMetadataSchema, build_chunk_metadata
 from src.search.providers.base import EmbeddingResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -108,6 +113,71 @@ def test_parse_args_supports_metadata_schema(monkeypatch) -> None:
     )
 
     assert parse_args().metadata_schema.endswith(".metadata-schema.json")
+
+
+def test_build_embedding_text_uses_schema_rendering() -> None:
+    schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "year",
+                    "label": "Year",
+                    "type": "integer",
+                    "operators": ["eq"],
+                    "exposed": False,
+                    "source": "chunk.year",
+                },
+                {
+                    "key": "author",
+                    "label": "Author",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.author",
+                },
+                {
+                    "key": "tripos_part",
+                    "label": "Tripos Part",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.tripos_part",
+                },
+            ],
+        }
+    )
+    chunk = Chunk(
+        id="cam-2024-p2-q5",
+        chunk_level="question",
+        parent_chunk_id=None,
+        text="Binary search trees support efficient lookup.",
+        year=2024,
+        paper=2,
+        question_number=5,
+        topic="Algorithms",
+        author="abc123",
+        tripos_part="Part IB",
+        sub_question_label=None,
+        marks=10,
+        total_marks=20,
+        has_code=True,
+        has_figure=False,
+        has_table=False,
+        media=[],
+        source_pdf="y2024p2.pdf",
+        warnings=[],
+    )
+
+    rendered = build_embedding_text(
+        chunk,
+        schema=schema,
+        metadata=build_chunk_metadata(chunk, schema),
+    )
+
+    assert "Author: abc123" in rendered
+    assert "Tripos Part: Part IB" in rendered
+    assert "Year:" not in rendered
 
 
 def test_index_collection_postgres_writes_storage_backed_sidecar(

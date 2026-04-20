@@ -105,6 +105,7 @@ def _response(
                 chunk_id=chunk_id,
                 chunk_level="question",
                 parent_chunk_id=None,
+                sub_question_label=None,
                 score=0.91,
                 excerpt=f"{chunk_id} excerpt text",
                 metadata={

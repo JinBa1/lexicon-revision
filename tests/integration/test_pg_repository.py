@@ -308,19 +308,14 @@ def test_search_repository_returns_metadata_from_canonical_storage() -> None:
         "topic",
         "author",
         "tripos_part",
-        "chunk_level",
-        "parent_chunk_id",
-        "sub_question_label",
         "marks",
         "total_marks",
         "has_code",
         "has_figure",
         "has_table",
-        "source_pdf",
     }
     assert set(result.metadata.keys()) == expected_keys
     assert result.metadata["year"] is not None
-    assert result.metadata["source_pdf"].endswith(".pdf")
 
 
 def test_search_repository_filters_using_canonical_chunk_metadata() -> None:
@@ -397,9 +392,7 @@ def test_search_repository_filters_structural_fields_outside_metadata_schema() -
 
     assert results
     assert all(result.chunk_level == "question" for result in results)
-    assert all(
-        result.metadata["source_pdf"] == expected_source_pdf for result in results
-    )
+    assert all("source_pdf" not in result.metadata for result in results)
 
 
 def test_search_repository_rejects_filter_field_absent_from_collection_schema() -> None:

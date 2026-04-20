@@ -59,6 +59,17 @@ def test_parse_args_collects_repeatable_filter_conditions(monkeypatch) -> None:
     assert args.filters == ["tripos_part:eq:II", "year:gte:2020"]
 
 
+def test_parse_args_rejects_legacy_fixed_filter_flags(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["inspect_study.py", "q", "--year", "2024"],
+    )
+
+    with pytest.raises(SystemExit):
+        parse_args()
+
+
 def test_main_forwards_repeatable_filter_conditions(
     monkeypatch,
     capsys: pytest.CaptureFixture[str],

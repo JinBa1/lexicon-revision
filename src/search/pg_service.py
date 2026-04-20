@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from src.metadata_schema.models import FilterCondition
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.search.errors import (
     DEFAULT_COLLECTION,
     DEFAULT_MEDIA_DIR,
@@ -52,6 +52,9 @@ class PgSearchService:
         if self._reranker is None:
             return None
         return self._reranker.model_id
+
+    def get_collection_schema(self, collection: str) -> CollectionMetadataSchema:
+        return self._repository.get_collection_schema(collection)
 
     def search(
         self,

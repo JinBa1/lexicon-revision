@@ -13,7 +13,6 @@ import pytest
 from scripts.search_tooling import (
     EvalCase,
     EvalSpec,
-    build_filters,
     load_eval_spec,
     load_media_map,
     parse_filter_conditions,
@@ -27,52 +26,6 @@ def test_truncate_text_compacts_whitespace_and_truncates() -> None:
     text = "alpha\n\n beta   gamma delta"
 
     assert truncate_text(text, 14) == "alpha beta..."
-
-
-def test_build_filters_omits_none_values() -> None:
-    """Infrastructure test for CLI filter construction only."""
-    filters = build_filters(
-        year=2025,
-        paper=None,
-        topic="Algorithms",
-        question=None,
-        marks_min=None,
-        has_code=False,
-        has_figure=None,
-        has_table=True,
-    )
-
-    assert filters == [
-        FilterCondition(field="year", op="eq", value=2025),
-        FilterCondition(field="topic", op="eq", value="Algorithms"),
-        FilterCondition(field="has_code", op="eq", value=False),
-        FilterCondition(field="has_table", op="eq", value=True),
-    ]
-
-
-def test_build_filters_includes_full_supported_filter_set() -> None:
-    """Infrastructure test for CLI filter construction only."""
-    filters = build_filters(
-        year=2025,
-        paper=3,
-        topic="Algorithms",
-        question=7,
-        marks_min=10,
-        has_code=True,
-        has_figure=False,
-        has_table=True,
-    )
-
-    assert len(filters) == 8
-    assert FilterCondition(field="question_number", op="eq", value=7) in filters
-    assert FilterCondition(field="marks", op="gte", value=10) in filters
-
-
-def test_build_filters_maps_question_to_question_number() -> None:
-    """Infrastructure test for CLI filter construction only."""
-    assert build_filters(question=7) == [
-        FilterCondition(field="question_number", op="eq", value=7)
-    ]
 
 
 def test_parse_filter_conditions_supports_repeated_range_filters() -> None:

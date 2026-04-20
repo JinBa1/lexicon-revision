@@ -92,6 +92,7 @@ class StudyService:
             )
             search_response = retrieval_result.search_response
             filters = retrieval_result.filters_applied
+            collection_schema = retrieval_result.collection_schema
         except InvalidMetadataFilterError:
             raise
         except Exception:
@@ -192,7 +193,7 @@ class StudyService:
         messages = self._prompt.render(
             query=request.query,
             retrieval_queries=list(plan.semantic_queries),
-            context_blocks=format_context_blocks(packing.chunks),
+            context_blocks=format_context_blocks(packing.chunks, collection_schema),
         )
         generation_request = GenerationRequest(
             messages=messages,
@@ -607,6 +608,7 @@ def _study_source(result: SearchResult, why_cited: str | None) -> StudySource:
         chunk_id=result.chunk_id,
         chunk_level=result.chunk_level,
         parent_chunk_id=result.parent_chunk_id,
+        sub_question_label=result.sub_question_label,
         score=result.score,
         excerpt=result.text[:500],
         metadata=metadata,

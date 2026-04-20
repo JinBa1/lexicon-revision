@@ -380,16 +380,6 @@ def _result_metadata_from_row(
     collection_schema: CollectionMetadataSchema,
 ) -> dict[str, Any]:
     stored_metadata = dict(row.metadata or {})
-    result_metadata: dict[str, Any] = {
+    return {
         field.key: stored_metadata.get(field.key) for field in collection_schema.fields
     }
-    result_metadata.update(stored_metadata)
-    result_metadata.update(
-        {
-            "chunk_level": row.chunk_level,
-            "parent_chunk_id": row.parent_chunk_id,
-            "sub_question_label": row.sub_question_label,
-            "source_pdf": row.source_pdf,
-        }
-    )
-    return result_metadata

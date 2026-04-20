@@ -20,7 +20,6 @@ from scripts.inspect_search import (  # noqa: E402
     create_real_search_service,
 )
 from scripts.search_tooling import (  # noqa: E402
-    build_filters,
     dump_filters,
     parse_filter_conditions,
     truncate_text,
@@ -121,20 +120,6 @@ def parse_args() -> argparse.Namespace:
         type=_positive_int,
         default=None,
         help="Retrieval top-k (default: StudySettings.context.retrieval_top_k_default)",
-    )
-    parser.add_argument("--year", type=int, help="Filter by year")
-    parser.add_argument("--paper", type=int, help="Filter by paper number")
-    parser.add_argument("--topic", help="Filter by topic")
-    parser.add_argument("--question", type=int, help="Filter by question number")
-    parser.add_argument("--marks-min", type=int, help="Minimum marks filter")
-    parser.add_argument(
-        "--has-code", action="store_true", help="Filter for chunks with code"
-    )
-    parser.add_argument(
-        "--has-figure", action="store_true", help="Filter for chunks with figures"
-    )
-    parser.add_argument(
-        "--has-table", action="store_true", help="Filter for chunks with tables"
     )
     parser.add_argument(
         "--filter",
@@ -554,17 +539,7 @@ def main() -> None:
     args = parse_args()
 
     try:
-        filters = build_filters(
-            year=args.year,
-            paper=args.paper,
-            topic=args.topic,
-            question=args.question,
-            marks_min=args.marks_min,
-            has_code=True if args.has_code else None,
-            has_figure=True if args.has_figure else None,
-            has_table=True if args.has_table else None,
-        )
-        filters.extend(parse_filter_conditions(args.filters))
+        filters = parse_filter_conditions(args.filters)
         settings = (
             load_study_settings(args.settings)
             if args.settings is not None

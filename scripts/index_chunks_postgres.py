@@ -24,8 +24,10 @@ from src.chunking.pipeline import run_pipeline  # noqa: E402
 from src.db.config import create_database_engine, load_database_settings  # noqa: E402
 from src.db.metadata_indexes import ensure_metadata_indexes  # noqa: E402
 from src.metadata_schema import (  # noqa: E402
+    build_chunk_metadata,
     default_schema_path,
     load_collection_schema,
+    render_metadata_summary,
 )
 from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
 from src.search.media_sidecar import (  # noqa: E402
@@ -42,21 +44,17 @@ from src.storage import ArtifactManifest, load_local_manifests  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-def build_embedding_text(chunk: Chunk) -> str:
+def build_embedding_text(
+    chunk: Chunk,
+    *,
+    schema: Any | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> str:
     parts = [chunk.text.strip()]
-    footer_fields: list[str] = []
-
-    if chunk.year is not None:
-        footer_fields.append(f"Year: {chunk.year}")
-    if chunk.paper is not None:
-        footer_fields.append(f"Paper: {chunk.paper}")
-    if chunk.question_number is not None:
-        footer_fields.append(f"Question: {chunk.question_number}")
-    if chunk.topic is not None:
-        footer_fields.append(f"Topic: {chunk.topic}")
-
-    if footer_fields:
-        parts.append(" | ".join(footer_fields))
+    if schema is not None:
+        rendered_metadata = render_metadata_summary(schema, metadata or {})
+        if rendered_metadata:
+            parts.append(rendered_metadata)
 
     return "\n\n".join(parts)
 
@@ -127,11 +125,15 @@ def index_collection_postgres(
     }
     media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
 
-    embedding_inputs = [build_embedding_text(chunk) for chunk in chunks]
-    result = embedding_model.embed_documents(embedding_inputs)
-    vectors = result.vectors
     schema_path = metadata_schema_path or default_schema_path(collection_name)
     metadata_schema = load_collection_schema(schema_path)
+    chunk_metadata = [build_chunk_metadata(chunk, metadata_schema) for chunk in chunks]
+    embedding_inputs = [
+        build_embedding_text(chunk, schema=metadata_schema, metadata=metadata)
+        for chunk, metadata in zip(chunks, chunk_metadata, strict=True)
+    ]
+    result = embedding_model.embed_documents(embedding_inputs)
+    vectors = result.vectors
 
     repo = PgIndexRepository(
         engine=engine,

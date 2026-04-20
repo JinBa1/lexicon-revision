@@ -19,6 +19,14 @@ class PlannedRetrievalService:
         rerank: bool = True,
     ) -> PlannedRetrievalResult:
         applied_filters = list(hard_filters or [])
+        collection_schema = None
+        get_collection_schema = getattr(
+            self._search_service,
+            "get_collection_schema",
+            None,
+        )
+        if callable(get_collection_schema):
+            collection_schema = get_collection_schema(collection)
         search_response = self._search_service.search(
             query=plan.semantic_queries[0],
             collection=collection,
@@ -31,4 +39,5 @@ class PlannedRetrievalService:
             search_response=search_response,
             executed_queries=list(plan.semantic_queries),
             filters_applied=applied_filters,
+            collection_schema=collection_schema,
         )

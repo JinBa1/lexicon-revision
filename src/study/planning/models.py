@@ -8,7 +8,7 @@ from pydantic import (
     Field,
     model_validator,
 )
-from src.metadata_schema.models import FilterCondition
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.search.models import SearchResponse
 
 PlanningStatus = Literal["ok", "fallback"]
@@ -62,6 +62,7 @@ class PlannedRetrievalResult(BaseModel):
     search_response: SearchResponse
     executed_queries: list[str]
     filters_applied: list[FilterCondition]
+    collection_schema: CollectionMetadataSchema | None = None
 
 
 class InvalidPlanError(Exception):

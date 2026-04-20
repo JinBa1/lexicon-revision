@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from src.metadata_schema.models import FilterCondition
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.search.models import SearchResponse
 
 
@@ -13,6 +13,11 @@ class SearchBackend(Protocol):
 
     @property
     def rerank_model_id(self) -> str | None: ...
+
+    def get_collection_schema(
+        self,
+        collection: str,
+    ) -> CollectionMetadataSchema: ...
 
     def search(
         self,

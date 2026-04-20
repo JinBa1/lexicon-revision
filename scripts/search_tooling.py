@@ -42,39 +42,6 @@ def truncate_text(text: str, max_chars: int) -> str:
     return f"{compact[: max_chars - 3].rstrip()}..."
 
 
-def build_filters(
-    *,
-    year: int | None = None,
-    paper: int | None = None,
-    topic: str | None = None,
-    question: int | None = None,
-    marks_min: int | None = None,
-    has_code: bool | None = None,
-    has_figure: bool | None = None,
-    has_table: bool | None = None,
-) -> list[FilterCondition]:
-    """Build ordered filter conditions from optional CLI values."""
-    raw_filters = {
-        "year": year,
-        "paper": paper,
-        "topic": topic,
-        "question_number": question,
-        "marks": marks_min,
-        "has_code": has_code,
-        "has_figure": has_figure,
-        "has_table": has_table,
-    }
-    filters: list[FilterCondition] = []
-    for key, value in raw_filters.items():
-        if value is None:
-            continue
-        if key == "marks":
-            filters.append(FilterCondition(field="marks", op="gte", value=value))
-            continue
-        filters.append(FilterCondition(field=key, op="eq", value=value))
-    return filters
-
-
 def parse_filter_conditions(raw_filters: list[str]) -> list[FilterCondition]:
     """Parse repeatable CLI filters of the form field:op:value."""
     parsed: list[FilterCondition] = []

@@ -82,6 +82,7 @@ class StudySource(BaseModel):
     chunk_id: str = Field(min_length=1)
     chunk_level: Literal["question", "sub_question"]
     parent_chunk_id: str | None
+    sub_question_label: str | None
     score: float
     excerpt: str
     metadata: dict[str, Any]

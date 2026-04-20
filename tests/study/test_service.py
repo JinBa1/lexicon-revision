@@ -117,12 +117,16 @@ class FakeProvider:
 def search_result(
     chunk_id: str = "a",
     text: str = "dynamic programming recurrence",
+    *,
+    chunk_level: str = "question",
+    parent_chunk_id: str | None = None,
+    sub_question_label: str | None = None,
 ) -> SearchResult:
     return SearchResult(
         chunk_id=chunk_id,
-        chunk_level="question",
-        parent_chunk_id=None,
-        sub_question_label=None,
+        chunk_level=chunk_level,
+        parent_chunk_id=parent_chunk_id,
+        sub_question_label=sub_question_label,
         text=text,
         score=0.9,
         metadata={
@@ -130,9 +134,6 @@ def search_result(
             "paper": 2,
             "question_number": 4,
             "topic": "Algorithms",
-            "chunk_level": "question",
-            "parent_chunk_id": None,
-            "sub_question_label": None,
         },
         media=[],
     )
@@ -245,6 +246,13 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     assert response.planning.semantic_queries == ["dynamic programming recurrence"]
     assert response.planning.error_category is None
     assert response.generation.error_category is None
+    assert response.sources[0].metadata == {
+        "year": 2025,
+        "paper": 2,
+        "question_number": 4,
+        "topic": "Algorithms",
+    }
+    assert response.sources[0].sub_question_label is None
 
     assert planned_retrieval.calls[0]["plan"] is plan
     assert planned_retrieval.calls[0] == {
@@ -258,6 +266,46 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     user_prompt = provider.calls[0].messages[1]["content"]
     assert "Original student query: 2025 dp" in user_prompt
     assert "dynamic programming recurrence" in user_prompt
+
+
+@pytest.mark.anyio
+async def test_orchestrate_preserves_sub_question_label_on_sources() -> None:
+    query_planner = FakeQueryPlanner(
+        QueryPlan(original_query="q", semantic_queries=["dynamic programming"])
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="dynamic programming",
+                collection="cam-cs-tripos",
+                results=[
+                    search_result(
+                        "a",
+                        chunk_level="sub_question",
+                        parent_chunk_id="parent-1",
+                        sub_question_label="b",
+                    )
+                ],
+                total=1,
+            ),
+            executed_queries=["dynamic programming"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="q", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.sources[0].chunk_level == "sub_question"
+    assert response.sources[0].parent_chunk_id == "parent-1"
+    assert response.sources[0].sub_question_label == "b"
 
 
 @pytest.mark.anyio
