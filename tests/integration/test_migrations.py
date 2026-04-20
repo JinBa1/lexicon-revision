@@ -298,8 +298,8 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
         assert collection_row.id == "collection-public"
         assert collection_row.community_id is None
 
-        with engine.begin() as conn:
-            with pytest.raises(IntegrityError):
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
                 conn.execute(
                     text(
                         """
@@ -308,8 +308,8 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
                         """
                     )
                 )
-        with engine.begin() as conn:
-            with pytest.raises(IntegrityError):
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
                 conn.execute(
                     text(
                         """

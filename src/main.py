@@ -124,7 +124,10 @@ def _close_if_supported(provider: object | None) -> None:
     try:
         provider.close()
     except Exception:
-        logger.exception("Failed to close retrieval provider")
+        logger.exception(
+            "Failed to close resource",
+            extra={"resource_type": type(provider).__name__},
+        )
 
 
 async def _aclose_if_supported(provider: object | None) -> None:
