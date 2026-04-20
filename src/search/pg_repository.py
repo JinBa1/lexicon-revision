@@ -18,13 +18,16 @@ from sqlalchemy import (
     delete,
     insert,
     select,
-    update,
 )
 from sqlalchemy.orm import Session
 from src.chunking.models import Chunk
 from src.db.schema import chunk_embeddings, collections, papers
 from src.db.schema import chunks as chunks_table
-from src.metadata_schema import CollectionMetadataSchema, build_chunk_metadata
+from src.metadata_schema import (
+    CollectionMetadataSchema,
+    MetadataField,
+    build_chunk_metadata,
+)
 from src.search.service import (
     CollectionNotFoundError,
     EmbeddingModelMismatchError,
@@ -128,10 +131,10 @@ class PgIndexRepository:
                     expected_model_id=self.embedding_model_id,
                     expected_dimension=self.embedding_dimension,
                 )
-                session.execute(
-                    update(collections)
-                    .where(collections.c.id == collection_id)
-                    .values(metadata_schema=metadata_schema_payload)
+                _validate_collection_schema_unchanged(
+                    collection_name=collection_name,
+                    stored_payload=getattr(collection_row, "metadata_schema", None),
+                    expected_schema=metadata_schema,
                 )
 
             pdf_to_paper_id: dict[str, str] = {}
@@ -258,24 +261,26 @@ class PgSearchRepository:
                 if value is None:
                     continue
                 if key == "marks_min":
-                    expression = _metadata_filter_expression(collection_schema, "marks")
-                    if expression is None:
-                        raise InvalidMetadataFilterError(
-                            "Filter field 'marks' is not declared in collection "
-                            f"metadata schema for '{collection_name}'"
-                        )
+                    field = _require_metadata_field(
+                        collection_schema=collection_schema,
+                        collection_name=collection_name,
+                        key="marks",
+                        operator="gte",
+                    )
+                    expression = _metadata_filter_expression(field)
                     conditions.append(expression >= value)
                     continue
                 direct_column = _DIRECT_FILTER_COLUMNS.get(key)
                 if direct_column is not None:
                     conditions.append(direct_column == value)
                     continue
-                expression = _metadata_filter_expression(collection_schema, key)
-                if expression is None:
-                    raise InvalidMetadataFilterError(
-                        f"Filter field '{key}' is not declared in collection "
-                        f"metadata schema for '{collection_name}'"
-                    )
+                field = _require_metadata_field(
+                    collection_schema=collection_schema,
+                    collection_name=collection_name,
+                    key=key,
+                    operator="eq",
+                )
+                expression = _metadata_filter_expression(field)
                 conditions.append(expression == value)
 
             stmt = (
@@ -372,30 +377,52 @@ def _load_collection_schema(
         ) from exc
 
 
-def _metadata_filter_expression(
-    collection_schema: CollectionMetadataSchema,
-    key: str,
-):
-    field_type = _metadata_field_type(collection_schema, key)
-    if field_type is None:
-        return None
+def _validate_collection_schema_unchanged(
+    *,
+    collection_name: str,
+    stored_payload: Any,
+    expected_schema: CollectionMetadataSchema,
+) -> None:
+    stored_schema = _load_collection_schema(
+        collection_name=collection_name,
+        raw_payload=stored_payload,
+    )
+    if stored_schema.model_dump(mode="json") != expected_schema.model_dump(mode="json"):
+        raise ValueError(
+            f"Collection '{collection_name}' already exists with a different "
+            "metadata schema; use --recreate-collection to replace it"
+        )
 
-    extracted_value = chunks_table.c.metadata.op("->>")(key)
-    if field_type == "integer":
+
+def _require_metadata_field(
+    *,
+    collection_schema: CollectionMetadataSchema,
+    collection_name: str,
+    key: str,
+    operator: str,
+) -> MetadataField:
+    try:
+        field = collection_schema.field(key)
+    except KeyError as exc:
+        raise InvalidMetadataFilterError(
+            f"Filter field '{key}' is not declared in collection metadata schema "
+            f"for '{collection_name}'"
+        ) from exc
+    if operator not in field.operators:
+        raise InvalidMetadataFilterError(
+            f"Filter field '{key}' does not allow operator '{operator}' for "
+            f"'{collection_name}'"
+        )
+    return field
+
+
+def _metadata_filter_expression(field: MetadataField):
+    extracted_value = chunks_table.c.metadata.op("->>")(field.key)
+    if field.type == "integer":
         return cast(extracted_value, Integer)
-    if field_type == "boolean":
+    if field.type == "boolean":
         return cast(extracted_value, Boolean)
     return cast(extracted_value, Text)
-
-
-def _metadata_field_type(
-    collection_schema: CollectionMetadataSchema,
-    key: str,
-) -> str | None:
-    try:
-        return collection_schema.field(key).type
-    except KeyError:
-        return None
 
 
 def _result_metadata_from_row(

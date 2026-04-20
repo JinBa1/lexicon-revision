@@ -52,6 +52,29 @@ def _schema_with_field(*, key: str, field_type: str) -> CollectionMetadataSchema
     )
 
 
+def _schema_with_custom_field(
+    *,
+    key: str,
+    field_type: str,
+    operators: list[str],
+) -> CollectionMetadataSchema:
+    return CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": key,
+                    "label": key.replace("_", " ").title(),
+                    "type": field_type,
+                    "operators": operators,
+                    "exposed": True,
+                    "source": f"chunk.{key}",
+                }
+            ],
+        }
+    )
+
+
 def test_index_repository_indexes_fixture_chunks() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")
@@ -365,6 +388,46 @@ def test_search_repository_rejects_filter_field_absent_from_collection_schema() 
         )
 
 
+def test_search_repository_rejects_filter_operator_absent_from_collection_schema() -> (
+    None
+):
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")
+    vectors = _vectors(1, 8)
+    schema = _schema_with_custom_field(
+        key="marks",
+        field_type="integer",
+        operators=["eq"],
+    )
+
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-filter-operator-validation")
+    repo.index_chunks(
+        collection_name="fixture-filter-operator-validation",
+        chunks=chunks[:1],
+        vectors=vectors,
+        metadata_schema=schema,
+    )
+
+    search_repo = PgSearchRepository(engine=engine)
+    with pytest.raises(
+        InvalidMetadataFilterError,
+        match="does not allow operator 'gte'",
+    ):
+        search_repo.search(
+            collection_name="fixture-filter-operator-validation",
+            query_vector=[1.0] + [0.0] * 7,
+            embedding_model_id="fake-v1",
+            embedding_dimension=8,
+            filters={"marks_min": 5},
+            limit=10,
+        )
+
+
 def test_index_repository_allows_same_chunk_ids_in_multiple_collections() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
@@ -441,6 +504,65 @@ def test_index_repository_replaces_existing_chunk_ids_within_collection() -> Non
     )
 
     assert [result.chunk_id for result in results] == [chunks[0].id]
+
+
+def test_index_repository_rejects_schema_change_without_recreate() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    original_schema = _schema_with_custom_field(
+        key="year",
+        field_type="integer",
+        operators=["eq"],
+    )
+    changed_schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "year",
+                    "label": "Year",
+                    "type": "integer",
+                    "operators": ["eq", "gte"],
+                    "exposed": True,
+                    "source": "chunk.year",
+                }
+            ],
+        }
+    )
+
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-schema-drift")
+    repo.index_chunks(
+        collection_name="fixture-schema-drift",
+        chunks=chunks,
+        vectors=_vectors(1, 8),
+        metadata_schema=original_schema,
+    )
+
+    with pytest.raises(ValueError, match="recreate-collection"):
+        repo.index_chunks(
+            collection_name="fixture-schema-drift",
+            chunks=chunks,
+            vectors=_vectors(1, 8),
+            metadata_schema=changed_schema,
+        )
+
+    with engine.connect() as conn:
+        stored_schema = conn.execute(
+            text(
+                """
+                select metadata_schema
+                from collections
+                where name = 'fixture-schema-drift'
+                """
+            )
+        ).scalar_one()
+
+    assert stored_schema == original_schema.model_dump(mode="json")
 
 
 def test_metadata_indexes_are_collection_scoped_for_conflicting_schemas() -> None:
