@@ -5,15 +5,9 @@ import uuid
 from sqlalchemy import Engine, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from src.access.email import require_normalized_email
 from src.access.models import AuthenticatedUser, CollectionAccess
 from src.db.schema import collections, community_memberships, users
-
-
-def _normalize_email(email: str) -> str:
-    normalized = email.strip().lower()
-    if not normalized:
-        raise ValueError("email must not be blank")
-    return normalized
 
 
 class PgCollectionAccessRepository:
@@ -48,7 +42,7 @@ class PgCollectionAccessRepository:
         )
 
     def get_or_create_user(self, email: str) -> AuthenticatedUser:
-        normalized_email = _normalize_email(email)
+        normalized_email = require_normalized_email(email)
 
         stmt = (
             pg_insert(users)

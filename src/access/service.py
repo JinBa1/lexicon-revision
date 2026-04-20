@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from src.access.email import normalize_email
 from src.access.errors import CollectionAccessDeniedError
 from src.access.models import (
     AuthenticatedUser,
@@ -25,19 +26,12 @@ class CollectionAccessRepository(Protocol):
     def has_active_membership(self, *, user_id: str, community_id: str) -> bool: ...
 
 
-def _normalize_email(email: str | None) -> str | None:
-    if email is None:
-        return None
-    normalized = email.strip().lower()
-    return normalized or None
-
-
 class CollectionAccessService:
     def __init__(self, *, repository: CollectionAccessRepository) -> None:
         self.repository = repository
 
     def resolve_identity(self, user_email_header: str | None) -> ResolvedIdentity:
-        normalized_email = _normalize_email(user_email_header)
+        normalized_email = normalize_email(user_email_header)
         if normalized_email is None:
             return ResolvedIdentity(email=None, user=None)
         user = self.repository.get_or_create_user(normalized_email)
