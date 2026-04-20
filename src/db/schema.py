@@ -42,7 +42,10 @@ users = Table(
         nullable=False,
         server_default=func.now(),
     ),
-    CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
+    CheckConstraint(
+        "email = lower(btrim(email))",
+        name="ck_users_email_lowercase",
+    ),
     UniqueConstraint("email", name="uq_users_email"),
 )
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import os
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -165,6 +167,77 @@ def test_get_or_create_user_for_verified_external_identity_creates_new_mapping()
 
     assert rows == [(user.user_id, "member@example.com", True)]
     assert linked_identities == [("clerk", "user_123", user.user_id)]
+
+
+def test_get_or_create_user_for_external_identity_serializes_first_provisioning() -> (
+    None
+):
+    engine = _engine()
+    repository = _repository(engine)
+    identity = RequestIdentity(
+        provider="clerk",
+        external_subject="user_123",
+        email="member@example.com",
+        email_verified=True,
+    )
+
+    with engine.connect() as blocker_conn:
+        blocker_tx = blocker_conn.begin()
+        blocker_conn.execute(
+            text(
+                """
+                select pg_advisory_xact_lock(
+                    (('x' || substr(md5(:lock_key), 1, 16))::bit(64)::bigint)
+                )
+                """
+            ),
+            {"lock_key": "clerk:user_123"},
+        )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first_future = executor.submit(
+                repository.get_or_create_user_for_identity,
+                identity,
+            )
+            second_future = executor.submit(
+                repository.get_or_create_user_for_identity,
+                identity,
+            )
+
+            with pytest.raises(FutureTimeoutError):
+                first_future.result(timeout=0.2)
+            with pytest.raises(FutureTimeoutError):
+                second_future.result(timeout=0.2)
+
+            blocker_tx.rollback()
+
+            first_user = first_future.result(timeout=3)
+            second_user = second_future.result(timeout=3)
+
+    assert first_user == second_user
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                select id, email, email_verified
+                from users
+                order by created_at asc
+                """
+            )
+        ).all()
+        linked_identities = conn.execute(
+            text(
+                """
+                select provider, external_subject, user_id
+                from user_external_identities
+                order by created_at asc
+                """
+            )
+        ).all()
+
+    assert rows == [(first_user.user_id, "member@example.com", True)]
+    assert linked_identities == [("clerk", "user_123", first_user.user_id)]
 
 
 def test_verified_external_identity_rejects_email_collision() -> None:

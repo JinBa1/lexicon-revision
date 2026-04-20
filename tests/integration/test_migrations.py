@@ -308,6 +308,16 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
                         """
                     )
                 )
+        with engine.begin() as conn:
+            with pytest.raises(IntegrityError):
+                conn.execute(
+                    text(
+                        """
+                        insert into users (id, email)
+                        values ('user-spaced', ' member@example.com ')
+                        """
+                    )
+                )
     finally:
         command.upgrade(config, "head")
         engine.dispose()

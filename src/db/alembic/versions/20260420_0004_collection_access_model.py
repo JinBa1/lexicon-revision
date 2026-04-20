@@ -28,7 +28,10 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
+        sa.CheckConstraint(
+            "email = lower(btrim(email))",
+            name="ck_users_email_lowercase",
+        ),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
 

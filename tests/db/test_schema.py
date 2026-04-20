@@ -106,7 +106,7 @@ def test_users_email_is_unique() -> None:
         for constraint in users.constraints
         if isinstance(constraint, CheckConstraint) and constraint.name is not None
     }
-    assert checks["ck_users_email_lowercase"] == "email = lower(email)"
+    assert checks["ck_users_email_lowercase"] == "email = lower(btrim(email))"
 
 
 def test_user_external_identities_are_unique_per_provider_subject() -> None:

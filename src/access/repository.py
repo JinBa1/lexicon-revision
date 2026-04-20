@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from src.access.auth import STUB_EMAIL_IDENTITY_PROVIDER
@@ -88,6 +88,11 @@ class PgCollectionAccessRepository:
         )
 
         with Session(self.engine) as session:
+            self._lock_external_identity(
+                session,
+                provider=identity.provider,
+                external_subject=identity.external_subject,
+            )
             row = None
             if identity.provider is not None and identity.external_subject is not None:
                 row = session.execute(lookup_by_external_identity_stmt).first()
@@ -146,6 +151,27 @@ class PgCollectionAccessRepository:
         return AuthenticatedUser(
             user_id=str(row.id),
             email=str(row.email),
+        )
+
+    def _lock_external_identity(
+        self,
+        session: Session,
+        *,
+        provider: str | None,
+        external_subject: str | None,
+    ) -> None:
+        if provider is None or external_subject is None:
+            return
+
+        session.execute(
+            text(
+                """
+                select pg_advisory_xact_lock(
+                    (('x' || substr(md5(:lock_key), 1, 16))::bit(64)::bigint)
+                )
+                """
+            ),
+            {"lock_key": f"{provider}:{external_subject}"},
         )
 
     def has_active_membership(self, *, user_id: str, community_id: str) -> bool:
