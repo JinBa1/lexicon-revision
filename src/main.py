@@ -54,56 +54,64 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Production lifespan: load real models into app.state."""
-    provider_settings = load_retrieval_provider_settings()
-    embedding_model = build_embedding_provider(provider_settings)
-    reranker = build_rerank_provider(provider_settings)
+    embedding_model: object | None = None
+    reranker: object | None = None
+    engine: object | None = None
+    object_storage: ObjectStorage | None = None
+    generation_provider: object | None = None
 
-    db_settings = load_database_settings()
-    engine = create_database_engine(db_settings)
-    object_storage = build_object_storage(load_object_storage_settings())
-    app.state.object_storage = object_storage
-    app.state.search_service = create_search_service(
-        database_settings=db_settings,
-        embedding_model=embedding_model,
-        reranker=reranker,
-        engine=engine,
-        object_storage=object_storage,
-    )
-    app.state.access_service = CollectionAccessService(
-        repository=PgCollectionAccessRepository(engine=engine)
-    )
-    study_settings = load_study_settings()
-    generation_provider = OllamaProvider(
-        base_url=study_settings.generation.base_url,
-        model=study_settings.generation.model,
-        max_retries=study_settings.generation.max_provider_retries,
-    )
-    app.state.generation_provider = generation_provider
+    try:
+        provider_settings = load_retrieval_provider_settings()
+        embedding_model = build_embedding_provider(provider_settings)
+        reranker = build_rerank_provider(provider_settings)
 
-    query_planner = LLMQueryPlanner(
-        provider=generation_provider,
-        settings=study_settings.planning,
-    )
-    planned_retrieval = PlannedRetrievalService(
-        search_service=app.state.search_service,
-    )
-    app.state.study_service = StudyService(
-        query_planner=query_planner,
-        planned_retrieval=planned_retrieval,
-        provider=generation_provider,
-        settings=study_settings,
-    )
-    yield
-    if app.state.generation_provider is not None:
-        await app.state.generation_provider.aclose()
-    _close_if_supported(embedding_model)
-    _close_if_supported(reranker)
-    engine.dispose()
-    app.state.object_storage = None
-    app.state.access_service = None
-    app.state.search_service = None
-    app.state.study_service = None
-    app.state.generation_provider = None
+        db_settings = load_database_settings()
+        engine = create_database_engine(db_settings)
+        object_storage = build_object_storage(load_object_storage_settings())
+        app.state.object_storage = object_storage
+        app.state.search_service = create_search_service(
+            database_settings=db_settings,
+            embedding_model=embedding_model,
+            reranker=reranker,
+            engine=engine,
+            object_storage=object_storage,
+        )
+        app.state.access_service = CollectionAccessService(
+            repository=PgCollectionAccessRepository(engine=engine)
+        )
+        study_settings = load_study_settings()
+        generation_provider = OllamaProvider(
+            base_url=study_settings.generation.base_url,
+            model=study_settings.generation.model,
+            max_retries=study_settings.generation.max_provider_retries,
+        )
+        app.state.generation_provider = generation_provider
+
+        query_planner = LLMQueryPlanner(
+            provider=generation_provider,
+            settings=study_settings.planning,
+        )
+        planned_retrieval = PlannedRetrievalService(
+            search_service=app.state.search_service,
+        )
+        app.state.study_service = StudyService(
+            query_planner=query_planner,
+            planned_retrieval=planned_retrieval,
+            provider=generation_provider,
+            settings=study_settings,
+        )
+        yield
+    finally:
+        await _aclose_if_supported(generation_provider)
+        _close_if_supported(embedding_model)
+        _close_if_supported(reranker)
+        _close_if_supported(object_storage)
+        _dispose_if_supported(engine)
+        app.state.object_storage = None
+        app.state.access_service = None
+        app.state.search_service = None
+        app.state.study_service = None
+        app.state.generation_provider = None
 
 
 def _close_if_supported(provider: object | None) -> None:
@@ -115,15 +123,41 @@ def _close_if_supported(provider: object | None) -> None:
         logger.exception("Failed to close retrieval provider")
 
 
+async def _aclose_if_supported(provider: object | None) -> None:
+    if provider is None or not hasattr(provider, "aclose"):
+        return
+    try:
+        close_result = provider.aclose()
+        if isawaitable(close_result):
+            await close_result
+    except Exception:
+        logger.exception("Failed to close async provider")
+
+
+def _dispose_if_supported(resource: object | None) -> None:
+    if resource is None or not hasattr(resource, "dispose"):
+        return
+    try:
+        resource.dispose()
+    except Exception:
+        logger.exception("Failed to dispose resource")
+
+
 def create_app(
     search_service: SearchBackend | None = None,
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
     object_storage: ObjectStorage | None = None,
     access_service: CollectionAccessService | None = None,
+    allow_unauthorized_test_mode: bool = False,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:
+        if access_service is None and not allow_unauthorized_test_mode:
+            raise ValueError(
+                "Injected apps must provide access_service or set "
+                "allow_unauthorized_test_mode=True"
+            )
         application = FastAPI(title="RAG Exam Revision Tool")
         application.state.object_storage = object_storage
         application.state.access_service = access_service

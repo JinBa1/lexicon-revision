@@ -138,7 +138,17 @@ class FakeAccessService:
 def app() -> object:
     from src.main import create_app
 
-    return create_app(search_service=FakeSearchService())
+    return create_app(
+        search_service=FakeSearchService(),
+        allow_unauthorized_test_mode=True,
+    )
+
+
+def test_create_app_injected_mode_requires_explicit_access_choice() -> None:
+    from src.main import create_app
+
+    with pytest.raises(ValueError, match="allow_unauthorized_test_mode"):
+        create_app(search_service=FakeSearchService())
 
 
 @pytest.mark.anyio
@@ -195,7 +205,10 @@ async def test_post_search_accepts_schema_native_filters(app) -> None:
 async def test_post_search_nonexistent_collection_returns_404() -> None:
     from src.main import create_app
 
-    app = create_app(search_service=MissingCollectionSearchService())
+    app = create_app(
+        search_service=MissingCollectionSearchService(),
+        allow_unauthorized_test_mode=True,
+    )
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -227,7 +240,10 @@ async def test_post_search_rejects_limit_above_rerank_cap(app) -> None:
 async def test_post_search_invalid_metadata_filter_returns_422() -> None:
     from src.main import create_app
 
-    app = create_app(search_service=InvalidFilterSearchService())
+    app = create_app(
+        search_service=InvalidFilterSearchService(),
+        allow_unauthorized_test_mode=True,
+    )
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -350,4 +366,27 @@ async def test_post_search_forbidden_collection_short_circuits_before_search() -
         )
 
     assert response.status_code == 403
+    assert service.calls == []
+
+
+@pytest.mark.anyio
+async def test_post_search_missing_collection_from_access_layer_returns_404() -> None:
+    from src.main import create_app
+
+    service = FakeSearchService()
+    app = create_app(
+        search_service=service,
+        access_service=FakeAccessService(missing_collections={"missing-fixture"}),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "missing-fixture"},
+        )
+
+    assert response.status_code == 404
     assert service.calls == []

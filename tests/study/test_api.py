@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from src.access.errors import CollectionAccessDeniedError
 from src.metadata_schema.models import FilterCondition
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
@@ -106,6 +107,30 @@ class FakeProvider:
         return "ok"
 
 
+class CloseTrackingProvider:
+    def __init__(self) -> None:
+        self.close_calls = 0
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+class AsyncCloseTrackingProvider:
+    def __init__(self) -> None:
+        self.aclose_calls = 0
+
+    async def aclose(self) -> None:
+        self.aclose_calls += 1
+
+
+class DisposableEngine:
+    def __init__(self) -> None:
+        self.dispose_calls = 0
+
+    def dispose(self) -> None:
+        self.dispose_calls += 1
+
+
 class SyncHealthProvider:
     def health(self):
         return "ok"
@@ -182,6 +207,7 @@ async def test_post_study_returns_response() -> None:
         search_service=FakeSearchService(),
         study_service=study_service,
         generation_provider=FakeProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -215,6 +241,7 @@ async def test_post_study_invalid_metadata_filter_returns_422() -> None:
             settings=_study_settings(),
         ),
         generation_provider=FakeProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -242,6 +269,7 @@ async def test_post_study_rejects_bad_top_k() -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -278,6 +306,7 @@ async def test_post_study_rejects_invalid_filters(bad_filters: object) -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -306,6 +335,7 @@ async def test_post_study_accepts_repeated_filter_conditions() -> None:
         search_service=FakeSearchService(),
         study_service=study_service,
         generation_provider=FakeProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     filters = [
@@ -463,6 +493,73 @@ async def test_post_study_missing_collection_returns_404() -> None:
 
 
 @pytest.mark.anyio
+async def test_default_lifespan_cleans_up_resources_on_startup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.main as main_module
+
+    embedding_provider = CloseTrackingProvider()
+    rerank_provider = CloseTrackingProvider()
+    generation_provider = AsyncCloseTrackingProvider()
+    engine = DisposableEngine()
+    app = FastAPI()
+
+    def _raise_startup_failure(**kwargs):
+        del kwargs
+        raise RuntimeError("startup failed")
+
+    monkeypatch.setattr(
+        main_module, "load_retrieval_provider_settings", lambda: object()
+    )
+    monkeypatch.setattr(
+        main_module,
+        "build_embedding_provider",
+        lambda settings: embedding_provider,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "build_rerank_provider",
+        lambda settings: rerank_provider,
+    )
+    monkeypatch.setattr(main_module, "load_database_settings", lambda: object())
+    monkeypatch.setattr(main_module, "create_database_engine", lambda settings: engine)
+    monkeypatch.setattr(main_module, "load_object_storage_settings", lambda: object())
+    monkeypatch.setattr(main_module, "build_object_storage", lambda settings: object())
+    monkeypatch.setattr(main_module, "create_search_service", lambda **kwargs: object())
+    monkeypatch.setattr(
+        main_module, "PgCollectionAccessRepository", lambda *, engine: object()
+    )
+    monkeypatch.setattr(
+        main_module, "CollectionAccessService", lambda *, repository: object()
+    )
+    monkeypatch.setattr(main_module, "load_study_settings", _study_settings)
+    monkeypatch.setattr(
+        main_module, "OllamaProvider", lambda **kwargs: generation_provider
+    )
+    monkeypatch.setattr(main_module, "LLMQueryPlanner", lambda **kwargs: object())
+    monkeypatch.setattr(
+        main_module,
+        "PlannedRetrievalService",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(main_module, "StudyService", _raise_startup_failure)
+
+    with pytest.raises(RuntimeError, match="startup failed"):
+        async with main_module._default_lifespan(app):
+            pytest.fail("lifespan should fail before yielding")
+
+    assert embedding_provider.close_calls == 1
+    assert rerank_provider.close_calls == 1
+    assert generation_provider.aclose_calls == 1
+    assert engine.dispose_calls == 1
+    assert app.state.object_storage is None
+    assert app.state.access_service is None
+    assert app.state.search_service is None
+    assert app.state.study_service is None
+    assert app.state.generation_provider is None
+
+
+@pytest.mark.anyio
 async def test_health_reports_generator() -> None:
     from src.main import create_app
 
@@ -470,6 +567,7 @@ async def test_health_reports_generator() -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -490,6 +588,7 @@ async def test_health_accepts_sync_generator_health() -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=SyncHealthProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -510,6 +609,7 @@ async def test_health_reports_error_for_unknown_generator_status() -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=InvalidHealthProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
@@ -526,7 +626,10 @@ async def test_health_reports_error_for_unknown_generator_status() -> None:
 async def test_post_study_returns_503_when_service_unconfigured() -> None:
     from src.main import create_app
 
-    app = create_app(search_service=FakeSearchService())
+    app = create_app(
+        search_service=FakeSearchService(),
+        allow_unauthorized_test_mode=True,
+    )
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -548,7 +651,10 @@ async def test_post_study_returns_503_when_service_unconfigured() -> None:
 async def test_health_reports_error_when_generator_unconfigured() -> None:
     from src.main import create_app
 
-    app = create_app(search_service=FakeSearchService())
+    app = create_app(
+        search_service=FakeSearchService(),
+        allow_unauthorized_test_mode=True,
+    )
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -568,6 +674,7 @@ async def test_health_reports_error_when_generator_health_fails() -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=BrokenHealthProvider(),
+        allow_unauthorized_test_mode=True,
     )
 
     async with httpx.AsyncClient(
