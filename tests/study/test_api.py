@@ -287,6 +287,7 @@ async def test_post_study_accepts_repeated_filter_conditions() -> None:
         )
 
     assert response.status_code == 200
+    assert response.json()["retrieval"]["filters_applied"] == filters
     assert study_service.requests[0].filters == [
         FilterCondition(field="year", op="gte", value=2020),
         FilterCondition(field="year", op="lte", value=2024),
