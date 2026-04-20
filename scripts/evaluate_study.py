@@ -25,7 +25,10 @@ from scripts.inspect_search import (  # noqa: E402
 )
 from scripts.inspect_study import RecordingProvider, build_payload  # noqa: E402
 from scripts.search_tooling import SUPPORTED_FILTER_KEYS, truncate_text  # noqa: E402
-from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+)
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import StudyRequest, StudyScope  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner  # noqa: E402
@@ -66,9 +69,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("eval_path", type=Path, help="Path to study eval YAML/JSON")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
@@ -581,7 +584,7 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
     top_k = args.top_k or spec.default_top_k or settings.context.retrieval_top_k_default
 
     search_service = create_real_search_service(
-        args.chroma_dir,
+        args.media_dir,
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )

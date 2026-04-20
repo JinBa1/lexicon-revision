@@ -19,8 +19,9 @@ from scripts.evaluate_search import (
     render_text,
 )
 from scripts.search_tooling import EvalCase, load_eval_spec
+from src.metadata_schema.models import FilterCondition
+from src.search.errors import CollectionNotFoundError
 from src.search.models import SearchResponse, SearchResult
-from src.search.service import CollectionNotFoundError
 
 
 class ToolTestFakeSearchService:
@@ -37,7 +38,7 @@ class ToolTestFakeSearchService:
         self,
         query: str,
         collection: str,
-        filters: dict[str, object] | None = None,
+        filters: list[FilterCondition] | None = None,
         limit: int = 10,
         rerank: bool = False,
     ) -> SearchResponse:
@@ -60,7 +61,7 @@ class ToolTestMissingCollectionService:
         self,
         query: str,
         collection: str,
-        filters: dict[str, object] | None = None,
+        filters: list[FilterCondition] | None = None,
         limit: int = 10,
         rerank: bool = False,
     ) -> SearchResponse:
@@ -351,7 +352,10 @@ cases:
         name=spec.name,
     )
 
-    assert service.calls[0]["filters"] == {"question_number": 3, "paper": 1}
+    assert service.calls[0]["filters"] == [
+        FilterCondition(field="paper", op="eq", value=1),
+        FilterCondition(field="question_number", op="eq", value=3),
+    ]
 
 
 def test_load_eval_spec_rejects_conflicting_question_filters(

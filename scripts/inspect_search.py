@@ -15,7 +15,13 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
 from src.db.config import load_database_settings  # noqa: E402
+from src.metadata_schema.models import FilterCondition  # noqa: E402
 from src.search.base import SearchBackend  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_COLLECTION,
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+)
 from src.search.factory import create_search_service  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
@@ -23,12 +29,6 @@ from src.search.providers.config import (  # noqa: E402
     build_embedding_provider,
     build_rerank_provider,
     load_retrieval_provider_settings,
-)
-from src.search.service import (  # noqa: E402
-    DEFAULT_CHROMA_DIR,
-    DEFAULT_COLLECTION,
-    METADATA_KEYS,
-    CollectionNotFoundError,
 )
 
 
@@ -39,9 +39,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("query", help="Search query text")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
@@ -123,7 +123,7 @@ def _positive_int(value: str) -> int:
 
 
 def create_real_search_service(
-    chroma_dir: str,
+    media_dir: str,
     rerank: bool,
     reranker_device: str | None = None,
 ) -> SearchBackend:
@@ -147,7 +147,7 @@ def create_real_search_service(
         database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
-        chroma_dir=chroma_dir,
+        media_dir=media_dir,
     )
 
 
@@ -155,7 +155,7 @@ def build_search_payload(
     service: SearchBackend,
     query: str,
     collection: str,
-    filters: dict[str, Any],
+    filters: list[FilterCondition],
     limit: int,
     rerank: bool,
     show_media: bool,
@@ -173,7 +173,7 @@ def build_search_payload(
     payload = response.model_dump()
     payload.update(
         {
-            "filters": filters,
+            "filters": [item.model_dump() for item in filters],
             "limit": limit,
             "providers": build_provider_metadata(service),
             "rerank": rerank,
@@ -252,11 +252,17 @@ def render_text(payload: dict[str, Any]) -> str:
 def _format_filters(filters: dict[str, Any]) -> str:
     if not filters:
         return "none"
-    return " ".join(f"{key}={value}" for key, value in filters.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {item['value']}" for item in filters
+    )
 
 
 def _format_metadata(metadata: dict[str, Any]) -> str:
-    return " ".join(f"{key}={metadata.get(key)}" for key in METADATA_KEYS)
+    return " ".join(
+        f"{key}={metadata[key]}"
+        for key in sorted(metadata)
+        if metadata.get(key) is not None
+    )
 
 
 def main() -> None:
@@ -274,7 +280,10 @@ def main() -> None:
     )
 
     try:
-        service = create_real_search_service(args.chroma_dir, args.rerank)
+        service = create_real_search_service(
+            args.media_dir,
+            args.rerank,
+        )
         payload = build_search_payload(
             service=service,
             query=args.query,
@@ -291,8 +300,7 @@ def main() -> None:
             file=sys.stderr,
         )
         print(
-            "Use scripts/inspect_chroma.py --list-collections to inspect available "
-            "collections.",
+            "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc

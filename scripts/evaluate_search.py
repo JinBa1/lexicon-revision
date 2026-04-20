@@ -21,10 +21,14 @@ from scripts.inspect_search import (  # noqa: E402
 )
 from scripts.search_tooling import (  # noqa: E402
     EvalCase,
+    build_filters,
     load_eval_spec,
     truncate_text,
 )
-from src.search.service import DEFAULT_CHROMA_DIR, CollectionNotFoundError  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,9 +38,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("eval_path", type=Path, help="Path to the YAML eval file")
     parser.add_argument(
-        "--chroma-dir",
-        default=DEFAULT_CHROMA_DIR,
-        help=f"ChromaDB storage directory (default: {DEFAULT_CHROMA_DIR})",
+        "--media-dir",
+        default=DEFAULT_MEDIA_DIR,
+        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     parser.add_argument(
         "--collection",
@@ -160,7 +164,7 @@ def _evaluate_case(
     response = service.search(
         query=case.query,
         collection=collection,
-        filters=case.filters or None,
+        filters=build_filters(**_legacy_filter_kwargs(case.filters)) or None,
         limit=limit,
         rerank=rerank,
     )
@@ -205,6 +209,15 @@ def _find_matched_rank(results: list[Any], case: EvalCase) -> int | None:
         if isinstance(topic, str) and topic in expected_topics:
             return rank
     return None
+
+
+def _legacy_filter_kwargs(filters: dict[str, Any]) -> dict[str, Any]:
+    kwargs = dict(filters)
+    if "question_number" in kwargs:
+        kwargs["question"] = kwargs.pop("question_number")
+    if "marks" in kwargs:
+        kwargs["marks_min"] = kwargs.pop("marks")
+    return kwargs
 
 
 def render_json(report: dict[str, Any]) -> str:
@@ -314,7 +327,7 @@ def main() -> None:
             )
 
         limit = args.limit if args.limit is not None else spec.default_top_k
-        service = create_real_search_service(args.chroma_dir, args.rerank)
+        service = create_real_search_service(args.media_dir, args.rerank)
         report = evaluate_cases(
             service=service,
             cases=spec.cases,
@@ -331,8 +344,7 @@ def main() -> None:
             file=sys.stderr,
         )
         print(
-            "Use scripts/inspect_chroma.py --list-collections to inspect available "
-            "collections.",
+            "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc

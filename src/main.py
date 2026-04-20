@@ -9,18 +9,19 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from src.db.config import load_database_settings
 from src.search.base import SearchBackend
+from src.search.errors import (
+    DEFAULT_COLLECTION,
+    RERANK_CANDIDATE_CAP,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 from src.search.factory import create_search_service
+from src.search.filtering import filter_conditions_from_mapping
 from src.search.models import SearchResponse
 from src.search.providers.config import (
     build_embedding_provider,
     build_rerank_provider,
     load_retrieval_provider_settings,
-)
-from src.search.service import (
-    DEFAULT_COLLECTION,
-    RERANK_CANDIDATE_CAP,
-    CollectionNotFoundError,
-    InvalidMetadataFilterError,
 )
 from src.storage import (
     LocalObjectStorage,
@@ -194,23 +195,24 @@ def create_app(
         limit: int = Query(10, ge=1, le=100, description="Max results"),
         rerank: bool = Query(True, description="Apply cross-encoder reranking"),
     ) -> SearchResponse:
-        filters: dict[str, object] = {}
+        raw_filters: dict[str, object] = {}
         if year is not None:
-            filters["year"] = year
+            raw_filters["year"] = year
         if paper is not None:
-            filters["paper"] = paper
+            raw_filters["paper"] = paper
         if topic is not None:
-            filters["topic"] = topic
+            raw_filters["topic"] = topic
         if question_number is not None:
-            filters["question_number"] = question_number
+            raw_filters["question_number"] = question_number
         if marks_min is not None:
-            filters["marks_min"] = marks_min
+            raw_filters["marks_min"] = marks_min
         if has_code is not None:
-            filters["has_code"] = has_code
+            raw_filters["has_code"] = has_code
         if has_figure is not None:
-            filters["has_figure"] = has_figure
+            raw_filters["has_figure"] = has_figure
         if has_table is not None:
-            filters["has_table"] = has_table
+            raw_filters["has_table"] = has_table
+        filters = filter_conditions_from_mapping(raw_filters)
 
         service: SearchBackend = request.app.state.search_service
         if rerank and limit > RERANK_CANDIDATE_CAP:

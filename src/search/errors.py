@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 DEFAULT_COLLECTION = "cam-cs-tripos-fixture"
-DEFAULT_CHROMA_DIR = "./chroma_data"
+DEFAULT_MEDIA_DIR = "./chroma_data"
 RERANK_CANDIDATE_CAP = 50
 
 

@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse
 from src.study.planning.models import QueryPlan, StudyFilters
-from src.study.planning.retrieval import PlannedRetrievalService, _filters_to_dict
+from src.study.planning.retrieval import (
+    PlannedRetrievalService,
+    _filters_to_conditions,
+    _filters_to_dict,
+)
 
 
 class FakeSearchService:
@@ -16,7 +21,7 @@ class FakeSearchService:
         *,
         query: str,
         collection: str,
-        filters: dict[str, Any] | None,
+        filters: list[FilterCondition] | None,
         limit: int,
         rerank: bool,
     ) -> SearchResponse:
@@ -55,7 +60,10 @@ def test_retrieve_calls_search_with_semantic_query_and_filters() -> None:
         {
             "query": "dynamic programming exam questions",
             "collection": "cam",
-            "filters": {"year": 2025, "paper": 3},
+            "filters": [
+                FilterCondition(field="year", op="eq", value=2025),
+                FilterCondition(field="paper", op="eq", value=3),
+            ],
             "limit": 15,
             "rerank": True,
         }
@@ -100,3 +108,13 @@ def test_filters_to_dict_drops_none_values() -> None:
     assert _filters_to_dict(
         StudyFilters(year=2025, topic="Databases", has_code=True)
     ) == {"year": 2025, "topic": "Databases", "has_code": True}
+
+
+def test_filters_to_conditions_maps_marks_min_to_marks_gte() -> None:
+    assert _filters_to_conditions(
+        StudyFilters(year=2025, marks_min=10, has_code=True)
+    ) == [
+        FilterCondition(field="year", op="eq", value=2025),
+        FilterCondition(field="has_code", op="eq", value=True),
+        FilterCondition(field="marks", op="gte", value=10),
+    ]

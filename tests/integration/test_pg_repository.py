@@ -3,17 +3,18 @@ from __future__ import annotations
 import os
 
 import pytest
-from scripts.index_chunks import build_embedding_text
+from scripts.index_chunks_postgres import build_embedding_text
 from sqlalchemy import create_engine, text
 from src.chunking.pipeline import run_pipeline
 from src.db.metadata_indexes import ensure_metadata_indexes
 from src.metadata_schema import (
     CollectionMetadataSchema,
+    FilterCondition,
     default_schema_path,
     load_collection_schema,
 )
+from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.search.pg_repository import PgIndexRepository, PgSearchRepository
-from src.search.service import CollectionNotFoundError, InvalidMetadataFilterError
 
 pytestmark = pytest.mark.integration
 
@@ -98,7 +99,7 @@ def test_index_repository_indexes_fixture_chunks() -> None:
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
-        filters={},
+        filters=[],
         limit=3,
     )
 
@@ -133,7 +134,7 @@ def test_search_repository_raises_for_missing_collection() -> None:
             query_vector=[1.0] + [0.0] * 7,
             embedding_model_id="fake-v1",
             embedding_dimension=8,
-            filters={},
+            filters=[],
             limit=3,
         )
 
@@ -217,7 +218,7 @@ def test_search_repository_rejects_invalid_collection_schema() -> None:
             query_vector=[1.0] + [0.0] * 7,
             embedding_model_id="fake-v1",
             embedding_dimension=8,
-            filters={},
+            filters=[],
             limit=3,
         )
 
@@ -296,7 +297,7 @@ def test_search_repository_returns_metadata_from_canonical_storage() -> None:
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
-        filters={},
+        filters=[],
         limit=1,
     )[0]
 
@@ -345,7 +346,10 @@ def test_search_repository_filters_using_canonical_chunk_metadata() -> None:
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
-        filters={"year": 2025, "has_code": True},
+        filters=[
+            FilterCondition(field="year", op="eq", value=2025),
+            FilterCondition(field="has_code", op="eq", value=True),
+        ],
         limit=10,
     )
 
@@ -383,7 +387,7 @@ def test_search_repository_rejects_filter_field_absent_from_collection_schema() 
             query_vector=[1.0] + [0.0] * 7,
             embedding_model_id="fake-v1",
             embedding_dimension=8,
-            filters={"topic": "Algorithms"},
+            filters=[FilterCondition(field="topic", op="eq", value="Algorithms")],
             limit=10,
         )
 
@@ -423,7 +427,7 @@ def test_search_repository_rejects_filter_operator_absent_from_collection_schema
             query_vector=[1.0] + [0.0] * 7,
             embedding_model_id="fake-v1",
             embedding_dimension=8,
-            filters={"marks_min": 5},
+            filters=[FilterCondition(field="marks", op="gte", value=5)],
             limit=10,
         )
 
@@ -456,7 +460,7 @@ def test_index_repository_allows_same_chunk_ids_in_multiple_collections() -> Non
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
-        filters={},
+        filters=[],
         limit=1,
     )
     result_b = search_repo.search(
@@ -464,7 +468,7 @@ def test_index_repository_allows_same_chunk_ids_in_multiple_collections() -> Non
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
-        filters={},
+        filters=[],
         limit=1,
     )
 
@@ -499,7 +503,7 @@ def test_index_repository_replaces_existing_chunk_ids_within_collection() -> Non
         query_vector=[1.0] + [0.0] * 7,
         embedding_model_id="fake-v1",
         embedding_dimension=8,
-        filters={},
+        filters=[],
         limit=5,
     )
 

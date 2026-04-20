@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy import Boolean, Integer, cast
@@ -46,6 +47,28 @@ def build_pg_conditions(filters: list[FilterCondition]) -> list[Any]:
             conditions.append(typed_expr >= item.value)
         elif item.op == "lte":
             conditions.append(typed_expr <= item.value)
+    return conditions
+
+
+def filter_conditions_from_mapping(
+    filters: Mapping[str, Any] | None,
+) -> list[FilterCondition]:
+    if not filters:
+        return []
+
+    conditions: list[FilterCondition] = []
+    for key, value in filters.items():
+        if value is None:
+            continue
+        if key == "marks_min":
+            conditions.append(FilterCondition(field="marks", op="gte", value=value))
+            continue
+        if key == "question":
+            conditions.append(
+                FilterCondition(field="question_number", op="eq", value=value)
+            )
+            continue
+        conditions.append(FilterCondition(field=key, op="eq", value=value))
     return conditions
 
 

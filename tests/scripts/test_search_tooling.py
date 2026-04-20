@@ -19,6 +19,7 @@ from scripts.search_tooling import (
     load_media_map,
     truncate_text,
 )
+from src.metadata_schema.models import FilterCondition
 
 
 def test_truncate_text_compacts_whitespace_and_truncates() -> None:
@@ -41,12 +42,12 @@ def test_build_filters_omits_none_values() -> None:
         has_table=True,
     )
 
-    assert filters == {
-        "year": 2025,
-        "topic": "Algorithms",
-        "has_code": False,
-        "has_table": True,
-    }
+    assert filters == [
+        FilterCondition(field="year", op="eq", value=2025),
+        FilterCondition(field="topic", op="eq", value="Algorithms"),
+        FilterCondition(field="has_code", op="eq", value=False),
+        FilterCondition(field="has_table", op="eq", value=True),
+    ]
 
 
 def test_build_filters_includes_full_supported_filter_set() -> None:
@@ -62,13 +63,16 @@ def test_build_filters_includes_full_supported_filter_set() -> None:
         has_table=True,
     )
 
-    assert set(filters) == SUPPORTED_FILTER_KEYS
-    assert filters["question_number"] == 7
+    assert len(filters) == len(SUPPORTED_FILTER_KEYS)
+    assert FilterCondition(field="question_number", op="eq", value=7) in filters
+    assert FilterCondition(field="marks", op="gte", value=10) in filters
 
 
 def test_build_filters_maps_question_to_question_number() -> None:
     """Infrastructure test for CLI filter construction only."""
-    assert build_filters(question=7) == {"question_number": 7}
+    assert build_filters(question=7) == [
+        FilterCondition(field="question_number", op="eq", value=7)
+    ]
 
 
 def test_load_eval_spec_normalizes_question_filter_to_question_number(

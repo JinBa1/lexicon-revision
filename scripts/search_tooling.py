@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from src.metadata_schema.models import FilterCondition
 from src.search.media_sidecar import load_storage_media_map
 
 SUPPORTED_FILTER_KEYS = {
@@ -61,8 +62,8 @@ def build_filters(
     has_code: bool | None = None,
     has_figure: bool | None = None,
     has_table: bool | None = None,
-) -> dict[str, Any]:
-    """Build a SearchService filter dict from optional CLI values."""
+) -> list[FilterCondition]:
+    """Build ordered filter conditions from optional CLI values."""
     raw_filters = {
         "year": year,
         "paper": paper,
@@ -73,7 +74,15 @@ def build_filters(
         "has_figure": has_figure,
         "has_table": has_table,
     }
-    return {key: value for key, value in raw_filters.items() if value is not None}
+    filters: list[FilterCondition] = []
+    for key, value in raw_filters.items():
+        if value is None:
+            continue
+        if key == "marks_min":
+            filters.append(FilterCondition(field="marks", op="gte", value=value))
+            continue
+        filters.append(FilterCondition(field=key, op="eq", value=value))
+    return filters
 
 
 def load_media_map(

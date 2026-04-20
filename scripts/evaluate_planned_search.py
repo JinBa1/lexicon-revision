@@ -20,8 +20,9 @@ from scripts.inspect_search import (  # noqa: E402
     build_provider_metadata,
     create_real_search_service,
 )
+from scripts.search_tooling import build_filters  # noqa: E402
+from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
-from src.search.service import DEFAULT_CHROMA_DIR  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.planning.models import StudyFilters  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, QueryPlanner  # noqa: E402
@@ -105,18 +106,13 @@ async def compare_cases(
 
     for case in spec.cases:
         filters_model = _parse_filters(case.filters)
-        filters_dict = (
-            filters_model.model_dump(exclude_none=True)
-            if filters_model is not None
-            else None
-        )
 
         for variant in case.variants:
             total_variants += 1
             raw_response = search_service.search(
                 query=variant.query,
                 collection=collection,
-                filters=filters_dict,
+                filters=build_filters(**_legacy_filter_kwargs(case.filters)) or None,
                 limit=top_k,
                 rerank=rerank,
             )
@@ -143,7 +139,8 @@ async def compare_cases(
                 planned_response = search_service.search(
                     query=planned_query,
                     collection=collection,
-                    filters=filters_dict,
+                    filters=build_filters(**_legacy_filter_kwargs(case.filters))
+                    or None,
                     limit=top_k,
                     rerank=rerank,
                 )
@@ -213,6 +210,15 @@ def _parse_filters(raw: dict[str, Any]) -> StudyFilters | None:
     return StudyFilters.model_validate(raw)
 
 
+def _legacy_filter_kwargs(filters: dict[str, Any]) -> dict[str, Any]:
+    kwargs = dict(filters)
+    if "question_number" in kwargs:
+        kwargs["question"] = kwargs.pop("question_number")
+    if "marks" in kwargs:
+        kwargs["marks_min"] = kwargs.pop("marks")
+    return kwargs
+
+
 def render_report(report: dict[str, Any]) -> str:
     lines = [
         f"# Planner A/B report: {report['name']}",
@@ -240,7 +246,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("eval_path", type=Path)
     parser.add_argument("--collection", default=None)
     parser.add_argument("--top-k", type=int, default=None)
-    parser.add_argument("--chroma-dir", default=DEFAULT_CHROMA_DIR)
+    parser.add_argument("--media-dir", default=DEFAULT_MEDIA_DIR)
     parser.add_argument("--json", action="store_true")
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
@@ -274,7 +280,7 @@ async def _run(args: argparse.Namespace) -> None:
 
     settings = load_study_settings()
     search_service = create_real_search_service(
-        args.chroma_dir,
+        args.media_dir,
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )

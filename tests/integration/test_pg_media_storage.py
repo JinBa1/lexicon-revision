@@ -87,7 +87,7 @@ def test_pg_search_returns_object_key_and_access_url(
     )
 
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_CHROMA_DIR",
+        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
         str(media_dir),
     )
 

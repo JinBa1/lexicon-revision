@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from src.search.service import InvalidMetadataFilterError
+from src.search.errors import InvalidMetadataFilterError
 from src.study.config import (
     ContextSettings,
     GenerationSettings,

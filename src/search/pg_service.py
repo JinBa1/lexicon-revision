@@ -7,8 +7,8 @@ from typing import Any
 
 from src.metadata_schema.models import FilterCondition
 from src.search.errors import (
-    DEFAULT_CHROMA_DIR,
     DEFAULT_COLLECTION,
+    DEFAULT_MEDIA_DIR,
     RERANK_CANDIDATE_CAP,
 )
 from src.search.filtering import validate_filter_conditions
@@ -32,7 +32,7 @@ class PgSearchService:
         embedding_model: EmbeddingProvider,
         embedding_dimension: int,
         reranker: RerankProvider | None = None,
-        media_dir: str = DEFAULT_CHROMA_DIR,
+        media_dir: str = DEFAULT_MEDIA_DIR,
         object_storage: ObjectStorage | None = None,
     ) -> None:
         self._repository = repository

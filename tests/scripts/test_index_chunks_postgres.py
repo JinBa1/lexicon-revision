@@ -148,7 +148,7 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_CHROMA_DIR",
+        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
         str(media_dir),
     )
     monkeypatch.setattr(

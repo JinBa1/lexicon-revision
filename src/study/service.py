@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
+from src.search.errors import InvalidMetadataFilterError
 from src.search.models import SearchResponse, SearchResult
-from src.search.service import InvalidMetadataFilterError
 from src.study.config import StudySettings
 from src.study.models import (
     AnswerStatus,

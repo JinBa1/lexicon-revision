@@ -27,7 +27,7 @@ from src.metadata_schema import (  # noqa: E402
     default_schema_path,
     load_collection_schema,
 )
-from src.search.errors import DEFAULT_CHROMA_DIR  # noqa: E402
+from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
 from src.search.media_sidecar import (  # noqa: E402
     build_storage_media_map,
     write_storage_media_map,
@@ -156,7 +156,7 @@ def index_collection_postgres(
     _write_media_sidecar(
         collection_name=collection_name,
         media_map=media_map,
-        media_dir=DEFAULT_CHROMA_DIR,
+        media_dir=DEFAULT_MEDIA_DIR,
     )
 
 
@@ -164,7 +164,7 @@ def _write_media_sidecar(
     *,
     collection_name: str,
     media_map: dict[str, list[dict[str, Any]]],
-    media_dir: str = DEFAULT_CHROMA_DIR,
+    media_dir: str = DEFAULT_MEDIA_DIR,
 ) -> None:
     media_root = Path(media_dir)
     media_root.mkdir(parents=True, exist_ok=True)
