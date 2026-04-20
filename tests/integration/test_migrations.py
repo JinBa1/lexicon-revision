@@ -190,3 +190,68 @@ def test_alembic_cutover_backfills_metadata_and_drops_legacy_columns() -> None:
     finally:
         command.upgrade(config, "head")
         engine.dispose()
+
+
+def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260419_0003")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    insert into collections (
+                        id,
+                        name,
+                        embedding_model_id,
+                        embedding_dimension,
+                        metadata_schema
+                    ) values (
+                        'collection-public',
+                        'fixture-public',
+                        'fake-v1',
+                        8,
+                        '{}'::jsonb
+                    )
+                    """
+                )
+            )
+
+        command.upgrade(config, "head")
+
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            tables = set(inspector.get_table_names())
+            collection_columns = {
+                column["name"] for column in inspector.get_columns("collections")
+            }
+            collection_row = conn.execute(
+                text(
+                    """
+                    select id, community_id
+                    from collections
+                    where id = 'collection-public'
+                    """
+                )
+            ).first()
+
+        assert {"users", "communities", "community_memberships"} <= tables
+        assert "community_id" in collection_columns
+        assert collection_row is not None
+        assert collection_row.id == "collection-public"
+        assert collection_row.community_id is None
+    finally:
+        command.upgrade(config, "head")
+        engine.dispose()

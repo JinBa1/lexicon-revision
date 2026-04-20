@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import JSONB
-from src.db.schema import chunk_embeddings, chunks, collections, metadata, papers
+from src.db.schema import (
+    chunk_embeddings,
+    chunks,
+    collections,
+    communities,
+    community_memberships,
+    metadata,
+    papers,
+    users,
+)
 
 
 def test_schema_has_expected_tables() -> None:
@@ -11,6 +20,9 @@ def test_schema_has_expected_tables() -> None:
         "papers",
         "chunks",
         "chunk_embeddings",
+        "users",
+        "communities",
+        "community_memberships",
     }
 
 
@@ -18,8 +30,15 @@ def test_collections_embedding_columns() -> None:
     assert "embedding_model_id" in collections.c
     assert "embedding_dimension" in collections.c
     assert "metadata_schema" in collections.c
+    assert "community_id" in collections.c
     assert isinstance(collections.c.metadata_schema.type, JSONB)
     assert collections.c.metadata_schema.server_default is None
+    assert collections.c.community_id.nullable is True
+
+    foreign_keys = {
+        fk.target_fullname for fk in collections.c.community_id.foreign_keys
+    }
+    assert foreign_keys == {"communities.id"}
 
 
 def test_chunks_use_canonical_metadata_jsonb_column() -> None:
@@ -71,3 +90,38 @@ def test_chunk_embeddings_chunk_id_matches_chunks_id_type() -> None:
 def test_papers_unique_collection_source_pdf_constraint() -> None:
     constraints = {constraint.name for constraint in papers.constraints}
     assert "uq_papers_collection_source_pdf" in constraints
+
+
+def test_users_email_is_unique() -> None:
+    constraints = {constraint.name for constraint in users.constraints}
+    assert "uq_users_email" in constraints
+
+
+def test_communities_name_is_unique() -> None:
+    constraints = {constraint.name for constraint in communities.constraints}
+    assert "uq_communities_name" in constraints
+
+
+def test_community_memberships_are_unique_per_user_community_pair() -> None:
+    assert "role" in community_memberships.c
+    assert "status" in community_memberships.c
+
+    unique_constraints = {
+        constraint.name: {column.name for column in constraint.columns}
+        for constraint in community_memberships.constraints
+        if constraint.name is not None
+    }
+    assert unique_constraints["uq_community_memberships_user_community"] == {
+        "user_id",
+        "community_id",
+    }
+
+    foreign_keys = {
+        column.name: {fk.target_fullname for fk in column.foreign_keys}
+        for column in (
+            community_memberships.c.user_id,
+            community_memberships.c.community_id,
+        )
+    }
+    assert foreign_keys["user_id"] == {"users.id"}
+    assert foreign_keys["community_id"] == {"communities.id"}
