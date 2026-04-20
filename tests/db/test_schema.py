@@ -102,6 +102,11 @@ def test_communities_name_is_unique() -> None:
     assert "uq_communities_name" in constraints
 
 
+def test_communities_include_slug_column() -> None:
+    assert "slug" in communities.c
+    assert communities.c.slug.nullable is False
+
+
 def test_community_memberships_are_unique_per_user_community_pair() -> None:
     assert "role" in community_memberships.c
     assert "status" in community_memberships.c

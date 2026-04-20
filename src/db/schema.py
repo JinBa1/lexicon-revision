@@ -43,6 +43,7 @@ communities = Table(
     metadata,
     Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
     Column("name", Text, nullable=False),
+    Column("slug", Text, nullable=False),
     Column(
         "created_at",
         DateTime(timezone=True),

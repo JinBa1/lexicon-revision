@@ -35,6 +35,7 @@ def upgrade() -> None:
         "communities",
         sa.Column("id", sa.String(), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False),
+        sa.Column("slug", sa.Text(), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

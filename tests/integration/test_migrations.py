@@ -237,6 +237,9 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
             collection_columns = {
                 column["name"] for column in inspector.get_columns("collections")
             }
+            community_columns = {
+                column["name"] for column in inspector.get_columns("communities")
+            }
             collection_row = conn.execute(
                 text(
                     """
@@ -249,6 +252,7 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
 
         assert {"users", "communities", "community_memberships"} <= tables
         assert "community_id" in collection_columns
+        assert "slug" in community_columns
         assert collection_row is not None
         assert collection_row.id == "collection-public"
         assert collection_row.community_id is None
