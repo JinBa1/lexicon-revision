@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from src.access.errors import CollectionAccessDeniedError
+from fastapi import Request
+from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
+from src.access.models import RequestIdentity
 from src.metadata_schema.models import FilterCondition
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.search.models import MediaRefResponse, SearchResponse, SearchResult
@@ -118,20 +120,33 @@ class FakeAccessService:
         self,
         *,
         collection_name: str,
-        user_email_header: str | None,
+        request_identity: RequestIdentity,
     ) -> None:
         self.calls.append(
             {
                 "collection_name": collection_name,
-                "user_email_header": user_email_header,
+                "request_identity": request_identity,
             }
         )
         if collection_name in self.missing_collections:
             raise CollectionNotFoundError(collection_name)
 
         allowed_members = self.private_members.get(collection_name)
-        if allowed_members is not None and user_email_header not in allowed_members:
+        if (
+            allowed_members is not None
+            and request_identity.email not in allowed_members
+        ):
             raise CollectionAccessDeniedError(collection_name)
+
+
+class FakeAuthResolver:
+    def __init__(self, identity: RequestIdentity) -> None:
+        self.identity = identity
+        self.calls: list[str] = []
+
+    def resolve_request_identity(self, request: Request) -> RequestIdentity:
+        self.calls.append(request.url.path)
+        return self.identity
 
 
 @pytest.fixture
@@ -309,7 +324,12 @@ async def test_post_search_private_collection_allowed_for_member_header() -> Non
     assert access_service.calls == [
         {
             "collection_name": "private-fixture",
-            "user_email_header": "member@example.com",
+            "request_identity": RequestIdentity(
+                provider="stub_header",
+                external_subject="member@example.com",
+                email="member@example.com",
+                email_verified=False,
+            ),
         }
     ]
     assert service.calls[0]["collection"] == "private-fixture"
@@ -390,3 +410,84 @@ async def test_post_search_missing_collection_from_access_layer_returns_404() ->
 
     assert response.status_code == 404
     assert service.calls == []
+
+
+@pytest.mark.anyio
+async def test_post_search_identity_provisioning_failure_returns_403() -> None:
+    from src.main import create_app
+
+    class FailingAccessService:
+        def authorize_collection(
+            self,
+            *,
+            collection_name: str,
+            request_identity: RequestIdentity,
+        ) -> None:
+            del collection_name, request_identity
+            raise IdentityProvisioningError("verified email is required")
+
+    service = FakeSearchService()
+    app = create_app(
+        search_service=service,
+        access_service=FailingAccessService(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            headers={"X-User-Email": "member@example.com"},
+            json={"query": "algorithms", "collection": "private-fixture"},
+        )
+
+    assert response.status_code == 403
+    assert "verified email is required" in response.json()["detail"]
+    assert service.calls == []
+
+
+@pytest.mark.anyio
+async def test_post_search_uses_custom_auth_resolver() -> None:
+    from src.main import create_app
+
+    service = FakeSearchService()
+    access_service = FakeAccessService(
+        private_members={"private-fixture": {"member@example.com"}}
+    )
+    auth_resolver = FakeAuthResolver(
+        RequestIdentity(
+            provider="clerk",
+            external_subject="user_123",
+            email="member@example.com",
+            email_verified=True,
+        )
+    )
+    app = create_app(
+        search_service=service,
+        access_service=access_service,
+        auth_resolver=auth_resolver,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "private-fixture"},
+        )
+
+    assert response.status_code == 200
+    assert auth_resolver.calls == ["/search"]
+    assert access_service.calls == [
+        {
+            "collection_name": "private-fixture",
+            "request_identity": RequestIdentity(
+                provider="clerk",
+                external_subject="user_123",
+                email="member@example.com",
+                email_verified=True,
+            ),
+        }
+    ]

@@ -5,9 +5,15 @@ import uuid
 from sqlalchemy import Engine, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from src.access.auth import STUB_EMAIL_IDENTITY_PROVIDER
 from src.access.email import require_normalized_email
-from src.access.models import AuthenticatedUser, CollectionAccess
-from src.db.schema import collections, community_memberships, users
+from src.access.models import AuthenticatedUser, CollectionAccess, RequestIdentity
+from src.db.schema import (
+    collections,
+    community_memberships,
+    user_external_identities,
+    users,
+)
 
 
 class PgCollectionAccessRepository:
@@ -41,26 +47,100 @@ class PgCollectionAccessRepository:
             ),
         )
 
-    def get_or_create_user(self, email: str) -> AuthenticatedUser:
-        normalized_email = require_normalized_email(email)
-
-        stmt = (
-            pg_insert(users)
-            .values(
-                id=str(uuid.uuid4()),
-                email=normalized_email,
+    def get_or_create_user_for_identity(
+        self,
+        identity: RequestIdentity,
+    ) -> AuthenticatedUser:
+        if identity.provider is None or identity.external_subject is None:
+            raise ValueError(
+                "external identities require both provider and external_subject"
             )
-            .on_conflict_do_nothing(index_elements=[users.c.email])
+        if (
+            identity.provider not in (None, STUB_EMAIL_IDENTITY_PROVIDER)
+            and not identity.email_verified
+        ):
+            raise ValueError(
+                "verified email is required for external identity provisioning"
+            )
+
+        normalized_email = require_normalized_email(identity.email)
+
+        lookup_by_external_identity_stmt = (
+            select(
+                users.c.id,
+                users.c.email,
+            )
+            .join(
+                user_external_identities,
+                user_external_identities.c.user_id == users.c.id,
+            )
+            .where(
+                user_external_identities.c.provider == identity.provider,
+                user_external_identities.c.external_subject
+                == identity.external_subject,
+            )
+            .limit(1)
         )
-        lookup_stmt = (
+        lookup_by_email_stmt = (
             select(users.c.id, users.c.email)
             .where(users.c.email == normalized_email)
             .limit(1)
         )
 
         with Session(self.engine) as session:
-            session.execute(stmt)
-            row = session.execute(lookup_stmt).one()
+            row = None
+            if identity.provider is not None and identity.external_subject is not None:
+                row = session.execute(lookup_by_external_identity_stmt).first()
+
+            if row is None:
+                insert_user_stmt = (
+                    pg_insert(users)
+                    .values(
+                        id=str(uuid.uuid4()),
+                        email=normalized_email,
+                        email_verified=identity.email_verified,
+                    )
+                    .on_conflict_do_nothing(index_elements=[users.c.email])
+                    .returning(users.c.id, users.c.email)
+                )
+                row = session.execute(insert_user_stmt).first()
+
+                if row is None:
+                    if identity.provider in (None, STUB_EMAIL_IDENTITY_PROVIDER):
+                        row = session.execute(lookup_by_email_stmt).one()
+                    else:
+                        row = session.execute(lookup_by_external_identity_stmt).first()
+                        if row is None:
+                            raise ValueError(
+                                "external identity email collision requires "
+                                "explicit account linking"
+                            )
+
+            if identity.provider is not None and identity.external_subject is not None:
+                session.execute(
+                    pg_insert(user_external_identities)
+                    .values(
+                        id=str(uuid.uuid4()),
+                        user_id=str(row.id),
+                        provider=identity.provider,
+                        external_subject=identity.external_subject,
+                    )
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            user_external_identities.c.provider,
+                            user_external_identities.c.external_subject,
+                        ]
+                    )
+                )
+                row = session.execute(lookup_by_external_identity_stmt).one()
+
+            if identity.email_verified:
+                session.execute(
+                    users.update()
+                    .where(users.c.id == str(row.id))
+                    .values(email_verified=True)
+                )
+
             session.commit()
 
         return AuthenticatedUser(

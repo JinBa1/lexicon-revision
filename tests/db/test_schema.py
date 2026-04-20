@@ -10,6 +10,7 @@ from src.db.schema import (
     community_memberships,
     metadata,
     papers,
+    user_external_identities,
     users,
 )
 
@@ -21,6 +22,7 @@ def test_schema_has_expected_tables() -> None:
         "chunks",
         "chunk_embeddings",
         "users",
+        "user_external_identities",
         "communities",
         "community_memberships",
     }
@@ -96,6 +98,8 @@ def test_users_email_is_unique() -> None:
     constraints = {constraint.name for constraint in users.constraints}
     assert "uq_users_email" in constraints
     assert "ck_users_email_lowercase" in constraints
+    assert "email_verified" in users.c
+    assert users.c.email_verified.nullable is False
 
     checks = {
         constraint.name: str(constraint.sqltext)
@@ -103,6 +107,26 @@ def test_users_email_is_unique() -> None:
         if isinstance(constraint, CheckConstraint) and constraint.name is not None
     }
     assert checks["ck_users_email_lowercase"] == "email = lower(email)"
+
+
+def test_user_external_identities_are_unique_per_provider_subject() -> None:
+    assert "provider" in user_external_identities.c
+    assert "external_subject" in user_external_identities.c
+
+    unique_constraints = {
+        constraint.name: {column.name for column in constraint.columns}
+        for constraint in user_external_identities.constraints
+        if constraint.name is not None
+    }
+    assert unique_constraints["uq_user_external_identities_provider_subject"] == {
+        "provider",
+        "external_subject",
+    }
+
+    foreign_keys = {
+        fk.target_fullname for fk in user_external_identities.c.user_id.foreign_keys
+    }
+    assert foreign_keys == {"users.id"}
 
 
 def test_communities_name_is_unique() -> None:

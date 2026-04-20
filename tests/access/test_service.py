@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from src.access.errors import CollectionAccessDeniedError
-from src.access.models import AuthenticatedUser, CollectionAccess
+from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
+from src.access.models import AuthenticatedUser, CollectionAccess, RequestIdentity
 from src.access.service import CollectionAccessService
 from src.search.errors import CollectionNotFoundError
 
@@ -18,12 +18,28 @@ class FakeCollectionAccessRepository:
         self.calls.append(("get_collection_access", (collection_name,)))
         return self.collections.get(collection_name)
 
-    def get_or_create_user(self, email: str) -> AuthenticatedUser:
-        self.calls.append(("get_or_create_user", (email,)))
-        user = self.users.get(email)
+    def get_or_create_user_for_identity(
+        self, identity: RequestIdentity
+    ) -> AuthenticatedUser:
+        self.calls.append(
+            (
+                "get_or_create_user_for_identity",
+                (
+                    identity.provider,
+                    identity.external_subject,
+                    identity.email,
+                    identity.email_verified,
+                ),
+            )
+        )
+        assert identity.email is not None
+        user = self.users.get(identity.email)
         if user is None:
-            user = AuthenticatedUser(user_id=f"user-{len(self.users) + 1}", email=email)
-            self.users[email] = user
+            user = AuthenticatedUser(
+                user_id=f"user-{len(self.users) + 1}",
+                email=identity.email,
+            )
+            self.users[identity.email] = user
         return user
 
     def has_active_membership(self, *, user_id: str, community_id: str) -> bool:
@@ -45,7 +61,7 @@ def test_collection_access_service_allows_anonymous_public_access() -> None:
 
     context = service.authorize_collection(
         collection_name="public",
-        user_email_header="   ",
+        request_identity=RequestIdentity.anonymous(),
     )
 
     assert context.collection == repository.collections["public"]
@@ -70,7 +86,7 @@ def test_collection_access_service_denies_anonymous_private_access() -> None:
     with pytest.raises(CollectionAccessDeniedError, match="private"):
         service.authorize_collection(
             collection_name="private",
-            user_email_header=None,
+            request_identity=RequestIdentity.anonymous(),
         )
 
     assert repository.calls == [("get_collection_access", ("private",))]
@@ -93,16 +109,26 @@ def test_collection_access_service_allows_active_member_on_private_collection() 
 
     context = service.authorize_collection(
         collection_name="private",
-        user_email_header="  MEMBER@Example.com  ",
+        request_identity=RequestIdentity(
+            provider="clerk",
+            external_subject="user_123",
+            email="member@example.com",
+            email_verified=True,
+        ),
     )
 
     assert context.collection == repository.collections["private"]
     assert context.identity.email == "member@example.com"
+    assert context.identity.provider == "clerk"
+    assert context.identity.external_subject == "user_123"
     assert context.identity.user == user
     assert context.identity.is_authenticated
     assert repository.calls == [
         ("get_collection_access", ("private",)),
-        ("get_or_create_user", ("member@example.com",)),
+        (
+            "get_or_create_user_for_identity",
+            ("clerk", "user_123", "member@example.com", True),
+        ),
         ("has_active_membership", ("user-1", "community-1")),
     ]
 
@@ -126,12 +152,20 @@ def test_collection_access_service_denies_wrong_user_for_private_collection() ->
     with pytest.raises(CollectionAccessDeniedError, match="private"):
         service.authorize_collection(
             collection_name="private",
-            user_email_header="other@example.com",
+            request_identity=RequestIdentity(
+                provider="stub_header",
+                external_subject="other@example.com",
+                email="other@example.com",
+                email_verified=False,
+            ),
         )
 
     assert repository.calls == [
         ("get_collection_access", ("private",)),
-        ("get_or_create_user", ("other@example.com",)),
+        (
+            "get_or_create_user_for_identity",
+            ("stub_header", "other@example.com", "other@example.com", False),
+        ),
         ("has_active_membership", ("user-2", "community-1")),
     ]
 
@@ -143,13 +177,18 @@ def test_collection_access_service_raises_not_found_before_auth_logic() -> None:
     with pytest.raises(CollectionNotFoundError, match="missing"):
         service.authorize_collection(
             collection_name="missing",
-            user_email_header="other@example.com",
+            request_identity=RequestIdentity(
+                provider="stub_header",
+                external_subject="other@example.com",
+                email="other@example.com",
+                email_verified=False,
+            ),
         )
 
     assert repository.calls == [("get_collection_access", ("missing",))]
 
 
-def test_collection_access_service_normalizes_x_user_email_header() -> None:
+def test_collection_access_service_resolves_authenticated_request_identity() -> None:
     repository = FakeCollectionAccessRepository(
         collections={
             "public": CollectionAccess(
@@ -161,12 +200,56 @@ def test_collection_access_service_normalizes_x_user_email_header() -> None:
     )
     service = CollectionAccessService(repository=repository)
 
-    identity = service.resolve_identity("  USER@Example.COM  ")
+    identity = service.resolve_identity(
+        RequestIdentity(
+            provider="clerk",
+            external_subject="user_123",
+            email="user@example.com",
+            email_verified=True,
+        )
+    )
 
     assert identity.email == "user@example.com"
+    assert identity.provider == "clerk"
+    assert identity.external_subject == "user_123"
     assert identity.user == AuthenticatedUser(
         user_id="user-1",
         email="user@example.com",
     )
     assert identity.is_authenticated
-    assert repository.calls == [("get_or_create_user", ("user@example.com",))]
+    assert repository.calls == [
+        (
+            "get_or_create_user_for_identity",
+            ("clerk", "user_123", "user@example.com", True),
+        )
+    ]
+
+
+def test_service_raises_domain_error_for_identity_provisioning_failure() -> None:
+    repository = FakeCollectionAccessRepository(
+        collections={
+            "private": CollectionAccess(
+                collection_id="collection-private",
+                collection_name="private",
+                community_id="community-1",
+            )
+        }
+    )
+
+    def _raise_for_identity(identity: RequestIdentity) -> AuthenticatedUser:
+        del identity
+        raise ValueError("verified email is required")
+
+    repository.get_or_create_user_for_identity = _raise_for_identity  # type: ignore[method-assign]
+    service = CollectionAccessService(repository=repository)
+
+    with pytest.raises(IdentityProvisioningError, match="verified email is required"):
+        service.authorize_collection(
+            collection_name="private",
+            request_identity=RequestIdentity(
+                provider="clerk",
+                external_subject="user_123",
+                email="member@example.com",
+                email_verified=False,
+            ),
+        )

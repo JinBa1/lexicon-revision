@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from src.access import (
-    X_USER_EMAIL_HEADER,
     CollectionAccessDeniedError,
     CollectionAccessService,
+    HeaderEmailRequestIdentityResolver,
+    IdentityProvisioningError,
+    RequestIdentityResolver,
 )
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
@@ -79,6 +81,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.access_service = CollectionAccessService(
             repository=PgCollectionAccessRepository(engine=engine)
         )
+        app.state.auth_resolver = HeaderEmailRequestIdentityResolver()
         study_settings = load_study_settings()
         generation_provider = OllamaProvider(
             base_url=study_settings.generation.base_url,
@@ -109,6 +112,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         _dispose_if_supported(engine)
         app.state.object_storage = None
         app.state.access_service = None
+        app.state.auth_resolver = None
         app.state.search_service = None
         app.state.study_service = None
         app.state.generation_provider = None
@@ -149,6 +153,7 @@ def create_app(
     generation_provider: object | None = None,
     object_storage: ObjectStorage | None = None,
     access_service: CollectionAccessService | None = None,
+    auth_resolver: RequestIdentityResolver | None = None,
     allow_unauthorized_test_mode: bool = False,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
@@ -161,6 +166,9 @@ def create_app(
         application = FastAPI(title="RAG Exam Revision Tool")
         application.state.object_storage = object_storage
         application.state.access_service = access_service
+        application.state.auth_resolver = (
+            auth_resolver or HeaderEmailRequestIdentityResolver()
+        )
         application.state.search_service = search_service
         application.state.study_service = study_service
         application.state.generation_provider = generation_provider
@@ -220,9 +228,10 @@ def create_app(
         if service is None:
             return
 
+        resolver: RequestIdentityResolver = request.app.state.auth_resolver
         service.authorize_collection(
             collection_name=collection_name,
-            user_email_header=request.headers.get(X_USER_EMAIL_HEADER),
+            request_identity=resolver.resolve_request_identity(request),
         )
 
     @application.post("/search", response_model=SearchResponse)
@@ -248,6 +257,8 @@ def create_app(
             )
         except CollectionAccessDeniedError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except IdentityProvisioningError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except CollectionNotFoundError as exc:
             raise HTTPException(
                 status_code=404,
@@ -268,6 +279,8 @@ def create_app(
             authorize_collection(request, collection_name=payload.scope.collection)
             return await service.orchestrate(payload)
         except CollectionAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except IdentityProvisioningError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except CollectionNotFoundError as exc:
             raise HTTPException(

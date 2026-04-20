@@ -21,6 +21,7 @@ def _clean_pg(request: pytest.FixtureRequest) -> None:
                 "papers",
                 "community_memberships",
                 "collections",
+                "user_external_identities",
                 "users",
                 "communities",
             ):

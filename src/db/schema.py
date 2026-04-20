@@ -4,6 +4,7 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -30,6 +31,12 @@ users = Table(
     Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
     Column("email", Text, nullable=False),
     Column(
+        "email_verified",
+        Boolean,
+        nullable=False,
+        server_default=sql_text("false"),
+    ),
+    Column(
         "created_at",
         DateTime(timezone=True),
         nullable=False,
@@ -37,6 +44,26 @@ users = Table(
     ),
     CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
     UniqueConstraint("email", name="uq_users_email"),
+)
+
+user_external_identities = Table(
+    "user_external_identities",
+    metadata,
+    Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    Column("user_id", String, ForeignKey("users.id"), nullable=False),
+    Column("provider", Text, nullable=False),
+    Column("external_subject", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+    UniqueConstraint(
+        "provider",
+        "external_subject",
+        name="uq_user_external_identities_provider_subject",
+    ),
 )
 
 communities = Table(

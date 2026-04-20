@@ -3,7 +3,8 @@ from __future__ import annotations
 import httpx
 import pytest
 from fastapi import FastAPI
-from src.access.errors import CollectionAccessDeniedError
+from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
+from src.access.models import RequestIdentity
 from src.metadata_schema.models import FilterCondition
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.study.config import (
@@ -86,19 +87,22 @@ class FakeAccessService:
         self,
         *,
         collection_name: str,
-        user_email_header: str | None,
+        request_identity: RequestIdentity,
     ) -> None:
         self.calls.append(
             {
                 "collection_name": collection_name,
-                "user_email_header": user_email_header,
+                "request_identity": request_identity,
             }
         )
         if collection_name in self.missing_collections:
             raise CollectionNotFoundError(collection_name)
 
         allowed_members = self.private_members.get(collection_name)
-        if allowed_members is not None and user_email_header not in allowed_members:
+        if (
+            allowed_members is not None
+            and request_identity.email not in allowed_members
+        ):
             raise CollectionAccessDeniedError(collection_name)
 
 
@@ -424,7 +428,12 @@ async def test_post_study_private_collection_allowed_for_member_header() -> None
     assert access_service.calls == [
         {
             "collection_name": "private-fixture",
-            "user_email_header": "member@example.com",
+            "request_identity": RequestIdentity(
+                provider="stub_header",
+                external_subject="member@example.com",
+                email="member@example.com",
+                email_verified=False,
+            ),
         }
     ]
     assert study_service.requests[0].scope.collection == "private-fixture"
@@ -489,6 +498,46 @@ async def test_post_study_missing_collection_returns_404() -> None:
         )
 
     assert response.status_code == 404
+    assert study_service.requests == []
+
+
+@pytest.mark.anyio
+async def test_post_study_identity_provisioning_failure_returns_403() -> None:
+    from src.main import create_app
+
+    class FailingAccessService:
+        def authorize_collection(
+            self,
+            *,
+            collection_name: str,
+            request_identity: RequestIdentity,
+        ) -> None:
+            del collection_name, request_identity
+            raise IdentityProvisioningError("explicit account linking")
+
+    study_service = FakeStudyService()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        access_service=FailingAccessService(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            headers={"X-User-Email": "member@example.com"},
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "private-fixture"},
+            },
+        )
+
+    assert response.status_code == 403
+    assert "explicit account linking" in response.json()["detail"]
     assert study_service.requests == []
 
 

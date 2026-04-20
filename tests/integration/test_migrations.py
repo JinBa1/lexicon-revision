@@ -241,9 +241,20 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
             community_columns = {
                 column["name"] for column in inspector.get_columns("communities")
             }
+            user_columns = {column["name"] for column in inspector.get_columns("users")}
+            external_identity_columns = {
+                column["name"]
+                for column in inspector.get_columns("user_external_identities")
+            }
             community_unique_constraints = {
                 constraint["name"]
                 for constraint in inspector.get_unique_constraints("communities")
+            }
+            external_identity_unique_constraints = {
+                constraint["name"]
+                for constraint in inspector.get_unique_constraints(
+                    "user_external_identities"
+                )
             }
             user_check_constraints = {
                 constraint["name"]
@@ -265,10 +276,21 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
                 )
             ).first()
 
-        assert {"users", "communities", "community_memberships"} <= tables
+        assert {
+            "users",
+            "user_external_identities",
+            "communities",
+            "community_memberships",
+        } <= tables
         assert "community_id" in collection_columns
         assert "slug" in community_columns
+        assert "email_verified" in user_columns
+        assert {"provider", "external_subject", "user_id"} <= external_identity_columns
         assert "uq_communities_slug" in community_unique_constraints
+        assert (
+            "uq_user_external_identities_provider_subject"
+            in external_identity_unique_constraints
+        )
         assert "ck_users_email_lowercase" in user_check_constraints
         assert "ck_community_memberships_role_valid" in membership_check_constraints
         assert "ck_community_memberships_status_valid" in membership_check_constraints
