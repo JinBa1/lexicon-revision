@@ -15,7 +15,16 @@ def _clean_pg(request: pytest.FixtureRequest) -> None:
     try:
         with engine.connect() as conn:
             existing = set(inspect(conn).get_table_names())
-            for table in ("chunk_embeddings", "chunks", "papers", "collections"):
+            for table in (
+                "chunk_embeddings",
+                "chunks",
+                "papers",
+                "community_memberships",
+                "collections",
+                "user_external_identities",
+                "users",
+                "communities",
+            ):
                 if table in existing:
                     conn.execute(text(f"DELETE FROM {table}"))
             conn.commit()

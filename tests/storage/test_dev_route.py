@@ -37,7 +37,11 @@ async def test_dev_object_route_serves_local_presigned_get(tmp_path) -> None:
         data=b"png",
         content_type="image/png",
     )
-    app = create_app(search_service=_FakeSearchService(), object_storage=storage)
+    app = create_app(
+        search_service=_FakeSearchService(),
+        object_storage=storage,
+        allow_unauthorized_test_mode=True,
+    )
     presigned = storage.presign_get(
         "artifacts/mineru/run-1/images/figure_1.png",
         expires_in_seconds=60,
@@ -59,7 +63,11 @@ async def test_dev_object_route_rejects_bad_signature(tmp_path) -> None:
         root=tmp_path / "object-store",
         dev_presign_secret=SECRET,
     )
-    app = create_app(search_service=_FakeSearchService(), object_storage=storage)
+    app = create_app(
+        search_service=_FakeSearchService(),
+        object_storage=storage,
+        allow_unauthorized_test_mode=True,
+    )
     bad_url = (
         "http://localhost:8000/_dev/object/GET/9999999999/"
         + "0" * 32

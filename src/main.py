@@ -7,7 +7,15 @@ from inspect import isawaitable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from src.db.config import load_database_settings
+from src.access import (
+    CollectionAccessDeniedError,
+    CollectionAccessService,
+    HeaderEmailRequestIdentityResolver,
+    IdentityProvisioningError,
+    RequestIdentityResolver,
+)
+from src.access.repository import PgCollectionAccessRepository
+from src.db.config import create_database_engine, load_database_settings
 from src.search.base import SearchBackend
 from src.search.errors import (
     RERANK_CANDIDATE_CAP,
@@ -48,49 +56,66 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Production lifespan: load real models into app.state."""
-    provider_settings = load_retrieval_provider_settings()
-    embedding_model = build_embedding_provider(provider_settings)
-    reranker = build_rerank_provider(provider_settings)
+    embedding_model: object | None = None
+    reranker: object | None = None
+    engine: object | None = None
+    object_storage: ObjectStorage | None = None
+    generation_provider: object | None = None
 
-    db_settings = load_database_settings()
-    object_storage = build_object_storage(load_object_storage_settings())
-    app.state.object_storage = object_storage
-    app.state.search_service = create_search_service(
-        database_settings=db_settings,
-        embedding_model=embedding_model,
-        reranker=reranker,
-        object_storage=object_storage,
-    )
-    study_settings = load_study_settings()
-    generation_provider = OllamaProvider(
-        base_url=study_settings.generation.base_url,
-        model=study_settings.generation.model,
-        max_retries=study_settings.generation.max_provider_retries,
-    )
-    app.state.generation_provider = generation_provider
+    try:
+        provider_settings = load_retrieval_provider_settings()
+        embedding_model = build_embedding_provider(provider_settings)
+        reranker = build_rerank_provider(provider_settings)
 
-    query_planner = LLMQueryPlanner(
-        provider=generation_provider,
-        settings=study_settings.planning,
-    )
-    planned_retrieval = PlannedRetrievalService(
-        search_service=app.state.search_service,
-    )
-    app.state.study_service = StudyService(
-        query_planner=query_planner,
-        planned_retrieval=planned_retrieval,
-        provider=generation_provider,
-        settings=study_settings,
-    )
-    yield
-    if app.state.generation_provider is not None:
-        await app.state.generation_provider.aclose()
-    _close_if_supported(embedding_model)
-    _close_if_supported(reranker)
-    app.state.object_storage = None
-    app.state.search_service = None
-    app.state.study_service = None
-    app.state.generation_provider = None
+        db_settings = load_database_settings()
+        engine = create_database_engine(db_settings)
+        object_storage = build_object_storage(load_object_storage_settings())
+        app.state.object_storage = object_storage
+        app.state.search_service = create_search_service(
+            database_settings=db_settings,
+            embedding_model=embedding_model,
+            reranker=reranker,
+            engine=engine,
+            object_storage=object_storage,
+        )
+        app.state.access_service = CollectionAccessService(
+            repository=PgCollectionAccessRepository(engine=engine)
+        )
+        app.state.auth_resolver = HeaderEmailRequestIdentityResolver()
+        study_settings = load_study_settings()
+        generation_provider = OllamaProvider(
+            base_url=study_settings.generation.base_url,
+            model=study_settings.generation.model,
+            max_retries=study_settings.generation.max_provider_retries,
+        )
+        app.state.generation_provider = generation_provider
+
+        query_planner = LLMQueryPlanner(
+            provider=generation_provider,
+            settings=study_settings.planning,
+        )
+        planned_retrieval = PlannedRetrievalService(
+            search_service=app.state.search_service,
+        )
+        app.state.study_service = StudyService(
+            query_planner=query_planner,
+            planned_retrieval=planned_retrieval,
+            provider=generation_provider,
+            settings=study_settings,
+        )
+        yield
+    finally:
+        await _aclose_if_supported(generation_provider)
+        _close_if_supported(embedding_model)
+        _close_if_supported(reranker)
+        _close_if_supported(object_storage)
+        _dispose_if_supported(engine)
+        app.state.object_storage = None
+        app.state.access_service = None
+        app.state.auth_resolver = None
+        app.state.search_service = None
+        app.state.study_service = None
+        app.state.generation_provider = None
 
 
 def _close_if_supported(provider: object | None) -> None:
@@ -99,7 +124,30 @@ def _close_if_supported(provider: object | None) -> None:
     try:
         provider.close()
     except Exception:
-        logger.exception("Failed to close retrieval provider")
+        logger.exception(
+            "Failed to close resource",
+            extra={"resource_type": type(provider).__name__},
+        )
+
+
+async def _aclose_if_supported(provider: object | None) -> None:
+    if provider is None or not hasattr(provider, "aclose"):
+        return
+    try:
+        close_result = provider.aclose()
+        if isawaitable(close_result):
+            await close_result
+    except Exception:
+        logger.exception("Failed to close async provider")
+
+
+def _dispose_if_supported(resource: object | None) -> None:
+    if resource is None or not hasattr(resource, "dispose"):
+        return
+    try:
+        resource.dispose()
+    except Exception:
+        logger.exception("Failed to dispose resource")
 
 
 def create_app(
@@ -107,11 +155,23 @@ def create_app(
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
     object_storage: ObjectStorage | None = None,
+    access_service: CollectionAccessService | None = None,
+    auth_resolver: RequestIdentityResolver | None = None,
+    allow_unauthorized_test_mode: bool = False,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:
+        if access_service is None and not allow_unauthorized_test_mode:
+            raise ValueError(
+                "Injected apps must provide access_service or set "
+                "allow_unauthorized_test_mode=True"
+            )
         application = FastAPI(title="RAG Exam Revision Tool")
         application.state.object_storage = object_storage
+        application.state.access_service = access_service
+        application.state.auth_resolver = (
+            auth_resolver or HeaderEmailRequestIdentityResolver()
+        )
         application.state.search_service = search_service
         application.state.study_service = study_service
         application.state.generation_provider = generation_provider
@@ -162,19 +222,35 @@ def create_app(
         )
         return Response(content=payload, media_type=media_type)
 
+    def authorize_collection(request: Request, *, collection_name: str) -> None:
+        service: CollectionAccessService | None = getattr(
+            request.app.state,
+            "access_service",
+            None,
+        )
+        if service is None:
+            return
+
+        resolver: RequestIdentityResolver = request.app.state.auth_resolver
+        service.authorize_collection(
+            collection_name=collection_name,
+            request_identity=resolver.resolve_request_identity(request),
+        )
+
     @application.post("/search", response_model=SearchResponse)
     async def search(request: Request, payload: SearchRequest) -> SearchResponse:
         service: SearchBackend = request.app.state.search_service
-        if payload.rerank and payload.limit > RERANK_CANDIDATE_CAP:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "limit cannot exceed rerank candidate cap of "
-                    f"{RERANK_CANDIDATE_CAP}"
-                ),
-            )
-
         try:
+            authorize_collection(request, collection_name=payload.collection)
+            if payload.rerank and payload.limit > RERANK_CANDIDATE_CAP:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "limit cannot exceed rerank candidate cap of "
+                        f"{RERANK_CANDIDATE_CAP}"
+                    ),
+                )
+
             return service.search(
                 query=payload.query,
                 collection=payload.collection,
@@ -182,6 +258,10 @@ def create_app(
                 limit=payload.limit,
                 rerank=payload.rerank,
             )
+        except CollectionAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except IdentityProvisioningError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except CollectionNotFoundError as exc:
             raise HTTPException(
                 status_code=404,
@@ -199,7 +279,17 @@ def create_app(
                 detail="Study service is not configured",
             )
         try:
+            authorize_collection(request, collection_name=payload.scope.collection)
             return await service.orchestrate(payload)
+        except CollectionAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except IdentityProvisioningError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except CollectionNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{exc.collection_name}' not found",
+            ) from exc
         except InvalidMetadataFilterError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
