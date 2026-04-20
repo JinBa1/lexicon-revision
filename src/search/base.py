@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse
 
 
@@ -17,7 +18,7 @@ class SearchBackend(Protocol):
         self,
         query: str,
         collection: str = ...,
-        filters: dict[str, Any] | None = None,
+        filters: list[FilterCondition] | None = None,
         limit: int = 10,
         rerank: bool = True,
     ) -> SearchResponse: ...

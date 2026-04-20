@@ -18,8 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.index_chunks import build_embedding_text  # noqa: E402
 from sqlalchemy import Engine  # noqa: E402
+from src.chunking.models import Chunk  # noqa: E402
 from src.chunking.pipeline import run_pipeline  # noqa: E402
 from src.db.config import create_database_engine, load_database_settings  # noqa: E402
 from src.db.metadata_indexes import ensure_metadata_indexes  # noqa: E402
@@ -27,6 +27,7 @@ from src.metadata_schema import (  # noqa: E402
     default_schema_path,
     load_collection_schema,
 )
+from src.search.errors import DEFAULT_CHROMA_DIR  # noqa: E402
 from src.search.media_sidecar import (  # noqa: E402
     build_storage_media_map,
     write_storage_media_map,
@@ -36,10 +37,28 @@ from src.search.providers.config import (  # noqa: E402
     build_embedding_provider,
     load_retrieval_provider_settings,
 )
-from src.search.service import DEFAULT_CHROMA_DIR  # noqa: E402
 from src.storage import ArtifactManifest, load_local_manifests  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+
+def build_embedding_text(chunk: Chunk) -> str:
+    parts = [chunk.text.strip()]
+    footer_fields: list[str] = []
+
+    if chunk.year is not None:
+        footer_fields.append(f"Year: {chunk.year}")
+    if chunk.paper is not None:
+        footer_fields.append(f"Paper: {chunk.paper}")
+    if chunk.question_number is not None:
+        footer_fields.append(f"Question: {chunk.question_number}")
+    if chunk.topic is not None:
+        footer_fields.append(f"Topic: {chunk.topic}")
+
+    if footer_fields:
+        parts.append(" | ".join(footer_fields))
+
+    return "\n\n".join(parts)
 
 
 def parse_args() -> argparse.Namespace:

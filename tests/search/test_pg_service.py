@@ -5,11 +5,12 @@ import logging
 from pathlib import Path
 
 import pytest
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
+from src.search.errors import DEFAULT_COLLECTION, CollectionNotFoundError
 from src.search.models import SearchResponse
 from src.search.pg_repository import PgChunkRow
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingResult, RerankResult
-from src.search.service import DEFAULT_COLLECTION, CollectionNotFoundError
 from src.storage.local import LocalObjectStorage
 
 SECRET = b"pg-search-secret"
@@ -31,6 +32,23 @@ class _Embedder:
 class _Repo:
     def __init__(self) -> None:
         self.calls = []
+
+    def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
+        self.calls.append({"schema_collection_name": collection_name})
+        return CollectionMetadataSchema.model_validate(
+            {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "year",
+                        "label": "Year",
+                        "type": "integer",
+                        "operators": ["eq", "gte", "lte"],
+                        "exposed": True,
+                    }
+                ],
+            }
+        )
 
     def search(self, **kwargs):
         self.calls.append(kwargs)
@@ -63,13 +81,17 @@ def test_pg_search_service_returns_search_response() -> None:
     )
 
     response = service.search(
-        "q", collection="fixture", filters={}, limit=3, rerank=False
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=3,
+        rerank=False,
     )
 
     assert isinstance(response, SearchResponse)
     assert response.results[0].chunk_id == "cam-1"
-    assert repo.calls[0]["embedding_model_id"] == "fake-v1"
-    assert repo.calls[0]["embedding_dimension"] == 2
+    assert repo.calls[1]["embedding_model_id"] == "fake-v1"
+    assert repo.calls[1]["embedding_dimension"] == 2
 
 
 def test_pg_search_service_uses_default_collection_constant() -> None:
@@ -81,9 +103,9 @@ def test_pg_search_service_uses_default_collection_constant() -> None:
         reranker=None,
     )
 
-    service.search("q", filters={}, limit=3, rerank=False)
+    service.search("q", filters=[], limit=3, rerank=False)
 
-    assert repo.calls[0]["collection_name"] == DEFAULT_COLLECTION
+    assert repo.calls[1]["collection_name"] == DEFAULT_COLLECTION
 
 
 def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
@@ -123,7 +145,11 @@ def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
     )
 
     response = service.search(
-        "q", collection="fixture", filters={}, limit=3, rerank=False
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=3,
+        rerank=False,
     )
 
     assert response.results[0].media[0].media_id == "fig-1"
@@ -139,6 +165,23 @@ class _Reranker:
 
 
 class _TwoRowRepo:
+    def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
+        del collection_name
+        return CollectionMetadataSchema.model_validate(
+            {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "year",
+                        "label": "Year",
+                        "type": "integer",
+                        "operators": ["eq", "gte", "lte"],
+                        "exposed": True,
+                    }
+                ],
+            }
+        )
+
     def search(self, **kwargs):
         return [
             PgChunkRow(
@@ -177,7 +220,11 @@ def test_pg_search_service_applies_rerank_order() -> None:
     )
 
     response = service.search(
-        "q", collection="fixture", filters={}, limit=2, rerank=True
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=2,
+        rerank=True,
     )
 
     assert [result.chunk_id for result in response.results] == ["cam-1", "cam-2"]
@@ -185,6 +232,9 @@ def test_pg_search_service_applies_rerank_order() -> None:
 
 
 class _MissingCollectionRepo:
+    def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
+        raise CollectionNotFoundError(collection_name)
+
     def search(self, **kwargs):
         raise CollectionNotFoundError("missing")
 
@@ -198,10 +248,27 @@ def test_pg_search_service_propagates_missing_collection() -> None:
     )
 
     with pytest.raises(CollectionNotFoundError, match="missing"):
-        service.search("q", collection="missing", filters={}, limit=2, rerank=False)
+        service.search("q", collection="missing", filters=[], limit=2, rerank=False)
 
 
 class _InvalidChunkLevelRepo:
+    def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
+        del collection_name
+        return CollectionMetadataSchema.model_validate(
+            {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "year",
+                        "label": "Year",
+                        "type": "integer",
+                        "operators": ["eq", "gte", "lte"],
+                        "exposed": True,
+                    }
+                ],
+            }
+        )
+
     def search(self, **kwargs):
         return [
             PgChunkRow(
@@ -248,7 +315,32 @@ def test_pg_search_service_skips_invalid_chunk_level(
     )
 
     with caplog.at_level(logging.WARNING):
-        response = service.search("q", collection="fixture", filters={}, limit=5)
+        response = service.search("q", collection="fixture", filters=[], limit=5)
 
     assert [result.chunk_id for result in response.results] == ["good-1"]
     assert any("chunk_level" in record.message for record in caplog.records)
+
+
+def test_pg_service_passes_filter_conditions_to_repository() -> None:
+    repo = _Repo()
+    service = PgSearchService(
+        repository=repo,
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+    )
+
+    service.search(
+        query="algorithms",
+        collection="cam-cs-tripos-fixture",
+        filters=[
+            FilterCondition(field="year", op="gte", value=2020),
+            FilterCondition(field="year", op="lte", value=2024),
+        ],
+        limit=5,
+        rerank=False,
+    )
+
+    assert [item.model_dump() for item in repo.calls[1]["filters"]] == [
+        {"field": "year", "op": "gte", "value": 2020},
+        {"field": "year", "op": "lte", "value": 2024},
+    ]
