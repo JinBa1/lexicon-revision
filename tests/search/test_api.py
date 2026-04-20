@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from src.access.errors import CollectionAccessDeniedError
 from src.metadata_schema.models import FilterCondition
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.search.models import MediaRefResponse, SearchResponse, SearchResult
@@ -100,6 +101,37 @@ class InvalidFilterSearchService(FakeSearchService):
         raise InvalidMetadataFilterError(
             "Filter field 'topic' is not declared in collection metadata schema"
         )
+
+
+class FakeAccessService:
+    def __init__(
+        self,
+        *,
+        missing_collections: set[str] | None = None,
+        private_members: dict[str, set[str]] | None = None,
+    ) -> None:
+        self.calls: list[dict[str, str | None]] = []
+        self.missing_collections = missing_collections or set()
+        self.private_members = private_members or {}
+
+    def authorize_collection(
+        self,
+        *,
+        collection_name: str,
+        user_email_header: str | None,
+    ) -> None:
+        self.calls.append(
+            {
+                "collection_name": collection_name,
+                "user_email_header": user_email_header,
+            }
+        )
+        if collection_name in self.missing_collections:
+            raise CollectionNotFoundError(collection_name)
+
+        allowed_members = self.private_members.get(collection_name)
+        if allowed_members is not None and user_email_header not in allowed_members:
+            raise CollectionAccessDeniedError(collection_name)
 
 
 @pytest.fixture
@@ -212,3 +244,110 @@ async def test_post_search_invalid_metadata_filter_returns_422() -> None:
 
     assert response.status_code == 422
     assert "not declared in collection metadata schema" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_post_search_private_collection_denied_without_header() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        access_service=FakeAccessService(
+            private_members={"private-fixture": {"member@example.com"}}
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "private-fixture"},
+        )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_post_search_private_collection_allowed_for_member_header() -> None:
+    from src.main import create_app
+
+    service = FakeSearchService()
+    access_service = FakeAccessService(
+        private_members={"private-fixture": {"member@example.com"}}
+    )
+    app = create_app(search_service=service, access_service=access_service)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            headers={"X-User-Email": "member@example.com"},
+            json={"query": "algorithms", "collection": "private-fixture"},
+        )
+
+    assert response.status_code == 200
+    assert access_service.calls == [
+        {
+            "collection_name": "private-fixture",
+            "user_email_header": "member@example.com",
+        }
+    ]
+    assert service.calls[0]["collection"] == "private-fixture"
+
+
+@pytest.mark.anyio
+async def test_post_search_private_collection_denied_for_wrong_user() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        access_service=FakeAccessService(
+            private_members={"private-fixture": {"member@example.com"}}
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            headers={"X-User-Email": "other@example.com"},
+            json={"query": "algorithms", "collection": "private-fixture"},
+        )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_post_search_forbidden_collection_short_circuits_before_search() -> None:
+    from src.main import create_app
+
+    service = InvalidFilterSearchService()
+    app = create_app(
+        search_service=service,
+        access_service=FakeAccessService(
+            private_members={"private-fixture": {"member@example.com"}}
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            headers={"X-User-Email": "other@example.com"},
+            json={
+                "query": "algorithms",
+                "collection": "private-fixture",
+                "filters": [{"field": "topic", "op": "eq", "value": "Trees"}],
+            },
+        )
+
+    assert response.status_code == 403
+    assert service.calls == []

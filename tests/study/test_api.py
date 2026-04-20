@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from src.access.errors import CollectionAccessDeniedError
 from src.metadata_schema.models import FilterCondition
-from src.search.errors import InvalidMetadataFilterError
+from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.study.config import (
     ContextSettings,
     GenerationSettings,
@@ -59,6 +60,45 @@ class FakeStudyService:
                 "latency_ms": 0,
             },
         )
+
+
+class InvalidFilterStudyService(FakeStudyService):
+    async def orchestrate(self, request):
+        self.requests.append(request)
+        raise InvalidMetadataFilterError(
+            "Filter field 'topic' is not declared in collection metadata schema"
+        )
+
+
+class FakeAccessService:
+    def __init__(
+        self,
+        *,
+        missing_collections: set[str] | None = None,
+        private_members: dict[str, set[str]] | None = None,
+    ) -> None:
+        self.calls: list[dict[str, str | None]] = []
+        self.missing_collections = missing_collections or set()
+        self.private_members = private_members or {}
+
+    def authorize_collection(
+        self,
+        *,
+        collection_name: str,
+        user_email_header: str | None,
+    ) -> None:
+        self.calls.append(
+            {
+                "collection_name": collection_name,
+                "user_email_header": user_email_header,
+            }
+        )
+        if collection_name in self.missing_collections:
+            raise CollectionNotFoundError(collection_name)
+
+        allowed_members = self.private_members.get(collection_name)
+        if allowed_members is not None and user_email_header not in allowed_members:
+            raise CollectionAccessDeniedError(collection_name)
 
 
 class FakeProvider:
@@ -292,6 +332,134 @@ async def test_post_study_accepts_repeated_filter_conditions() -> None:
         FilterCondition(field="year", op="gte", value=2020),
         FilterCondition(field="year", op="lte", value=2024),
     ]
+
+
+@pytest.mark.anyio
+async def test_post_study_private_collection_denied_without_header() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+        access_service=FakeAccessService(
+            private_members={"private-fixture": {"member@example.com"}}
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "private-fixture"},
+            },
+        )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_post_study_private_collection_allowed_for_member_header() -> None:
+    from src.main import create_app
+
+    study_service = FakeStudyService()
+    access_service = FakeAccessService(
+        private_members={"private-fixture": {"member@example.com"}}
+    )
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        access_service=access_service,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            headers={"X-User-Email": "member@example.com"},
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "private-fixture"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert access_service.calls == [
+        {
+            "collection_name": "private-fixture",
+            "user_email_header": "member@example.com",
+        }
+    ]
+    assert study_service.requests[0].scope.collection == "private-fixture"
+
+
+@pytest.mark.anyio
+async def test_post_study_forbidden_collection_short_circuits_before_generation() -> (
+    None
+):
+    from src.main import create_app
+
+    study_service = InvalidFilterStudyService()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        access_service=FakeAccessService(
+            private_members={"private-fixture": {"member@example.com"}}
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            headers={"X-User-Email": "other@example.com"},
+            json={
+                "query": "trees",
+                "scope": {"collection": "private-fixture"},
+                "filters": [{"field": "topic", "op": "eq", "value": "Trees"}],
+            },
+        )
+
+    assert response.status_code == 403
+    assert study_service.requests == []
+
+
+@pytest.mark.anyio
+async def test_post_study_missing_collection_returns_404() -> None:
+    from src.main import create_app
+
+    study_service = FakeStudyService()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        access_service=FakeAccessService(missing_collections={"missing-fixture"}),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "missing-fixture"},
+            },
+        )
+
+    assert response.status_code == 404
+    assert study_service.requests == []
 
 
 @pytest.mark.anyio

@@ -7,7 +7,13 @@ from inspect import isawaitable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from src.db.config import load_database_settings
+from src.access import (
+    X_USER_EMAIL_HEADER,
+    CollectionAccessDeniedError,
+    CollectionAccessService,
+)
+from src.access.repository import PgCollectionAccessRepository
+from src.db.config import create_database_engine, load_database_settings
 from src.search.base import SearchBackend
 from src.search.errors import (
     RERANK_CANDIDATE_CAP,
@@ -53,13 +59,18 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     reranker = build_rerank_provider(provider_settings)
 
     db_settings = load_database_settings()
+    engine = create_database_engine(db_settings)
     object_storage = build_object_storage(load_object_storage_settings())
     app.state.object_storage = object_storage
     app.state.search_service = create_search_service(
         database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
+        engine=engine,
         object_storage=object_storage,
+    )
+    app.state.access_service = CollectionAccessService(
+        repository=PgCollectionAccessRepository(engine=engine)
     )
     study_settings = load_study_settings()
     generation_provider = OllamaProvider(
@@ -87,7 +98,9 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.generation_provider.aclose()
     _close_if_supported(embedding_model)
     _close_if_supported(reranker)
+    engine.dispose()
     app.state.object_storage = None
+    app.state.access_service = None
     app.state.search_service = None
     app.state.study_service = None
     app.state.generation_provider = None
@@ -107,11 +120,13 @@ def create_app(
     study_service: StudyService | None = None,
     generation_provider: object | None = None,
     object_storage: ObjectStorage | None = None,
+    access_service: CollectionAccessService | None = None,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
     if search_service is not None:
         application = FastAPI(title="RAG Exam Revision Tool")
         application.state.object_storage = object_storage
+        application.state.access_service = access_service
         application.state.search_service = search_service
         application.state.study_service = study_service
         application.state.generation_provider = generation_provider
@@ -162,19 +177,34 @@ def create_app(
         )
         return Response(content=payload, media_type=media_type)
 
+    def authorize_collection(request: Request, *, collection_name: str) -> None:
+        service: CollectionAccessService | None = getattr(
+            request.app.state,
+            "access_service",
+            None,
+        )
+        if service is None:
+            return
+
+        service.authorize_collection(
+            collection_name=collection_name,
+            user_email_header=request.headers.get(X_USER_EMAIL_HEADER),
+        )
+
     @application.post("/search", response_model=SearchResponse)
     async def search(request: Request, payload: SearchRequest) -> SearchResponse:
         service: SearchBackend = request.app.state.search_service
-        if payload.rerank and payload.limit > RERANK_CANDIDATE_CAP:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "limit cannot exceed rerank candidate cap of "
-                    f"{RERANK_CANDIDATE_CAP}"
-                ),
-            )
-
         try:
+            authorize_collection(request, collection_name=payload.collection)
+            if payload.rerank and payload.limit > RERANK_CANDIDATE_CAP:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "limit cannot exceed rerank candidate cap of "
+                        f"{RERANK_CANDIDATE_CAP}"
+                    ),
+                )
+
             return service.search(
                 query=payload.query,
                 collection=payload.collection,
@@ -182,6 +212,8 @@ def create_app(
                 limit=payload.limit,
                 rerank=payload.rerank,
             )
+        except CollectionAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except CollectionNotFoundError as exc:
             raise HTTPException(
                 status_code=404,
@@ -199,7 +231,15 @@ def create_app(
                 detail="Study service is not configured",
             )
         try:
+            authorize_collection(request, collection_name=payload.scope.collection)
             return await service.orchestrate(payload)
+        except CollectionAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except CollectionNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{exc.collection_name}' not found",
+            ) from exc
         except InvalidMetadataFilterError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
