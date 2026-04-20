@@ -10,20 +10,6 @@ import yaml
 from src.metadata_schema.models import FilterCondition
 from src.search.media_sidecar import load_storage_media_map
 
-SUPPORTED_FILTER_KEYS = {
-    "year",
-    "paper",
-    "topic",
-    "question_number",
-    "marks",
-    "has_code",
-    "has_figure",
-    "has_table",
-}
-_INTEGER_FILTER_FIELDS = {"year", "paper", "question_number", "marks"}
-_BOOLEAN_FILTER_FIELDS = {"has_code", "has_figure", "has_table"}
-_STRING_FILTER_FIELDS = {"topic"}
-
 
 @dataclass(frozen=True)
 class EvalCase:
@@ -98,12 +84,13 @@ def parse_filter_conditions(raw_filters: list[str]) -> list[FilterCondition]:
                 f"CLI filters must use field:op:value form, got {raw_filter!r}"
             )
         field, op, raw_value = parts
-        condition = FilterCondition(
-            field=field,
-            op=op,
-            value=_parse_scalar(raw_value),
+        condition = FilterCondition.model_validate(
+            {
+                "field": field,
+                "op": op,
+                "value": _parse_scalar(raw_value),
+            }
         )
-        _validate_filter_condition(condition, context=f"CLI filter {raw_filter!r}")
         parsed.append(condition)
     return parsed
 
@@ -249,32 +236,8 @@ def parse_authored_filters(
             raise ValueError(
                 f"{context} filter #{index} must define field/op/value"
             ) from exc
-        _validate_filter_condition(condition, context=f"{context} filter #{index}")
         parsed.append(condition)
     return parsed
-
-
-def _validate_filter_condition(condition: FilterCondition, *, context: str) -> None:
-    field = condition.field
-    value = condition.value
-
-    if field not in SUPPORTED_FILTER_KEYS:
-        raise ValueError(f"{context} has unsupported filters: {field}")
-
-    if field in _INTEGER_FILTER_FIELDS:
-        if type(value) is not int:
-            raise ValueError(f"{context} filter '{field}' must be an integer")
-        return
-    if field in _BOOLEAN_FILTER_FIELDS:
-        if type(value) is not bool:
-            raise ValueError(f"{context} filter '{field}' must be a boolean")
-        return
-    if field in _STRING_FILTER_FIELDS:
-        if type(value) is not str or not value:
-            raise ValueError(f"{context} filter '{field}' must be a non-empty string")
-        return
-
-    raise ValueError(f"{context} has unsupported filters: {field}")
 
 
 def _parse_scalar(raw_value: str) -> Any:

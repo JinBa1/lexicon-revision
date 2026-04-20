@@ -53,19 +53,17 @@ Each case must provide at least one of:
 - `cases[].expected.top_k`
 - `cases[].notes`
 
-Supported filters are:
+`cases[].filters` is a schema-driven `FilterCondition` list. Use any metadata
+field exposed by the target collection schema; the tooling preserves authored
+conditions in order and does not hard-code field names.
 
-- `year`
-- `paper`
-- `topic`
-- `question_number`
-- `marks`
-- `has_code`
-- `has_figure`
-- `has_table`
+Each filter entry has:
 
-Each `filters` entry is a `field` / `op` / `value` object. Repeat the same
-field when you need ranges or compound constraints.
+- `field`: collection metadata field key
+- `op`: `eq`, `gte`, or `lte`
+- `value`: string, integer, or boolean scalar
+
+Repeat the same field when you need ranges or compound constraints.
 
 Canonical example:
 

@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 from scripts.search_tooling import (
-    SUPPORTED_FILTER_KEYS,
     EvalCase,
     EvalSpec,
     build_filters,
@@ -64,7 +63,7 @@ def test_build_filters_includes_full_supported_filter_set() -> None:
         has_table=True,
     )
 
-    assert len(filters) == len(SUPPORTED_FILTER_KEYS)
+    assert len(filters) == 8
     assert FilterCondition(field="question_number", op="eq", value=7) in filters
     assert FilterCondition(field="marks", op="gte", value=10) in filters
 
@@ -86,6 +85,12 @@ def test_parse_filter_conditions_supports_repeated_range_filters() -> None:
         FilterCondition(field="year", op="lte", value=2024),
         FilterCondition(field="has_code", op="eq", value=True),
     ]
+
+
+def test_parse_filter_conditions_accepts_schema_native_unknown_field() -> None:
+    filters = parse_filter_conditions(["tripos_part:eq:II"])
+
+    assert filters == [FilterCondition(field="tripos_part", op="eq", value="II")]
 
 
 def test_load_eval_spec_accepts_filter_condition_list(tmp_path: Path) -> None:
@@ -116,6 +121,32 @@ cases:
     assert spec.cases[0].filters == [
         FilterCondition(field="question_number", op="eq", value=3),
         FilterCondition(field="paper", op="eq", value=1),
+    ]
+
+
+def test_load_eval_spec_accepts_schema_native_unknown_field(tmp_path: Path) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text(
+        """
+name: tool_test
+cases:
+  - id: case-1
+    query: algorithms practice
+    filters:
+      - field: tripos_part
+        op: eq
+        value: II
+    expected:
+      any_topics:
+        - Algorithms
+""",
+        encoding="utf-8",
+    )
+
+    spec = load_eval_spec(eval_path)
+
+    assert spec.cases[0].filters == [
+        FilterCondition(field="tripos_part", op="eq", value="II")
     ]
 
 
@@ -435,60 +466,6 @@ def test_load_eval_spec_validates_optional_string_fields(
                 "expected": {"any_chunk_ids": ["c"]},
             },
             "filters must be a list",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": [{"field": "unknown", "op": "eq", "value": True}],
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "unsupported filters",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": [{"field": "paper", "op": "eq", "value": False}],
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'paper'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": [{"field": "year", "op": "eq", "value": True}],
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'year'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": [{"field": "marks", "op": "gte", "value": False}],
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'marks'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": [{"field": "topic", "op": "eq", "value": ""}],
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'topic'",
-        ),
-        (
-            {
-                "id": "case-1",
-                "query": "question",
-                "filters": [{"field": "has_code", "op": "eq", "value": "false"}],
-                "expected": {"any_chunk_ids": ["c"]},
-            },
-            "filter 'has_code'",
         ),
         (
             {"id": "case-1", "query": "question", "expected": ["not", "a", "mapping"]},

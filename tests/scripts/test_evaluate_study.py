@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pytest
 from scripts.evaluate_study import (
     evaluate_study_cases,
     load_study_eval_spec,
@@ -253,8 +252,10 @@ cases:
     assert spec.cases[0].any_chunk_ids == ["cam-2025-p2-q4"]
 
 
-def test_load_study_eval_spec_rejects_string_boolean_filter(tmp_path: Path) -> None:
-    """Quoted boolean filters are rejected before they can cause empty retrieval."""
+def test_load_study_eval_spec_preserves_string_scalar_filter_values(
+    tmp_path: Path,
+) -> None:
+    """Study eval tooling preserves authored scalar values without schema typing."""
     eval_path = tmp_path / "study_eval.yaml"
     eval_path.write_text(
         """
@@ -274,8 +275,11 @@ cases:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="has_code.*boolean"):
-        load_study_eval_spec(eval_path)
+    spec = load_study_eval_spec(eval_path)
+
+    assert spec.cases[0].filters == [
+        FilterCondition(field="has_code", op="eq", value="true")
+    ]
 
 
 def test_evaluate_study_cases_runs_each_variant_with_same_scope(

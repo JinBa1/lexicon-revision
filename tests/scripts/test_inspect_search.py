@@ -221,6 +221,66 @@ def test_parse_args_supports_media_dir_and_no_rerank(
     assert args.rerank is False
 
 
+def test_parse_args_collects_repeatable_filter_conditions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "inspect_search.py",
+            "binary search trees",
+            "--filter",
+            "tripos_part:eq:II",
+            "--filter",
+            "year:gte:2020",
+        ],
+    )
+
+    args = parse_args()
+
+    assert args.filters == ["tripos_part:eq:II", "year:gte:2020"]
+
+
+def test_main_forwards_repeatable_filter_conditions(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    service = ToolTestFakeSearchService(_build_fake_response())
+    monkeypatch.setattr(
+        "scripts.inspect_search.create_real_search_service",
+        lambda media_dir, rerank, reranker_device=None: service,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "inspect_search.py",
+            "binary search trees",
+            "--collection",
+            "tool-test-collection",
+            "--filter",
+            "tripos_part:eq:II",
+            "--filter",
+            "year:gte:2020",
+            "--format",
+            "json",
+        ],
+    )
+
+    main()
+
+    parsed = json.loads(capsys.readouterr().out)
+    assert service.calls[0]["filters"] == [
+        FilterCondition(field="tripos_part", op="eq", value="II"),
+        FilterCondition(field="year", op="gte", value=2020),
+    ]
+    assert parsed["filters"] == [
+        {"field": "tripos_part", "op": "eq", "value": "II"},
+        {"field": "year", "op": "gte", "value": 2020},
+    ]
+
+
 def test_main_reports_missing_collection_without_traceback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
