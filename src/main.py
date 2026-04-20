@@ -20,6 +20,7 @@ from src.search.service import (
     DEFAULT_COLLECTION,
     RERANK_CANDIDATE_CAP,
     CollectionNotFoundError,
+    InvalidMetadataFilterError,
 )
 from src.storage import (
     LocalObjectStorage,
@@ -234,6 +235,8 @@ def create_app(
                 status_code=404,
                 detail=f"Collection '{exc.collection_name}' not found",
             ) from exc
+        except InvalidMetadataFilterError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.post("/study", response_model=StudyResponse)
     async def study(request: Request, payload: StudyRequest) -> StudyResponse:
@@ -243,7 +246,10 @@ def create_app(
                 status_code=503,
                 detail="Study service is not configured",
             )
-        return await service.orchestrate(payload)
+        try:
+            return await service.orchestrate(payload)
+        except InvalidMetadataFilterError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.get("/health")
     async def health(request: Request) -> dict[str, str]:

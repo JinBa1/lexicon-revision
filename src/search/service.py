@@ -64,6 +64,13 @@ class EmbeddingModelMismatchError(Exception):
         )
 
 
+class InvalidMetadataFilterError(Exception):
+    """Raised when filters are incompatible with a collection metadata schema."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 class SearchService:
     """Retrieve and rerank chunks from a ChromaDB collection."""
 

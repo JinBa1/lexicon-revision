@@ -18,7 +18,7 @@ import httpx
 import numpy as np
 import pytest
 from src.search.providers.base import EmbeddingResult
-from src.search.service import SearchService
+from src.search.service import InvalidMetadataFilterError, SearchService
 from src.storage.local import LocalObjectStorage
 
 EMBED_DIM = 8
@@ -52,6 +52,17 @@ class FakeEmbedder:
         if norm > 0:
             vec /= norm
         return vec
+
+
+class InvalidFilterSearchService:
+    embedding_model_id = "test-embedding"
+    rerank_model_id = None
+
+    def search(self, **kwargs):
+        del kwargs
+        raise InvalidMetadataFilterError(
+            "Filter field 'topic' is not declared in collection metadata schema"
+        )
 
 
 @pytest.fixture(scope="module")
@@ -345,3 +356,22 @@ async def test_search_rejects_limit_above_rerank_cap(app, seeded_chroma) -> None
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_search_invalid_metadata_filter_returns_422() -> None:
+    from src.main import create_app
+
+    app = create_app(search_service=InvalidFilterSearchService())
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get(
+            "/search",
+            params={"q": "algorithms", "collection": "fixture", "topic": "Trees"},
+        )
+
+    assert response.status_code == 422
+    assert "not declared in collection metadata schema" in response.json()["detail"]

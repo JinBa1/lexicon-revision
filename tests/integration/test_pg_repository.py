@@ -13,7 +13,7 @@ from src.metadata_schema import (
     load_collection_schema,
 )
 from src.search.pg_repository import PgIndexRepository, PgSearchRepository
-from src.search.service import CollectionNotFoundError
+from src.search.service import CollectionNotFoundError, InvalidMetadataFilterError
 
 pytestmark = pytest.mark.integration
 
@@ -188,7 +188,7 @@ def test_search_repository_rejects_invalid_collection_schema() -> None:
         )
 
     repo = PgSearchRepository(engine=engine)
-    with pytest.raises(ValueError, match="invalid metadata schema"):
+    with pytest.raises(InvalidMetadataFilterError, match="invalid metadata schema"):
         repo.search(
             collection_name="invalid-schema",
             query_vector=[1.0] + [0.0] * 7,
@@ -351,7 +351,10 @@ def test_search_repository_rejects_filter_field_absent_from_collection_schema() 
     )
 
     search_repo = PgSearchRepository(engine=engine)
-    with pytest.raises(ValueError, match="not declared in collection metadata schema"):
+    with pytest.raises(
+        InvalidMetadataFilterError,
+        match="not declared in collection metadata schema",
+    ):
         search_repo.search(
             collection_name="fixture-filter-validation",
             query_vector=[1.0] + [0.0] * 7,

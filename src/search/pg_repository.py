@@ -25,7 +25,11 @@ from src.chunking.models import Chunk
 from src.db.schema import chunk_embeddings, collections, papers
 from src.db.schema import chunks as chunks_table
 from src.metadata_schema import CollectionMetadataSchema, build_chunk_metadata
-from src.search.service import CollectionNotFoundError, EmbeddingModelMismatchError
+from src.search.service import (
+    CollectionNotFoundError,
+    EmbeddingModelMismatchError,
+    InvalidMetadataFilterError,
+)
 
 
 @dataclass(frozen=True)
@@ -256,7 +260,7 @@ class PgSearchRepository:
                 if key == "marks_min":
                     expression = _metadata_filter_expression(collection_schema, "marks")
                     if expression is None:
-                        raise ValueError(
+                        raise InvalidMetadataFilterError(
                             "Filter field 'marks' is not declared in collection "
                             f"metadata schema for '{collection_name}'"
                         )
@@ -268,7 +272,7 @@ class PgSearchRepository:
                     continue
                 expression = _metadata_filter_expression(collection_schema, key)
                 if expression is None:
-                    raise ValueError(
+                    raise InvalidMetadataFilterError(
                         f"Filter field '{key}' is not declared in collection "
                         f"metadata schema for '{collection_name}'"
                     )
@@ -357,13 +361,13 @@ def _load_collection_schema(
     raw_payload: Any,
 ) -> CollectionMetadataSchema:
     if not isinstance(raw_payload, dict) or not raw_payload:
-        raise ValueError(
+        raise InvalidMetadataFilterError(
             f"Collection '{collection_name}' has an invalid metadata schema"
         )
     try:
         return CollectionMetadataSchema.model_validate(raw_payload)
     except ValidationError as exc:
-        raise ValueError(
+        raise InvalidMetadataFilterError(
             f"Collection '{collection_name}' has an invalid metadata schema"
         ) from exc
 

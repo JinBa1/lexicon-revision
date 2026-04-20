@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 from src.search.models import SearchResponse, SearchResult
+from src.search.service import InvalidMetadataFilterError
 from src.study.config import StudySettings
 from src.study.models import (
     AnswerStatus,
@@ -91,6 +92,8 @@ class StudyService:
             )
             search_response = retrieval_result.search_response
             filters = retrieval_result.filters_applied
+        except InvalidMetadataFilterError:
+            raise
         except Exception:
             logger.exception(
                 "study_retrieval_failed",

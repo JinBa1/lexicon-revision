@@ -2,7 +2,17 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from src.search.service import InvalidMetadataFilterError
+from src.study.config import (
+    ContextSettings,
+    GenerationSettings,
+    PlanningSettings,
+    PromptSettings,
+    StudySettings,
+)
 from src.study.models import StudyResponse
+from src.study.planning.models import QueryPlan
+from src.study.service import StudyService
 
 
 class FakeStudyService:
@@ -79,6 +89,52 @@ class FakeSearchService:
         return "ok"
 
 
+class InvalidFilterQueryPlanner:
+    async def plan(self, raw_query, hard_filters):
+        del hard_filters
+        return QueryPlan(
+            original_query=raw_query,
+            semantic_queries=[raw_query],
+        )
+
+
+class InvalidFilterPlannedRetrieval:
+    def retrieve(
+        self,
+        plan,
+        *,
+        hard_filters,
+        collection,
+        limit,
+        rerank=True,
+    ):
+        del plan, hard_filters, collection, limit, rerank
+        raise InvalidMetadataFilterError(
+            "Filter field 'topic' is not declared in collection metadata schema"
+        )
+
+
+def _study_settings() -> StudySettings:
+    return StudySettings(
+        generation=GenerationSettings(
+            request_timeout_seconds=5,
+            total_generation_deadline_seconds=10,
+            schema_repair_retries=1,
+        ),
+        context=ContextSettings(budget_tokens=4000, max_single_chunk_tokens=1200),
+        prompt=PromptSettings(
+            version="study_aid_v2",
+            path="prompts/study_aid_v2.yaml",
+        ),
+        planning=PlanningSettings(
+            request_timeout_seconds=5,
+            total_planning_deadline_seconds=10,
+            prompt_version="query_planner_v1",
+            prompt_path="prompts/query_planner_v1.yaml",
+        ),
+    )
+
+
 @pytest.mark.anyio
 async def test_post_study_returns_response() -> None:
     study_service = FakeStudyService()
@@ -107,6 +163,38 @@ async def test_post_study_returns_response() -> None:
     assert response.json()["schema_version"] == "study_answer_v2"
     assert "planning" in response.json()
     assert study_service.requests[0].query == "dynamic programming"
+
+
+@pytest.mark.anyio
+async def test_post_study_invalid_metadata_filter_returns_422() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=StudyService(
+            query_planner=InvalidFilterQueryPlanner(),
+            planned_retrieval=InvalidFilterPlannedRetrieval(),
+            provider=FakeProvider(),
+            settings=_study_settings(),
+        ),
+        generation_provider=FakeProvider(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "trees",
+                "scope": {"collection": "fixture"},
+                "filters": {"topic": "Trees"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "not declared in collection metadata schema" in response.json()["detail"]
 
 
 @pytest.mark.anyio
