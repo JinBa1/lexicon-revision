@@ -255,16 +255,24 @@ class PgSearchRepository:
                     continue
                 if key == "marks_min":
                     expression = _metadata_filter_expression(collection_schema, "marks")
-                    if expression is not None:
-                        conditions.append(expression >= value)
+                    if expression is None:
+                        raise ValueError(
+                            "Filter field 'marks' is not declared in collection "
+                            f"metadata schema for '{collection_name}'"
+                        )
+                    conditions.append(expression >= value)
                     continue
                 direct_column = _DIRECT_FILTER_COLUMNS.get(key)
                 if direct_column is not None:
                     conditions.append(direct_column == value)
                     continue
                 expression = _metadata_filter_expression(collection_schema, key)
-                if expression is not None:
-                    conditions.append(expression == value)
+                if expression is None:
+                    raise ValueError(
+                        f"Filter field '{key}' is not declared in collection "
+                        f"metadata schema for '{collection_name}'"
+                    )
+                conditions.append(expression == value)
 
             stmt = (
                 select(

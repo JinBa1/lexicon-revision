@@ -41,6 +41,7 @@ def ensure_metadata_indexes(
         if collection_id is None:
             raise ValueError(f"Collection '{collection_name}' does not exist")
         for field in schema.fields:
+            conn.execute(text(_drop_index_sql(collection_name, field)))
             conn.execute(text(_field_index_sql(collection_name, field, collection_id)))
 
 
@@ -57,9 +58,14 @@ def _field_index_sql(
     else:
         expression = f"(metadata ->> '{field.key}')"
     return (
-        f"create index if not exists {index_name} on chunks ({expression}) "
+        f"create index {index_name} on chunks ({expression}) "
         f"where collection_id = {_sql_string_literal(collection_id)}"
     )
+
+
+def _drop_index_sql(collection_name: str, field: MetadataField) -> str:
+    index_name = metadata_field_index_name(collection_name, field.key, field.type)
+    return f"drop index if exists {index_name}"
 
 
 def _collection_name_prefix(collection_name: str) -> str:

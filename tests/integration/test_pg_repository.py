@@ -331,6 +331,37 @@ def test_search_repository_filters_using_canonical_chunk_metadata() -> None:
     assert all(result.metadata["has_code"] is True for result in results)
 
 
+def test_search_repository_rejects_filter_field_absent_from_collection_schema() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")
+    vectors = _vectors(1, 8)
+    schema = _schema_with_field(key="year", field_type="integer")
+
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-filter-validation")
+    repo.index_chunks(
+        collection_name="fixture-filter-validation",
+        chunks=chunks[:1],
+        vectors=vectors,
+        metadata_schema=schema,
+    )
+
+    search_repo = PgSearchRepository(engine=engine)
+    with pytest.raises(ValueError, match="not declared in collection metadata schema"):
+        search_repo.search(
+            collection_name="fixture-filter-validation",
+            query_vector=[1.0] + [0.0] * 7,
+            embedding_model_id="fake-v1",
+            embedding_dimension=8,
+            filters={"topic": "Algorithms"},
+            limit=10,
+        )
+
+
 def test_index_repository_allows_same_chunk_ids_in_multiple_collections() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
@@ -463,3 +494,78 @@ def test_metadata_indexes_are_collection_scoped_for_conflicting_schemas() -> Non
     assert any("::integer" in row.indexdef for row in matching_indexes)
     assert any("->> 'difficulty'" in row.indexdef for row in matching_indexes)
     assert all(" where " in row.indexdef.lower() for row in matching_indexes)
+
+
+def test_metadata_indexes_rebuild_for_recreated_collection_name() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    schema = _schema()
+
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-recreate-indexes")
+    repo.index_chunks(
+        collection_name="fixture-recreate-indexes",
+        chunks=chunks,
+        vectors=_vectors(1, 8),
+        metadata_schema=schema,
+    )
+    ensure_metadata_indexes(
+        engine,
+        collection_name="fixture-recreate-indexes",
+        schema=schema,
+    )
+
+    with engine.connect() as conn:
+        first_collection_id = conn.execute(
+            text("select id from collections where name = 'fixture-recreate-indexes'")
+        ).scalar_one()
+
+    repo.recreate_collection("fixture-recreate-indexes")
+    repo.index_chunks(
+        collection_name="fixture-recreate-indexes",
+        chunks=chunks,
+        vectors=_vectors(1, 8),
+        metadata_schema=schema,
+    )
+    ensure_metadata_indexes(
+        engine,
+        collection_name="fixture-recreate-indexes",
+        schema=schema,
+    )
+
+    with engine.connect() as conn:
+        second_collection_id = conn.execute(
+            text("select id from collections where name = 'fixture-recreate-indexes'")
+        ).scalar_one()
+        year_index_name = conn.execute(
+            text(
+                """
+                select indexname
+                from pg_indexes
+                where schemaname = current_schema()
+                  and tablename = 'chunks'
+                  and indexdef like '%->> ''year''%'
+                  and indexname like 'ix_chunks_metadata_fixture_recreate_indexe_%'
+                """
+            )
+        ).scalar_one()
+        year_index_def = conn.execute(
+            text(
+                """
+                select indexdef
+                from pg_indexes
+                where schemaname = current_schema()
+                  and tablename = 'chunks'
+                  and indexname = :index_name
+                """
+            ),
+            {"index_name": year_index_name},
+        ).scalar_one()
+
+    assert first_collection_id != second_collection_id
+    assert second_collection_id in year_index_def
+    assert first_collection_id not in year_index_def
