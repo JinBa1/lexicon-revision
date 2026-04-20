@@ -13,7 +13,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.search_tooling import build_filters, truncate_text  # noqa: E402
+from scripts.search_tooling import (  # noqa: E402
+    build_filters,
+    dump_filters,
+    parse_filter_conditions,
+    truncate_text,
+)
 from src.db.config import load_database_settings  # noqa: E402
 from src.metadata_schema.models import FilterCondition  # noqa: E402
 from src.search.base import SearchBackend  # noqa: E402
@@ -46,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--collection",
         default=DEFAULT_COLLECTION,
-        help=f"ChromaDB collection name (default: {DEFAULT_COLLECTION})",
+        help=f"Search collection name (default: {DEFAULT_COLLECTION})",
     )
     parser.add_argument(
         "--limit",
@@ -91,6 +96,13 @@ def parse_args() -> argparse.Namespace:
         "--has-table",
         action="store_true",
         help="Filter for chunks with tables",
+    )
+    parser.add_argument(
+        "--filter",
+        dest="filters",
+        action="append",
+        default=[],
+        help="Repeatable filter in field:op:value form, e.g. year:eq:2024",
     )
     parser.add_argument(
         "--show-media",
@@ -173,7 +185,7 @@ def build_search_payload(
     payload = response.model_dump()
     payload.update(
         {
-            "filters": [item.model_dump() for item in filters],
+            "filters": dump_filters(filters),
             "limit": limit,
             "providers": build_provider_metadata(service),
             "rerank": rerank,
@@ -249,7 +261,7 @@ def render_text(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_filters(filters: dict[str, Any]) -> str:
+def _format_filters(filters: list[dict[str, Any]]) -> str:
     if not filters:
         return "none"
     return "; ".join(
@@ -278,6 +290,7 @@ def main() -> None:
         has_figure=True if args.has_figure else None,
         has_table=True if args.has_table else None,
     )
+    filters.extend(parse_filter_conditions(args.filters))
 
     try:
         service = create_real_search_service(

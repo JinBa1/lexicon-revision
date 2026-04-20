@@ -17,6 +17,7 @@ from scripts.search_tooling import (
     build_filters,
     load_eval_spec,
     load_media_map,
+    parse_filter_conditions,
     truncate_text,
 )
 from src.metadata_schema.models import FilterCondition
@@ -75,9 +76,19 @@ def test_build_filters_maps_question_to_question_number() -> None:
     ]
 
 
-def test_load_eval_spec_normalizes_question_filter_to_question_number(
-    tmp_path: Path,
-) -> None:
+def test_parse_filter_conditions_supports_repeated_range_filters() -> None:
+    filters = parse_filter_conditions(
+        ["year:gte:2020", "year:lte:2024", "has_code:eq:true"]
+    )
+
+    assert filters == [
+        FilterCondition(field="year", op="gte", value=2020),
+        FilterCondition(field="year", op="lte", value=2024),
+        FilterCondition(field="has_code", op="eq", value=True),
+    ]
+
+
+def test_load_eval_spec_accepts_filter_condition_list(tmp_path: Path) -> None:
     """Infrastructure test for eval schema validation only."""
     eval_path = tmp_path / "eval.yaml"
     eval_path.write_text(
@@ -87,8 +98,12 @@ cases:
   - id: case-1
     query: algorithms practice
     filters:
-      question: 3
-      paper: 1
+      - field: question_number
+        op: eq
+        value: 3
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_topics:
         - Algorithms
@@ -98,32 +113,10 @@ cases:
 
     spec = load_eval_spec(eval_path)
 
-    assert spec.cases[0].filters == {"question_number": 3, "paper": 1}
-
-
-def test_load_eval_spec_rejects_question_and_question_number_conflict(
-    tmp_path: Path,
-) -> None:
-    """Infrastructure test for eval schema validation only."""
-    eval_path = tmp_path / "eval.yaml"
-    eval_path.write_text(
-        """
-name: tool_test
-cases:
-  - id: case-1
-    query: algorithms practice
-    filters:
-      question: 3
-      question_number: 4
-    expected:
-      any_topics:
-        - Algorithms
-""",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="question.*question_number"):
-        load_eval_spec(eval_path)
+    assert spec.cases[0].filters == [
+        FilterCondition(field="question_number", op="eq", value=3),
+        FilterCondition(field="paper", op="eq", value=1),
+    ]
 
 
 def test_load_media_map_returns_empty_for_missing_file(tmp_path: Path) -> None:
@@ -192,7 +185,9 @@ cases:
   - id: case-1
     query: algorithms practice
     filters:
-      paper: 1
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_topics:
         - Algorithms
@@ -208,7 +203,7 @@ cases:
     assert spec.cases[0] == EvalCase(
         id="case-1",
         query="algorithms practice",
-        filters={"paper": 1},
+        filters=[FilterCondition(field="paper", op="eq", value=1)],
         any_chunk_ids=[],
         any_topics=["Algorithms"],
         top_k=3,
@@ -251,9 +246,7 @@ name: tool_test
 cases:
   - id: case-1
     query: algorithms practice
-    filters:
-      paper: null
-      has_code: null
+    filters: null
     expected:
       any_topics:
         - Algorithms
@@ -263,7 +256,7 @@ cases:
 
     spec = load_eval_spec(eval_path)
 
-    assert spec.cases[0].filters == {}
+    assert spec.cases[0].filters == []
 
 
 @pytest.mark.parametrize(
@@ -432,7 +425,7 @@ def test_load_eval_spec_validates_optional_string_fields(
                 "filters": ["not", "a", "mapping"],
                 "expected": {"any_chunk_ids": ["c"]},
             },
-            "filters must be a mapping",
+            "filters must be a list",
         ),
         (
             {
@@ -441,13 +434,13 @@ def test_load_eval_spec_validates_optional_string_fields(
                 "filters": False,
                 "expected": {"any_chunk_ids": ["c"]},
             },
-            "filters must be a mapping",
+            "filters must be a list",
         ),
         (
             {
                 "id": "case-1",
                 "query": "question",
-                "filters": {"unknown": True},
+                "filters": [{"field": "unknown", "op": "eq", "value": True}],
                 "expected": {"any_chunk_ids": ["c"]},
             },
             "unsupported filters",
@@ -456,7 +449,7 @@ def test_load_eval_spec_validates_optional_string_fields(
             {
                 "id": "case-1",
                 "query": "question",
-                "filters": {"paper": False},
+                "filters": [{"field": "paper", "op": "eq", "value": False}],
                 "expected": {"any_chunk_ids": ["c"]},
             },
             "filter 'paper'",
@@ -465,7 +458,7 @@ def test_load_eval_spec_validates_optional_string_fields(
             {
                 "id": "case-1",
                 "query": "question",
-                "filters": {"year": True},
+                "filters": [{"field": "year", "op": "eq", "value": True}],
                 "expected": {"any_chunk_ids": ["c"]},
             },
             "filter 'year'",
@@ -474,16 +467,16 @@ def test_load_eval_spec_validates_optional_string_fields(
             {
                 "id": "case-1",
                 "query": "question",
-                "filters": {"marks_min": False},
+                "filters": [{"field": "marks", "op": "gte", "value": False}],
                 "expected": {"any_chunk_ids": ["c"]},
             },
-            "filter 'marks_min'",
+            "filter 'marks'",
         ),
         (
             {
                 "id": "case-1",
                 "query": "question",
-                "filters": {"topic": ""},
+                "filters": [{"field": "topic", "op": "eq", "value": ""}],
                 "expected": {"any_chunk_ids": ["c"]},
             },
             "filter 'topic'",
@@ -492,7 +485,7 @@ def test_load_eval_spec_validates_optional_string_fields(
             {
                 "id": "case-1",
                 "query": "question",
-                "filters": {"has_code": "false"},
+                "filters": [{"field": "has_code", "op": "eq", "value": "false"}],
                 "expected": {"any_chunk_ids": ["c"]},
             },
             "filter 'has_code'",

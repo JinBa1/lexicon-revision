@@ -1,4 +1,4 @@
-"""Run human-authored YAML search evals against local Chroma search."""
+"""Run human-authored YAML search evals against the local search backend."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from scripts.inspect_search import (  # noqa: E402
 )
 from scripts.search_tooling import (  # noqa: E402
     EvalCase,
-    build_filters,
+    dump_filters,
     load_eval_spec,
     truncate_text,
 )
@@ -164,7 +164,7 @@ def _evaluate_case(
     response = service.search(
         query=case.query,
         collection=collection,
-        filters=build_filters(**_legacy_filter_kwargs(case.filters)) or None,
+        filters=case.filters,
         limit=limit,
         rerank=rerank,
     )
@@ -185,7 +185,7 @@ def _evaluate_case(
     return {
         "id": case.id,
         "query": case.query,
-        "filters": case.filters,
+        "filters": dump_filters(case.filters),
         "expected": {
             "any_chunk_ids": case.any_chunk_ids,
             "any_topics": case.any_topics,
@@ -209,15 +209,6 @@ def _find_matched_rank(results: list[Any], case: EvalCase) -> int | None:
         if isinstance(topic, str) and topic in expected_topics:
             return rank
     return None
-
-
-def _legacy_filter_kwargs(filters: dict[str, Any]) -> dict[str, Any]:
-    kwargs = dict(filters)
-    if "question_number" in kwargs:
-        kwargs["question"] = kwargs.pop("question_number")
-    if "marks" in kwargs:
-        kwargs["marks_min"] = kwargs.pop("marks")
-    return kwargs
 
 
 def render_json(report: dict[str, Any]) -> str:
@@ -252,7 +243,7 @@ def render_text(report: dict[str, Any]) -> str:
             [
                 f"- {case['id']} [{status}] matched_rank={matched_rank} top_k={top_k}",
                 f"  query: {case['query']}",
-                f"  filters: {_format_mapping(case['filters'])}",
+                f"  filters: {_format_filters(case['filters'])}",
                 f"  expected: {_format_expected(case['expected'])}",
             ]
         )
@@ -279,10 +270,13 @@ def render_text(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_mapping(mapping: dict[str, Any]) -> str:
-    if not mapping:
+def _format_filters(filters: list[dict[str, Any]]) -> str:
+    if not filters:
         return "none"
-    return " ".join(f"{key}={_format_scalar(value)}" for key, value in mapping.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {_format_scalar(item['value'])}"
+        for item in filters
+    )
 
 
 def _format_expected(expected: dict[str, Any]) -> str:

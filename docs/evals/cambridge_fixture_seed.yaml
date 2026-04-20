@@ -8,7 +8,7 @@ default_top_k: 5
 cases:
   - id: algorithms-practice
     query: practice questions about algorithms and data structures
-    filters: {}
+    filters: []
     expected:
       any_topics:
         - Foundations of Computer Science

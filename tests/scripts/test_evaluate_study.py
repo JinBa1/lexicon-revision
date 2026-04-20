@@ -19,6 +19,7 @@ from scripts.evaluate_study import (
     render_json,
     render_markdown,
 )
+from src.metadata_schema.models import FilterCondition
 from src.study.models import (
     GenerationMetadata,
     RetrievalMetadata,
@@ -103,13 +104,16 @@ def _response(
         sources=[
             StudySource(
                 chunk_id=chunk_id,
-                year=2025,
-                paper=1,
-                question_ref="Q1",
                 chunk_level="question",
-                topic="Algorithms",
+                parent_chunk_id=None,
                 score=0.91,
                 excerpt=f"{chunk_id} excerpt text",
+                metadata={
+                    "year": 2025,
+                    "paper": 1,
+                    "question_number": 1,
+                    "topic": "Algorithms",
+                },
                 why_cited="Relevant source.",
             )
             for chunk_id in source_ids
@@ -122,7 +126,7 @@ def _response(
             context_chunk_ids=context_chunk_ids,
             omitted_chunk_ids=[],
             truncated_chunk_ids=[],
-            filters_applied={},
+            filters_applied=[],
             rerank=True,
         ),
         planning=planning
@@ -158,7 +162,9 @@ cases:
   - id: broad-dp
     purpose: Probe direct-topic versus method-required wording.
     filters:
-      paper: 1
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_chunk_ids:
         - cam-2024-p1-q7-e
@@ -178,7 +184,7 @@ cases:
     assert spec.name == "study_probe"
     assert spec.collection == "cam-cs-tripos-fixture"
     assert spec.default_top_k == 12
-    assert spec.cases[0].filters == {"paper": 1}
+    assert spec.cases[0].filters == [FilterCondition(field="paper", op="eq", value=1)]
     assert spec.cases[0].any_chunk_ids == ["cam-2024-p1-q7-e"]
     assert [variant.id for variant in spec.cases[0].variants] == ["on", "requires"]
     assert spec.cases[0].variants[1].query == (
@@ -198,7 +204,9 @@ collection: cam-cs-tripos-fixture
 cases:
   - id: surface-code-oop
     filters:
-      has_code: true
+      - field: has_code
+        op: eq
+        value: true
     expected:
       any_chunk_ids:
         - cam-2024-p1-q4
@@ -211,7 +219,9 @@ cases:
 
     spec = load_study_eval_spec(eval_path)
 
-    assert spec.cases[0].filters == {"has_code": True}
+    assert spec.cases[0].filters == [
+        FilterCondition(field="has_code", op="eq", value=True)
+    ]
     assert spec.cases[0].variants[0].id == "on"
 
 
@@ -254,7 +264,9 @@ cases:
   - id: bad-filter
     query: class hierarchy code example
     filters:
-      has_code: "true"
+      - field: has_code
+        op: eq
+        value: "true"
     expected:
       any_chunk_ids:
         - cam-2024-p1-q4
@@ -281,7 +293,13 @@ def test_evaluate_study_cases_runs_each_variant_with_same_scope(
                 "cases": [
                     {
                         "id": "broad-dp",
-                        "filters": {"paper": 1},
+                        "filters": [
+                            {
+                                "field": "paper",
+                                "op": "eq",
+                                "value": 1,
+                            }
+                        ],
                         "expected": {"any_chunk_ids": ["chunk-1"]},
                         "variants": [
                             {"id": "on", "query": "questions on dp"},
@@ -323,8 +341,7 @@ def test_evaluate_study_cases_runs_each_variant_with_same_scope(
     ]
     assert all(call.scope.collection == collection for call in service.calls)
     assert all(
-        (call.filters.model_dump(exclude_none=True) if call.filters else {})
-        == {"paper": 1}
+        (call.filters or []) == [FilterCondition(field="paper", op="eq", value=1)]
         for call in service.calls
     )
     assert all(call.top_k == 9 for call in service.calls)
@@ -511,7 +528,7 @@ def test_render_markdown_accepts_inspect_study_generation_shape() -> None:
             {
                 "id": "case-1",
                 "purpose": None,
-                "filters": {},
+                "filters": [],
                 "expected": {"any_chunk_ids": [], "any_topics": []},
                 "variants": [
                     {

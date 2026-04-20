@@ -19,7 +19,11 @@ from scripts.inspect_search import (  # noqa: E402
     build_provider_metadata,
     create_real_search_service,
 )
-from scripts.search_tooling import truncate_text  # noqa: E402
+from scripts.search_tooling import (  # noqa: E402
+    build_filters,
+    dump_filters,
+    truncate_text,
+)
 from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
     DEFAULT_MEDIA_DIR,
@@ -274,7 +278,7 @@ def build_payload(
     *,
     query: str,
     collection: str,
-    filters: dict[str, Any],
+    filters: list[dict[str, Any]] | list[Any],
     top_k: int,
     response: StudyResponse,
     interactions: list[_RecordedInteraction],
@@ -318,7 +322,11 @@ def build_payload(
     return {
         "query": query,
         "collection": collection,
-        "filters": filters,
+        "filters": (
+            filters
+            if not filters or isinstance(filters[0], dict)
+            else dump_filters(filters)  # type: ignore[arg-type]
+        ),
         "top_k": top_k,
         "retrieval": {
             "status": retrieval["status"],
@@ -524,29 +532,27 @@ def render_text(
     return "\n".join(lines)
 
 
-def _format_mapping(mapping: dict[str, Any]) -> str:
-    if not mapping:
+def _format_mapping(filters: list[dict[str, Any]]) -> str:
+    if not filters:
         return "none"
-    return " ".join(f"{key}={value}" for key, value in mapping.items())
+    return "; ".join(
+        f"{item['field']} {item['op']} {item['value']}" for item in filters
+    )
 
 
 def main() -> None:
     """Run the local study inspection CLI."""
     args = parse_args()
-    filters: dict[str, Any] = {
-        key: value
-        for key, value in {
-            "year": args.year,
-            "paper": args.paper,
-            "topic": args.topic,
-            "question_number": args.question,
-            "marks_min": args.marks_min,
-            "has_code": True if args.has_code else None,
-            "has_figure": True if args.has_figure else None,
-            "has_table": True if args.has_table else None,
-        }.items()
-        if value is not None
-    }
+    filters = build_filters(
+        year=args.year,
+        paper=args.paper,
+        topic=args.topic,
+        question=args.question,
+        marks_min=args.marks_min,
+        has_code=True if args.has_code else None,
+        has_figure=True if args.has_figure else None,
+        has_table=True if args.has_table else None,
+    )
 
     try:
         settings = (
@@ -588,7 +594,7 @@ def main() -> None:
         request = StudyRequest(
             query=args.query,
             scope=StudyScope(collection=args.collection),
-            filters=filters or None,
+            filters=filters,
             top_k=top_k,
         )
         response = asyncio.run(_run_orchestration(study_service, provider, request))

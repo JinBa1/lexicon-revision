@@ -11,8 +11,9 @@ from scripts.evaluate_planned_search import (
     parse_args,
     render_report,
 )
+from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse, SearchResult
-from src.study.planning.models import QueryPlan, StudyFilters
+from src.study.planning.models import QueryPlan
 
 
 class _FakeSearchService:
@@ -36,7 +37,7 @@ class _FakePlanner:
     async def plan(
         self,
         raw_query: str,
-        hard_filters: StudyFilters | None,
+        hard_filters: list[FilterCondition] | None,
     ) -> QueryPlan:
         self.calls.append({"raw_query": raw_query, "hard_filters": hard_filters})
         outcome = self.plans[raw_query]
@@ -68,6 +69,10 @@ name: planner_ab
 collection: cam
 cases:
   - id: concept-vm
+    filters:
+      - field: paper
+        op: eq
+        value: 2
     expected:
       any_chunk_ids:
         - chunk-1
@@ -85,6 +90,7 @@ cases:
     assert spec.name == "planner_ab"
     assert spec.collection == "cam"
     assert spec.cases[0].id == "concept-vm"
+    assert spec.cases[0].filters == [FilterCondition(field="paper", op="eq", value=2)]
     assert spec.cases[0].any_chunk_ids == ["chunk-1"]
     assert spec.cases[0].any_topics == ["Operating Systems"]
     assert spec.cases[0].variants[0].query == "vm paging PTE stuff"
@@ -171,6 +177,7 @@ cases:
     }
     assert report["aggregate"]["fallback_rate"] == pytest.approx(0.5)
     assert report["aggregate"]["hit_delta_sum"] == 0
+    assert planner.calls[0]["hard_filters"] == []
 
 
 @pytest.mark.anyio
@@ -285,6 +292,10 @@ name: planner_ab
 collection: cam
 cases:
   - id: case-a
+    filters:
+      - field: year
+        op: eq
+        value: 2025
     expected:
       any_chunk_ids:
         - wanted
@@ -332,6 +343,9 @@ cases:
 
     assert search.calls, "expected search_service.search to be invoked"
     assert all(call["rerank"] is False for call in search.calls)
+    assert search.calls[0]["filters"] == [
+        FilterCondition(field="year", op="eq", value=2025)
+    ]
 
 
 def test_render_report_summarizes_aggregate_and_cases() -> None:

@@ -19,7 +19,9 @@ cases:
   - id: binary-search-tree-practice
     query: practice questions about binary search trees and lookup complexity
     filters:
-      paper: 1
+      - field: paper
+        op: eq
+        value: 1
     expected:
       any_chunk_ids:
         - cam-2025-p1-q1
@@ -56,15 +58,33 @@ Supported filters are:
 - `year`
 - `paper`
 - `topic`
-- `question`
 - `question_number`
-- `marks_min`
+- `marks`
 - `has_code`
 - `has_figure`
 - `has_table`
 
-`question` is the preferred human-facing spelling. It is normalized to
-`question_number` before running search. Do not provide both in the same case.
+Each `filters` entry is a `field` / `op` / `value` object. Repeat the same
+field when you need ranges or compound constraints.
+
+Canonical example:
+
+```yaml
+cases:
+  - id: algorithms-year-filter
+    query: binary search trees
+    filters:
+      - field: year
+        op: eq
+        value: 2024
+      - field: has_code
+        op: eq
+        value: false
+    expected:
+      any_chunk_ids:
+        - cam-2024-p2-q5
+      top_k: 5
+```
 
 ## Pass Criteria
 

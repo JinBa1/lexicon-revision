@@ -15,18 +15,21 @@ SUPPORTED_FILTER_KEYS = {
     "paper",
     "topic",
     "question_number",
-    "marks_min",
+    "marks",
     "has_code",
     "has_figure",
     "has_table",
 }
+_INTEGER_FILTER_FIELDS = {"year", "paper", "question_number", "marks"}
+_BOOLEAN_FILTER_FIELDS = {"has_code", "has_figure", "has_table"}
+_STRING_FILTER_FIELDS = {"topic"}
 
 
 @dataclass(frozen=True)
 class EvalCase:
     id: str
     query: str
-    filters: dict[str, Any]
+    filters: list[FilterCondition]
     any_chunk_ids: list[str]
     any_topics: list[str]
     top_k: int
@@ -69,7 +72,7 @@ def build_filters(
         "paper": paper,
         "topic": topic,
         "question_number": question,
-        "marks_min": marks_min,
+        "marks": marks_min,
         "has_code": has_code,
         "has_figure": has_figure,
         "has_table": has_table,
@@ -78,11 +81,35 @@ def build_filters(
     for key, value in raw_filters.items():
         if value is None:
             continue
-        if key == "marks_min":
+        if key == "marks":
             filters.append(FilterCondition(field="marks", op="gte", value=value))
             continue
         filters.append(FilterCondition(field=key, op="eq", value=value))
     return filters
+
+
+def parse_filter_conditions(raw_filters: list[str]) -> list[FilterCondition]:
+    """Parse repeatable CLI filters of the form field:op:value."""
+    parsed: list[FilterCondition] = []
+    for raw_filter in raw_filters:
+        parts = raw_filter.split(":", 2)
+        if len(parts) != 3:
+            raise ValueError(
+                f"CLI filters must use field:op:value form, got {raw_filter!r}"
+            )
+        field, op, raw_value = parts
+        condition = FilterCondition(
+            field=field,
+            op=op,
+            value=_parse_scalar(raw_value),
+        )
+        _validate_filter_condition(condition, context=f"CLI filter {raw_filter!r}")
+        parsed.append(condition)
+    return parsed
+
+
+def dump_filters(filters: list[FilterCondition]) -> list[dict[str, Any]]:
+    return [item.model_dump(mode="json") for item in filters]
 
 
 def load_media_map(
@@ -141,16 +168,10 @@ def _parse_case(raw_case: Any, default_top_k: int) -> EvalCase:
             f"Eval case '{case_id}' requires non-empty string field 'query'"
         )
 
-    if "filters" not in raw_case or raw_case["filters"] is None:
-        filters = {}
-    else:
-        filters = raw_case["filters"]
-    if not isinstance(filters, dict):
-        raise ValueError(f"Eval case '{case_id}' filters must be a mapping")
-    unknown_filters = set(filters) - (SUPPORTED_FILTER_KEYS | {"question"})
-    if unknown_filters:
-        unknown = ", ".join(sorted(unknown_filters))
-        raise ValueError(f"Eval case '{case_id}' has unsupported filters: {unknown}")
+    filters = parse_authored_filters(
+        raw_case.get("filters"),
+        context=f"Eval case '{case_id}'",
+    )
 
     expected = raw_case.get("expected")
     if not isinstance(expected, dict):
@@ -189,7 +210,6 @@ def _parse_case(raw_case: Any, default_top_k: int) -> EvalCase:
             notes, f"Eval case '{case_id}' notes"
         )
 
-    filters = _parse_case_filters(case_id, filters)
     return EvalCase(
         id=case_id,
         query=query,
@@ -209,40 +229,61 @@ def _parse_optional_string_field(value: Any, field_name: str) -> str | None:
     return value
 
 
-def _parse_case_filters(case_id: str, filters: dict[str, Any]) -> dict[str, Any]:
-    if "question" in filters and "question_number" in filters:
-        raise ValueError(
-            f"Eval case '{case_id}' cannot set both 'question' and 'question_number'"
-        )
+def parse_authored_filters(
+    raw_filters: Any,
+    *,
+    context: str,
+) -> list[FilterCondition]:
+    if raw_filters is None:
+        return []
+    if not isinstance(raw_filters, list):
+        raise ValueError(f"{context} filters must be a list")
 
-    parsed_filters: dict[str, Any] = {}
-    for filter_name, value in filters.items():
-        if value is None:
-            continue
-        normalized_name = (
-            "question_number" if filter_name == "question" else filter_name
-        )
-        if normalized_name in {"year", "paper", "question_number", "marks_min"}:
-            if type(value) is not int:
-                raise ValueError(
-                    f"Eval case '{case_id}' filter '{normalized_name}' must be an "
-                    "integer"
-                )
-        elif normalized_name in {"has_code", "has_figure", "has_table"}:
-            if type(value) is not bool:
-                raise ValueError(
-                    f"Eval case '{case_id}' filter '{normalized_name}' must be a "
-                    "boolean"
-                )
-        elif normalized_name == "topic":
-            if type(value) is not str or not value:
-                raise ValueError(
-                    f"Eval case '{case_id}' filter '{normalized_name}' "
-                    "must be a non-empty string"
-                )
-        else:
+    parsed: list[FilterCondition] = []
+    for index, raw_filter in enumerate(raw_filters, start=1):
+        if not isinstance(raw_filter, dict):
+            raise ValueError(f"{context} filters must be a list of mappings")
+        try:
+            condition = FilterCondition.model_validate(raw_filter)
+        except Exception as exc:
             raise ValueError(
-                f"Eval case '{case_id}' has unsupported filters: {filter_name}"
-            )
-        parsed_filters[normalized_name] = value
-    return parsed_filters
+                f"{context} filter #{index} must define field/op/value"
+            ) from exc
+        _validate_filter_condition(condition, context=f"{context} filter #{index}")
+        parsed.append(condition)
+    return parsed
+
+
+def _validate_filter_condition(condition: FilterCondition, *, context: str) -> None:
+    field = condition.field
+    value = condition.value
+
+    if field not in SUPPORTED_FILTER_KEYS:
+        raise ValueError(f"{context} has unsupported filters: {field}")
+
+    if field in _INTEGER_FILTER_FIELDS:
+        if type(value) is not int:
+            raise ValueError(f"{context} filter '{field}' must be an integer")
+        return
+    if field in _BOOLEAN_FILTER_FIELDS:
+        if type(value) is not bool:
+            raise ValueError(f"{context} filter '{field}' must be a boolean")
+        return
+    if field in _STRING_FILTER_FIELDS:
+        if type(value) is not str or not value:
+            raise ValueError(f"{context} filter '{field}' must be a non-empty string")
+        return
+
+    raise ValueError(f"{context} has unsupported filters: {field}")
+
+
+def _parse_scalar(raw_value: str) -> Any:
+    lowered = raw_value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    try:
+        return int(raw_value)
+    except ValueError:
+        return raw_value

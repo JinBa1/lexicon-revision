@@ -9,8 +9,12 @@ cases:
   - id: pinpoint-databases
     purpose: Strips year/paper locators; preserves "databases" as domain term.
     filters:
-      year: 2025
-      paper: 3
+      - field: year
+        op: eq
+        value: 2025
+      - field: paper
+        op: eq
+        value: 3
     expected:
       any_chunk_ids:
         - cam-2025-p3-q1-c
@@ -23,7 +27,9 @@ cases:
   - id: surface-code-oop
     purpose: Strips has_code surface flag; keeps OOP expansion.
     filters:
-      has_code: true
+      - field: has_code
+        op: eq
+        value: true
     expected:
       any_chunk_ids:
         - cam-2024-p1-q4
@@ -34,7 +40,9 @@ cases:
   - id: scoped-discrete-maths
     purpose: Strips paper locator; expands abbreviation.
     filters:
-      paper: 2
+      - field: paper
+        op: eq
+        value: 2
     expected:
       any_topics:
         - Discrete Mathematics
@@ -56,7 +64,9 @@ cases:
   - id: topic-pair-databases-with-filter
     purpose: Topic filter set — planner may de-emphasize "databases" label.
     filters:
-      topic: Databases
+      - field: topic
+        op: eq
+        value: Databases
     expected:
       any_chunk_ids:
         - cam-2025-p3-q1-c
