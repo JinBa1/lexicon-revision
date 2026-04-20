@@ -8,6 +8,7 @@ import pytest
 from scripts.evaluate_planned_search import (
     compare_cases,
     load_messy_eval_spec,
+    main,
     parse_args,
     render_report,
 )
@@ -379,6 +380,39 @@ def test_render_report_summarizes_aggregate_and_cases() -> None:
     assert "hit_delta_sum=1" in rendered
     assert "ok-case/messy" in rendered
     assert "planned hit=True" in rendered
+
+
+def test_main_reports_invalid_authored_filter_without_traceback(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    eval_path = _write(
+        tmp_path,
+        """
+name: planner_ab
+collection: cam
+cases:
+  - id: bad-filter
+    filters:
+      - field: year
+        op: gte
+        value: "2024"
+    expected:
+      any_chunk_ids:
+        - wanted
+    variants:
+      - id: messy
+        query: messy one
+""",
+    )
+    monkeypatch.setattr(sys, "argv", ["evaluate_planned_search.py", str(eval_path)])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 1
+    assert "Planner eval case 'bad-filter' filter #1" in capsys.readouterr().err
 
 
 def _write(tmp_path: Path, body: str) -> Path:

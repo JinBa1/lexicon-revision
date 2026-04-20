@@ -150,6 +150,54 @@ cases:
     ]
 
 
+def test_load_eval_spec_reports_missing_filter_key_clearly(tmp_path: Path) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text(
+        """
+name: tool_test
+cases:
+  - id: case-1
+    query: algorithms practice
+    filters:
+      - field: tripos_part
+        value: II
+    expected:
+      any_topics:
+        - Algorithms
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"filter #1 is invalid: op: Field required"):
+        load_eval_spec(eval_path)
+
+
+def test_load_eval_spec_rejects_non_integer_range_filter_value(tmp_path: Path) -> None:
+    eval_path = tmp_path / "eval.yaml"
+    eval_path.write_text(
+        """
+name: tool_test
+cases:
+  - id: case-1
+    query: algorithms practice
+    filters:
+      - field: year
+        op: gte
+        value: "2024"
+    expected:
+      any_topics:
+        - Algorithms
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"filter #1 field 'year' uses op 'gte', which requires an integer value",
+    ):
+        load_eval_spec(eval_path)
+
+
 def test_load_media_map_returns_empty_for_missing_file(tmp_path: Path) -> None:
     """Infrastructure test for sidecar handling only."""
     assert load_media_map(tmp_path, "missing") == {}

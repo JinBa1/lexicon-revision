@@ -33,6 +33,7 @@ from src.metadata_schema.models import FilterCondition  # noqa: E402
 from src.search.errors import (  # noqa: E402
     DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
+    InvalidMetadataFilterError,
 )
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import StudyRequest, StudyScope  # noqa: E402
@@ -729,6 +730,9 @@ def main() -> None:
         report = asyncio.run(_run_real_report(args))
     except CollectionNotFoundError as exc:
         print(f"Collection '{exc.collection_name}' not found.", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

@@ -26,6 +26,7 @@ from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
     DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
+    InvalidMetadataFilterError,
 )
 from src.search.factory import create_search_service  # noqa: E402
 from src.search.models import SearchResponse  # noqa: E402
@@ -316,6 +317,9 @@ def main() -> None:
             "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)

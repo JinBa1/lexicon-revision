@@ -22,12 +22,14 @@ from scripts.inspect_search import (  # noqa: E402
 from scripts.search_tooling import (  # noqa: E402
     build_filters,
     dump_filters,
+    parse_filter_conditions,
     truncate_text,
 )
 from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
     DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
+    InvalidMetadataFilterError,
 )
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import (  # noqa: E402
@@ -112,7 +114,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--collection",
         default=DEFAULT_COLLECTION,
-        help=f"ChromaDB collection name (default: {DEFAULT_COLLECTION})",
+        help=f"Search collection name (default: {DEFAULT_COLLECTION})",
     )
     parser.add_argument(
         "--top-k",
@@ -133,6 +135,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--has-table", action="store_true", help="Filter for chunks with tables"
+    )
+    parser.add_argument(
+        "--filter",
+        dest="filters",
+        action="append",
+        default=[],
+        help="Repeatable filter in field:op:value form, e.g. year:eq:2024",
     )
     parser.add_argument(
         "--format",
@@ -543,18 +552,19 @@ def _format_mapping(filters: list[dict[str, Any]]) -> str:
 def main() -> None:
     """Run the local study inspection CLI."""
     args = parse_args()
-    filters = build_filters(
-        year=args.year,
-        paper=args.paper,
-        topic=args.topic,
-        question=args.question,
-        marks_min=args.marks_min,
-        has_code=True if args.has_code else None,
-        has_figure=True if args.has_figure else None,
-        has_table=True if args.has_table else None,
-    )
 
     try:
+        filters = build_filters(
+            year=args.year,
+            paper=args.paper,
+            topic=args.topic,
+            question=args.question,
+            marks_min=args.marks_min,
+            has_code=True if args.has_code else None,
+            has_figure=True if args.has_figure else None,
+            has_table=True if args.has_table else None,
+        )
+        filters.extend(parse_filter_conditions(args.filters))
         settings = (
             load_study_settings(args.settings)
             if args.settings is not None
@@ -604,6 +614,9 @@ def main() -> None:
             "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

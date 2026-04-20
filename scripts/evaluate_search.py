@@ -28,6 +28,7 @@ from scripts.search_tooling import (  # noqa: E402
 from src.search.errors import (  # noqa: E402
     DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
+    InvalidMetadataFilterError,
 )
 
 
@@ -341,6 +342,9 @@ def main() -> None:
             "Index the collection with scripts/index_chunks_postgres.py and try again.",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

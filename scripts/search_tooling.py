@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
 from src.search.media_sidecar import load_storage_media_map
 
@@ -84,12 +85,24 @@ def parse_filter_conditions(raw_filters: list[str]) -> list[FilterCondition]:
                 f"CLI filters must use field:op:value form, got {raw_filter!r}"
             )
         field, op, raw_value = parts
-        condition = FilterCondition.model_validate(
-            {
-                "field": field,
-                "op": op,
-                "value": _parse_scalar(raw_value),
-            }
+        try:
+            condition = FilterCondition.model_validate(
+                {
+                    "field": field,
+                    "op": op,
+                    "value": _parse_scalar(raw_value),
+                }
+            )
+        except ValidationError as exc:
+            raise ValueError(
+                _format_filter_validation_error(
+                    context=f"CLI filter {raw_filter!r}",
+                    exc=exc,
+                )
+            ) from exc
+        _validate_generic_filter_condition(
+            condition,
+            context=f"CLI filter {raw_filter!r}",
         )
         parsed.append(condition)
     return parsed
@@ -232,10 +245,17 @@ def parse_authored_filters(
             raise ValueError(f"{context} filters must be a list of mappings")
         try:
             condition = FilterCondition.model_validate(raw_filter)
-        except Exception as exc:
+        except ValidationError as exc:
             raise ValueError(
-                f"{context} filter #{index} must define field/op/value"
+                _format_filter_validation_error(
+                    context=f"{context} filter #{index}",
+                    exc=exc,
+                )
             ) from exc
+        _validate_generic_filter_condition(
+            condition,
+            context=f"{context} filter #{index}",
+        )
         parsed.append(condition)
     return parsed
 
@@ -250,3 +270,25 @@ def _parse_scalar(raw_value: str) -> Any:
         return int(raw_value)
     except ValueError:
         return raw_value
+
+
+def _validate_generic_filter_condition(
+    condition: FilterCondition,
+    *,
+    context: str,
+) -> None:
+    if condition.op in {"gte", "lte"} and type(condition.value) is not int:
+        raise ValueError(
+            f"{context} field '{condition.field}' uses op '{condition.op}', "
+            "which requires an integer value"
+        )
+    if type(condition.value) is str and not condition.value:
+        raise ValueError(f"{context} field '{condition.field}' must not be empty")
+
+
+def _format_filter_validation_error(*, context: str, exc: ValidationError) -> str:
+    details = "; ".join(
+        f"{'.'.join(str(item) for item in error['loc'])}: {error['msg']}"
+        for error in exc.errors()
+    )
+    return f"{context} is invalid: {details}"

@@ -22,7 +22,11 @@ from scripts.inspect_search import (  # noqa: E402
 )
 from scripts.search_tooling import dump_filters, parse_authored_filters  # noqa: E402
 from src.metadata_schema.models import FilterCondition  # noqa: E402
-from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
+from src.search.errors import (  # noqa: E402
+    DEFAULT_MEDIA_DIR,
+    CollectionNotFoundError,
+    InvalidMetadataFilterError,
+)
 from src.search.models import SearchResponse  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, QueryPlanner  # noqa: E402
@@ -296,7 +300,17 @@ async def _run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    asyncio.run(_run(parse_args()))
+    try:
+        asyncio.run(_run(parse_args()))
+    except CollectionNotFoundError as exc:
+        print(f"Collection '{exc.collection_name}' not found.", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except InvalidMetadataFilterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":
