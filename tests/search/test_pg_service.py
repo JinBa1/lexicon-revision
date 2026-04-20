@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
@@ -305,20 +305,22 @@ class _InvalidChunkLevelRepo:
 
 
 def test_pg_search_service_skips_invalid_chunk_level(
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    warning_mock = Mock()
     service = PgSearchService(
         repository=_InvalidChunkLevelRepo(),
         embedding_model=_Embedder(),
         embedding_dimension=2,
         reranker=None,
     )
+    monkeypatch.setattr("src.search.pg_service.logger.warning", warning_mock)
 
-    with caplog.at_level(logging.WARNING):
-        response = service.search("q", collection="fixture", filters=[], limit=5)
+    response = service.search("q", collection="fixture", filters=[], limit=5)
 
     assert [result.chunk_id for result in response.results] == ["good-1"]
-    assert any("chunk_level" in record.message for record in caplog.records)
+    warning_mock.assert_called_once()
+    assert "chunk_level" in warning_mock.call_args.args[0]
 
 
 def test_pg_service_passes_filter_conditions_to_repository() -> None:

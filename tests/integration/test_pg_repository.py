@@ -363,6 +363,9 @@ def test_search_repository_filters_structural_fields_outside_metadata_schema() -
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")
     inputs = [build_embedding_text(chunk) for chunk in chunks]
     vectors = _vectors(len(inputs), 8)
+    expected_source_pdf = next(
+        chunk.source_pdf for chunk in chunks if chunk.chunk_level == "question"
+    )
 
     repo = PgIndexRepository(
         engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
@@ -386,7 +389,7 @@ def test_search_repository_filters_structural_fields_outside_metadata_schema() -
             FilterCondition(
                 field="source_pdf",
                 op="eq",
-                value="tests/data/papers/2024/paper_1.pdf",
+                value=expected_source_pdf,
             ),
         ],
         limit=10,
@@ -395,8 +398,7 @@ def test_search_repository_filters_structural_fields_outside_metadata_schema() -
     assert results
     assert all(result.chunk_level == "question" for result in results)
     assert all(
-        result.metadata["source_pdf"] == "tests/data/papers/2024/paper_1.pdf"
-        for result in results
+        result.metadata["source_pdf"] == expected_source_pdf for result in results
     )
 
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import logging
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import scripts.convert_papers as convert_papers
 from src.storage.local import LocalObjectStorage
@@ -75,8 +75,10 @@ def test_upload_batch_artifacts_writes_local_manifest_and_storage_objects(
 
 def test_upload_batch_artifacts_continues_after_one_pdf_failure(
     tmp_path: Path,
-    caplog,
+    monkeypatch,
 ) -> None:
+    exception_mock = Mock()
+    monkeypatch.setattr(convert_papers.logger, "exception", exception_mock)
     success_pdf, output_dir = _write_converted_paper_fixture(tmp_path, stem="y2025p1q7")
     failed_pdf = tmp_path / "papers" / "y2025p1q8.pdf"
     failed_pdf.write_bytes(b"pdf-bytes")
@@ -90,8 +92,10 @@ def test_upload_batch_artifacts_continues_after_one_pdf_failure(
     )
 
     assert [manifest.paper_id for manifest in manifests] == ["y2025p1q7"]
-    assert "y2025p1q8" in caplog.text
-    assert "Failed to upload converted artifacts" in caplog.text
+    exception_mock.assert_called_once_with(
+        "Failed to upload converted artifacts for %s",
+        failed_pdf.name,
+    )
 
     manifest_path = (
         output_dir / "y2025p1q7" / "hybrid_auto" / "y2025p1q7_artifact_manifest.json"
@@ -102,14 +106,14 @@ def test_upload_batch_artifacts_continues_after_one_pdf_failure(
 def test_main_continues_when_storage_is_misconfigured_after_conversion(
     tmp_path: Path,
     monkeypatch,
-    caplog,
 ) -> None:
-    caplog.set_level(logging.INFO, logger="scripts.convert_papers")
     pdf_dir = tmp_path / "papers"
     output_dir = tmp_path / "output"
     pdf_dir.mkdir(parents=True, exist_ok=True)
     pdf_path = pdf_dir / "y2025p1q7.pdf"
     pdf_path.write_bytes(b"pdf-bytes")
+    info_mock = Mock()
+    exception_mock = Mock()
 
     def fake_run_mineru_batch(
         pdf_paths: list[Path],
@@ -124,6 +128,8 @@ def test_main_continues_when_storage_is_misconfigured_after_conversion(
         return True
 
     monkeypatch.setattr(convert_papers, "run_mineru_batch", fake_run_mineru_batch)
+    monkeypatch.setattr(convert_papers.logger, "info", info_mock)
+    monkeypatch.setattr(convert_papers.logger, "exception", exception_mock)
     monkeypatch.delenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", raising=False)
     monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
     monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path / "store"))
@@ -140,18 +146,31 @@ def test_main_continues_when_storage_is_misconfigured_after_conversion(
     )
 
     assert content_list_path.is_file()
-    assert "Uploaded artifacts for" not in caplog.text
-    assert (
-        "Done: 1 converted, 0 skipped, 0 failed, 0 uploaded (of 1 total)" in caplog.text
+    assert not any(
+        call.args[:2] == ("Uploaded artifacts for %d PDFs", 1)
+        for call in info_mock.call_args_list
+    )
+    assert any(
+        call.args
+        == (
+            "Done: %d converted, %d skipped, %d failed, %d uploaded (of %d total)",
+            1,
+            0,
+            0,
+            0,
+            1,
+        )
+        for call in info_mock.call_args_list
+    )
+    exception_mock.assert_called_once_with(
+        "Storage upload unavailable; leaving converted outputs in place"
     )
 
 
 def test_main_uploads_only_successfully_converted_pdfs(
     tmp_path: Path,
     monkeypatch,
-    caplog,
 ) -> None:
-    caplog.set_level(logging.INFO, logger="scripts.convert_papers")
     pdf_dir = tmp_path / "papers"
     output_dir = tmp_path / "output"
     pdf_dir.mkdir(parents=True, exist_ok=True)
@@ -159,6 +178,8 @@ def test_main_uploads_only_successfully_converted_pdfs(
     failed_pdf = pdf_dir / "y2025p1q8.pdf"
     success_pdf.write_bytes(b"pdf-bytes")
     failed_pdf.write_bytes(b"pdf-bytes")
+    info_mock = Mock()
+    exception_mock = Mock()
 
     def fake_run_mineru_batch(
         pdf_paths: list[Path],
@@ -174,6 +195,8 @@ def test_main_uploads_only_successfully_converted_pdfs(
         return True
 
     monkeypatch.setattr(convert_papers, "run_mineru_batch", fake_run_mineru_batch)
+    monkeypatch.setattr(convert_papers.logger, "info", info_mock)
+    monkeypatch.setattr(convert_papers.logger, "exception", exception_mock)
     monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
     monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path / "store"))
     monkeypatch.setenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", "dev-secret")
@@ -185,8 +208,24 @@ def test_main_uploads_only_successfully_converted_pdfs(
 
     convert_papers.main()
 
-    assert "Failed to upload converted artifacts for y2025p1q8.pdf" not in caplog.text
-    assert "Uploaded artifacts for 1 PDFs" in caplog.text
-    assert (
-        "Done: 1 converted, 0 skipped, 1 failed, 1 uploaded (of 2 total)" in caplog.text
+    assert not any(
+        call.args[:2]
+        == ("Failed to upload converted artifacts for %s", failed_pdf.name)
+        for call in exception_mock.call_args_list
+    )
+    assert any(
+        call.args == ("Uploaded artifacts for %d PDFs", 1)
+        for call in info_mock.call_args_list
+    )
+    assert any(
+        call.args
+        == (
+            "Done: %d converted, %d skipped, %d failed, %d uploaded (of %d total)",
+            1,
+            0,
+            1,
+            1,
+            2,
+        )
+        for call in info_mock.call_args_list
     )
