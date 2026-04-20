@@ -145,6 +145,7 @@ def upgrade() -> None:
             )
         )
     )
+    op.alter_column("collections", "metadata_schema", server_default=None)
     op.execute(
         """
         update chunks

@@ -346,3 +346,25 @@ def test_pg_service_passes_filter_conditions_to_repository() -> None:
         {"field": "year", "op": "gte", "value": 2020},
         {"field": "year", "op": "lte", "value": 2024},
     ]
+
+
+def test_pg_service_reuses_cached_collection_schema() -> None:
+    repo = _Repo()
+    service = PgSearchService(
+        repository=repo,
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+    )
+
+    schema = service.get_collection_schema("cam-cs-tripos-fixture")
+    response = service.search(
+        query="algorithms",
+        collection="cam-cs-tripos-fixture",
+        filters=[],
+        limit=5,
+        rerank=False,
+    )
+
+    assert schema.version == 1
+    assert response.collection == "cam-cs-tripos-fixture"
+    assert repo.calls.count({"schema_collection_name": "cam-cs-tripos-fixture"}) == 1

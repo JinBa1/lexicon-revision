@@ -19,6 +19,7 @@ def test_collections_embedding_columns() -> None:
     assert "embedding_dimension" in collections.c
     assert "metadata_schema" in collections.c
     assert isinstance(collections.c.metadata_schema.type, JSONB)
+    assert collections.c.metadata_schema.server_default is None
 
 
 def test_chunks_use_canonical_metadata_jsonb_column() -> None:

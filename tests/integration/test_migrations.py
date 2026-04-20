@@ -132,6 +132,10 @@ def test_alembic_cutover_backfills_metadata_and_drops_legacy_columns() -> None:
             collection_columns = {
                 column["name"] for column in inspect(conn).get_columns("collections")
             }
+            collection_column_defaults = {
+                column["name"]: column["default"]
+                for column in inspect(conn).get_columns("collections")
+            }
             backfilled = conn.execute(
                 text(
                     """
@@ -146,6 +150,7 @@ def test_alembic_cutover_backfills_metadata_and_drops_legacy_columns() -> None:
         assert "metadata" in columns_after_cutover
         assert "year" in columns_after_cutover
         assert "metadata_schema" in collection_columns
+        assert collection_column_defaults["metadata_schema"] is None
         assert backfilled is not None
         assert backfilled.metadata == {
             "year": 2025,
@@ -168,6 +173,10 @@ def test_alembic_cutover_backfills_metadata_and_drops_legacy_columns() -> None:
             final_columns = {
                 column["name"] for column in inspect(conn).get_columns("chunks")
             }
+            final_collection_column_defaults = {
+                column["name"]: column["default"]
+                for column in inspect(conn).get_columns("collections")
+            }
             final_row = conn.execute(
                 text("select metadata from chunks where id = 'chunk-1'")
             ).first()
@@ -175,6 +184,7 @@ def test_alembic_cutover_backfills_metadata_and_drops_legacy_columns() -> None:
         assert "metadata" in final_columns
         assert "year" not in final_columns
         assert "paper" not in final_columns
+        assert final_collection_column_defaults["metadata_schema"] is None
         assert final_row is not None
         assert final_row.metadata["topic"] == "Algorithms"
     finally:

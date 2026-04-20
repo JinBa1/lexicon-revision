@@ -308,7 +308,6 @@ def test_search_repository_returns_metadata_from_canonical_storage() -> None:
         "topic",
         "author",
         "tripos_part",
-        "marks",
         "total_marks",
         "has_code",
         "has_figure",
@@ -316,6 +315,7 @@ def test_search_repository_returns_metadata_from_canonical_storage() -> None:
     }
     assert set(result.metadata.keys()) == expected_keys
     assert result.metadata["year"] is not None
+    assert "marks" not in result.metadata
 
 
 def test_search_repository_filters_using_canonical_chunk_metadata() -> None:

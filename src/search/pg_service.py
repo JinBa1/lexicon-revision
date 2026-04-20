@@ -42,6 +42,7 @@ class PgSearchService:
         self._media_dir = media_dir
         self._object_storage = object_storage
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        self._schema_cache: dict[str, CollectionMetadataSchema] = {}
 
     @property
     def embedding_model_id(self) -> str:
@@ -54,7 +55,11 @@ class PgSearchService:
         return self._reranker.model_id
 
     def get_collection_schema(self, collection: str) -> CollectionMetadataSchema:
-        return self._repository.get_collection_schema(collection)
+        if collection not in self._schema_cache:
+            self._schema_cache[collection] = self._repository.get_collection_schema(
+                collection
+            )
+        return self._schema_cache[collection]
 
     def search(
         self,
@@ -72,7 +77,7 @@ class PgSearchService:
             )
 
         n_candidates = min(limit * 3, RERANK_CANDIDATE_CAP) if rerank else limit
-        collection_schema = self._repository.get_collection_schema(collection)
+        collection_schema = self.get_collection_schema(collection)
         validated_filters = validate_filter_conditions(filters, collection_schema)
 
         embedding_result = self._embedding_model.embed_query(query)

@@ -279,7 +279,6 @@ class PgSearchRepository:
                     chunks_table.c.text,
                     distance_expr,
                     chunks_table.c.metadata,
-                    chunks_table.c.source_pdf,
                 )
                 .select_from(
                     chunks_table.join(
@@ -381,5 +380,7 @@ def _result_metadata_from_row(
 ) -> dict[str, Any]:
     stored_metadata = dict(row.metadata or {})
     return {
-        field.key: stored_metadata.get(field.key) for field in collection_schema.fields
+        field.key: stored_metadata[field.key]
+        for field in collection_schema.fields
+        if field.key in stored_metadata
     }

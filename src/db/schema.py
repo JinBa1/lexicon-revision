@@ -35,7 +35,6 @@ collections = Table(
         "metadata_schema",
         JSONB,
         nullable=False,
-        server_default=sql_text("'{}'::jsonb"),
     ),
     Column(
         "created_at",
