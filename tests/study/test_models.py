@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import ProviderCallTelemetry, TokenUsage
+from src.search.pg_service import SearchExecutionTelemetry
 from src.study.models import (
     CitedSource,
     GenerationMetadata,
@@ -316,6 +318,74 @@ def test_study_response_defaults_to_schema_version_v2() -> None:
     )
 
     assert response.schema_version == "study_answer_v2"
+
+
+def test_study_response_excludes_internal_telemetry_from_serialization() -> None:
+    response = StudyResponse(
+        request_id="8c6f3d2f-4f95-4d64-9c5e-8f75b5e4ce9d",
+        query="q",
+        scope=StudyScope(collection="c"),
+        answer_status="ok",
+        answer=StudyAnswer(
+            overview="Valid overview.",
+            patterns=[],
+            limitations=[],
+        ),
+        sources=[],
+        retrieval=RetrievalMetadata(
+            status="ok",
+            top_k=15,
+            returned_result_count=0,
+            context_budget_tokens=4000,
+            context_chunk_ids=[],
+            omitted_chunk_ids=[],
+            truncated_chunk_ids=[],
+            filters_applied=[],
+            rerank=True,
+            search_telemetry=SearchExecutionTelemetry(
+                embedding=ProviderCallTelemetry(
+                    provider="voyage",
+                    model="voyage-4-lite",
+                    latency_ms=7,
+                ),
+                rerank=None,
+            ),
+        ),
+        planning=PlanningMetadata(
+            status="ok",
+            planner_version="query_planner_v1",
+            original_query="q",
+            semantic_queries=["q"],
+            error_category=None,
+            telemetry=ProviderCallTelemetry(
+                provider="openai_compatible",
+                model="planner-model",
+                latency_ms=5,
+                usage=TokenUsage(total_tokens=12),
+            ),
+            latency_ms=5,
+        ),
+        generation=GenerationMetadata(
+            provider="ollama",
+            model="qwen2.5:7b-instruct",
+            prompt_version="study_aid_v1",
+            temperature=0.1,
+            attempt_count=1,
+            citation_drops=0,
+            error_category=None,
+            latency_ms=4213,
+            usage=TokenUsage(total_tokens=23),
+        ),
+    )
+
+    payload = response.model_dump(mode="json")
+
+    assert response.planning.telemetry is not None
+    assert response.retrieval.search_telemetry is not None
+    assert response.generation.usage is not None
+    assert "telemetry" not in payload["planning"]
+    assert "search_telemetry" not in payload["retrieval"]
+    assert "usage" not in payload["generation"]
 
 
 def test_study_response_requires_planning_field() -> None:

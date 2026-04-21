@@ -10,6 +10,7 @@ from src.metadata_schema.models import FilterCondition
 from src.runtime.config import AppRuntimeSettings
 from src.runtime.telemetry import HealthStatus, ProviderCallTelemetry, TokenUsage
 from src.search.models import SearchResponse, SearchResult
+from src.search.pg_service import SearchExecutionTelemetry
 from src.study.config import (
     ContextSettings,
     GenerationSettings,
@@ -285,6 +286,15 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
             ),
             executed_queries=["dynamic programming recurrence"],
             filters_applied=[],
+            search_telemetry=SearchExecutionTelemetry(
+                embedding=ProviderCallTelemetry(
+                    provider="voyage",
+                    model="voyage-4-lite",
+                    latency_ms=12,
+                    usage=None,
+                ),
+                rerank=None,
+            ),
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -305,7 +315,17 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     assert response.planning.original_query == "2025 dp"
     assert response.planning.semantic_queries == ["dynamic programming recurrence"]
     assert response.planning.error_category is None
+    assert response.planning.telemetry is not None
+    assert response.planning.telemetry.provider == "openai_compatible"
+    assert response.planning.telemetry.model == "planner-model"
+    assert response.planning.telemetry.usage is not None
+    assert response.retrieval.search_telemetry is not None
+    assert response.retrieval.search_telemetry.embedding.provider == "voyage"
+    assert response.retrieval.search_telemetry.rerank is None
     assert response.generation.error_category is None
+    assert response.generation.usage is not None
+    assert response.generation.usage.total_tokens == 23
+    assert response.generation.latency_ms == 10
     assert response.sources[0].metadata == {
         "year": 2025,
         "paper": 2,
@@ -418,6 +438,15 @@ async def test_orchestrate_empty_retrieval_skips_generation() -> None:
             ),
             executed_queries=["missing"],
             filters_applied=[],
+            search_telemetry=SearchExecutionTelemetry(
+                embedding=ProviderCallTelemetry(
+                    provider="voyage",
+                    model="voyage-4-lite",
+                    latency_ms=12,
+                    usage=None,
+                ),
+                rerank=None,
+            ),
         )
     )
     provider = FakeProvider([])
@@ -433,6 +462,10 @@ async def test_orchestrate_empty_retrieval_skips_generation() -> None:
 
     assert response.answer_status == "insufficient_evidence"
     assert response.retrieval.status == "empty"
+    assert response.retrieval.search_telemetry is not None
+    assert response.retrieval.search_telemetry.embedding.provider == "voyage"
+    assert response.generation.usage is None
+    assert response.generation.latency_ms == 0
     assert len(provider.calls) == 0
 
 

@@ -47,6 +47,7 @@ class PlanningMetadata(BaseModel):
     original_query: str = Field(min_length=1)
     semantic_queries: list[str] = Field(min_length=1)
     error_category: PlanningErrorCategory | None = None
+    telemetry: ProviderCallTelemetry | None = Field(default=None, exclude=True)
     latency_ms: int = Field(ge=0)
 
     @model_validator(mode="after")
