@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+from contextvars import ContextVar
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.errors import (
     DEFAULT_COLLECTION,
     DEFAULT_MEDIA_DIR,
@@ -22,6 +25,16 @@ from src.search.providers.base import EmbeddingProvider, RerankProvider
 from src.storage.base import ObjectStorage
 
 logger = logging.getLogger(__name__)
+
+_last_execution_telemetry_var: ContextVar["SearchExecutionTelemetry | None"] = (
+    ContextVar("pg_search_last_execution_telemetry", default=None)
+)
+
+
+@dataclass(frozen=True)
+class SearchExecutionTelemetry:
+    embedding: ProviderCallTelemetry
+    rerank: ProviderCallTelemetry | None
 
 
 class PgSearchService:
@@ -69,6 +82,7 @@ class PgSearchService:
         limit: int = 10,
         rerank: bool = True,
     ) -> SearchResponse:
+        _last_execution_telemetry_var.set(None)
         if limit <= 0:
             raise ValueError("limit must be positive")
         if rerank and limit > RERANK_CANDIDATE_CAP:
@@ -84,6 +98,12 @@ class PgSearchService:
         if len(embedding_result.vectors) != 1:
             raise RuntimeError("embedder must return exactly one query vector")
         query_vector = list(embedding_result.vectors[0])
+        embedding_telemetry = ProviderCallTelemetry(
+            provider=embedding_result.provider,
+            model=embedding_result.model_id,
+            latency_ms=embedding_result.latency_ms,
+            usage=embedding_result.usage,
+        )
 
         rows = self._repository.search(
             collection_name=collection,
@@ -95,6 +115,12 @@ class PgSearchService:
         )
 
         if not rows:
+            _last_execution_telemetry_var.set(
+                SearchExecutionTelemetry(
+                    embedding=embedding_telemetry,
+                    rerank=None,
+                )
+            )
             return SearchResponse(
                 query=query,
                 collection=collection,
@@ -104,12 +130,19 @@ class PgSearchService:
 
         scores = [row.score for row in rows]
         texts = [row.text for row in rows]
+        rerank_telemetry: ProviderCallTelemetry | None = None
 
         if rerank and self._reranker is not None:
             rerank_result = self._reranker.rerank(query, texts)
             if len(rerank_result.scores) != len(texts):
                 raise RuntimeError("reranker score count must match document count")
             rerank_scores = list(rerank_result.scores)
+            rerank_telemetry = ProviderCallTelemetry(
+                provider=rerank_result.provider,
+                model=rerank_result.model_id,
+                latency_ms=rerank_result.latency_ms,
+                usage=rerank_result.usage,
+            )
 
             ranked = sorted(
                 zip(rows, rerank_scores, strict=True),
@@ -121,7 +154,7 @@ class PgSearchService:
 
         media_map = self._load_media_map(collection)
         results = []
-        for row, score in zip(rows[:limit], scores[:limit], strict=True):
+        for row, score in zip(rows, scores, strict=True):
             if not _is_valid_chunk_level(row.chunk_level):
                 logger.warning(
                     "Skipping chunk %s in collection %s due to invalid chunk_level %r",
@@ -145,13 +178,26 @@ class PgSearchService:
                     ),
                 )
             )
+            if len(results) == limit:
+                break
 
+        _last_execution_telemetry_var.set(
+            SearchExecutionTelemetry(
+                embedding=embedding_telemetry,
+                rerank=rerank_telemetry,
+            )
+        )
         return SearchResponse(
             query=query,
             collection=collection,
             results=results,
             total=len(results),
         )
+
+    def pop_last_execution_telemetry(self) -> SearchExecutionTelemetry | None:
+        telemetry = _last_execution_telemetry_var.get()
+        _last_execution_telemetry_var.set(None)
+        return telemetry
 
     def _load_media_map(self, collection: str) -> dict[str, list[dict[str, Any]]]:
         if collection in self._media_cache:

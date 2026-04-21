@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import httpx
+from src.runtime.telemetry import TokenUsage
 from src.search.providers.base import (
     EmbeddingResult,
     ProviderAuthError,
@@ -12,6 +14,8 @@ from src.search.providers.base import (
     ProviderTimeoutError,
     RerankResult,
 )
+
+_HEALTH_TIMEOUT_SECONDS = 1.0
 
 
 def _handle_request(
@@ -77,8 +81,14 @@ class VoyageEmbedder:
         self._client = client or httpx.Client()
 
     def _embed(self, texts: list[str], input_type: str) -> EmbeddingResult:
+        started = time.perf_counter()
         if not texts:
-            return EmbeddingResult(vectors=[], model_id=self.model_id)
+            return EmbeddingResult(
+                vectors=[],
+                model_id=self.model_id,
+                provider="voyage",
+                latency_ms=0,
+            )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -133,7 +143,13 @@ class VoyageEmbedder:
             vectors.append(_as_float_vector(row["embedding"]))
 
         model = data.get("model", self.model_id)
-        return EmbeddingResult(vectors=vectors, model_id=str(model))
+        return EmbeddingResult(
+            vectors=vectors,
+            model_id=str(model),
+            provider="voyage",
+            latency_ms=_elapsed_ms(started),
+            usage=_usage_from_payload(data.get("usage")),
+        )
 
     def embed_documents(self, texts: list[str]) -> EmbeddingResult:
         return self._embed(texts, input_type="document")
@@ -141,6 +157,37 @@ class VoyageEmbedder:
     def embed_query(self, text: str) -> EmbeddingResult:
         result = self._embed([text], input_type="query")
         return result
+
+    def health(self) -> str:
+        try:
+            self._probe_health()
+        except (ProviderConnectionError, ProviderTimeoutError):
+            return "unreachable"
+        except ProviderHTTPError:
+            return "error"
+        return "ok"
+
+    def _probe_health(self) -> None:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload: dict[str, Any] = {
+            "model": self.model_id,
+            "input": ["healthcheck"],
+            "input_type": "query",
+            "truncation": self.truncation,
+        }
+        if self.output_dimension is not None:
+            payload["output_dimension"] = self.output_dimension
+        _handle_request(
+            client=self._client,
+            method="POST",
+            url=f"{self.base_url}/embeddings",
+            headers=headers,
+            json_data=payload,
+            timeout_seconds=_health_timeout_seconds(self.timeout_seconds),
+        )
 
     def close(self) -> None:
         if self._owns_client:
@@ -167,8 +214,14 @@ class VoyageReranker:
         self._client = client or httpx.Client()
 
     def rerank(self, query: str, documents: list[str]) -> RerankResult:
+        started = time.perf_counter()
         if not documents:
-            return RerankResult(scores=[], model_id=self.model_id)
+            return RerankResult(
+                scores=[],
+                model_id=self.model_id,
+                provider="voyage",
+                latency_ms=0,
+            )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -219,8 +272,77 @@ class VoyageReranker:
             )
 
         model = data.get("model", self.model_id)
-        return RerankResult(scores=scores, model_id=str(model))
+        return RerankResult(
+            scores=scores,
+            model_id=str(model),
+            provider="voyage",
+            latency_ms=_elapsed_ms(started),
+            usage=_usage_from_payload(data.get("usage")),
+        )
+
+    def health(self) -> str:
+        try:
+            self._probe_health()
+        except (ProviderConnectionError, ProviderTimeoutError):
+            return "unreachable"
+        except ProviderHTTPError:
+            return "error"
+        return "ok"
+
+    def _probe_health(self) -> None:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload: dict[str, Any] = {
+            "model": self.model_id,
+            "query": "healthcheck",
+            "documents": ["healthcheck"],
+            "return_documents": False,
+            "truncation": self.truncation,
+        }
+        _handle_request(
+            client=self._client,
+            method="POST",
+            url=f"{self.base_url}/rerank",
+            headers=headers,
+            json_data=payload,
+            timeout_seconds=_health_timeout_seconds(self.timeout_seconds),
+        )
 
     def close(self) -> None:
         if self._owns_client:
             self._client.close()
+
+
+def _elapsed_ms(started: float) -> int:
+    return max(0, int((time.perf_counter() - started) * 1000))
+
+
+def _health_timeout_seconds(timeout_seconds: float) -> float:
+    return min(timeout_seconds, _HEALTH_TIMEOUT_SECONDS)
+
+
+def _usage_from_payload(payload: Any) -> TokenUsage | None:
+    if not isinstance(payload, dict):
+        return None
+    input_tokens = payload.get("input_tokens")
+    output_tokens = payload.get("output_tokens")
+    total_tokens = payload.get("total_tokens")
+    if not any(
+        value is not None for value in (input_tokens, output_tokens, total_tokens)
+    ):
+        return None
+    return TokenUsage(
+        input_tokens=_as_int_or_none(input_tokens),
+        output_tokens=_as_int_or_none(output_tokens),
+        total_tokens=_as_int_or_none(total_tokens),
+    )
+
+
+def _as_int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int):
+        raise ProviderResponseError("usage values must be integers")
+    return value

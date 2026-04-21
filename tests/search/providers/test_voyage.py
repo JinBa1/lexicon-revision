@@ -3,6 +3,7 @@ from typing import Callable
 
 import httpx
 import pytest
+from src.runtime.telemetry import TokenUsage
 from src.search.providers.base import (
     ProviderAuthError,
     ProviderConnectionError,
@@ -32,6 +33,7 @@ def test_embed_documents_sends_document_input_type() -> None:
                     {"index": 1, "embedding": [0.3, 0.4]},
                 ],
                 "model": "voyage-4-lite",
+                "usage": {"total_tokens": 7},
             },
         )
 
@@ -42,6 +44,9 @@ def test_embed_documents_sends_document_input_type() -> None:
 
     assert result.vectors == [[0.1, 0.2], [0.3, 0.4]]
     assert result.model_id == "voyage-4-lite"
+    assert result.provider == "voyage"
+    assert result.latency_ms >= 0
+    assert result.usage == TokenUsage(total_tokens=7)
     assert captured["auth"] == "Bearer k"
     assert captured["body"]["input_type"] == "document"
     assert captured["body"]["model"] == "voyage-4-lite"
@@ -80,6 +85,7 @@ def test_embed_empty_documents_returns_empty() -> None:
 
     assert not called
     assert result.vectors == []
+    assert result.provider == "voyage"
 
 
 def test_embed_rows_sorted_by_index() -> None:
@@ -167,6 +173,8 @@ def test_rerank_maps_scores_back_to_input_order() -> None:
 
     assert result.scores == [0.1, 0.5, 0.9]
     assert result.model_id == "rerank-2.5-lite"
+    assert result.provider == "voyage"
+    assert result.latency_ms >= 0
 
 
 def test_rerank_missing_score_raises_response_error() -> None:
@@ -209,3 +217,56 @@ def test_http_errors_map_correctly() -> None:
     with pytest.raises(ProviderConnectionError):
         embedder = VoyageEmbedder(api_key="k", client=_client(handler_connect))
         embedder.embed_documents(["a"])
+
+
+def test_health_returns_ok_when_embedding_endpoint_is_callable() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode())
+        captured["timeout"] = request.extensions["timeout"]
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"index": 0, "embedding": [0.1, 0.2]}],
+                "model": "voyage-4-lite",
+            },
+        )
+
+    embedder = VoyageEmbedder(
+        api_key="k",
+        timeout_seconds=9.0,
+        client=_client(handler),
+    )
+
+    assert embedder.health() == "ok"
+    assert captured["body"]["input"] == ["healthcheck"]
+    assert captured["body"]["input_type"] == "query"
+    assert captured["timeout"]["connect"] < 9.0
+    assert captured["timeout"]["read"] < 9.0
+
+
+def test_reranker_health_returns_ok_when_rerank_endpoint_is_callable() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode())
+        captured["timeout"] = request.extensions["timeout"]
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"index": 0, "relevance_score": 0.5}],
+                "model": "rerank-2.5-lite",
+            },
+        )
+
+    reranker = VoyageReranker(
+        api_key="k",
+        timeout_seconds=9.0,
+        client=_client(handler),
+    )
+
+    assert reranker.health() == "ok"
+    assert captured["body"]["documents"] == ["healthcheck"]
+    assert captured["timeout"]["connect"] < 9.0
+    assert captured["timeout"]["read"] < 9.0

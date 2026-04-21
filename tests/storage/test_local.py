@@ -70,6 +70,12 @@ def test_exists_matches_put(tmp_path: Path) -> None:
     assert storage.exists(key)
 
 
+def test_health_returns_ok_for_writable_root(tmp_path: Path) -> None:
+    storage = _storage(tmp_path / "object-store")
+
+    assert storage.health() == "ok"
+
+
 def test_traversal_rejected_even_with_symlink(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside"
     outside.mkdir(exist_ok=True)

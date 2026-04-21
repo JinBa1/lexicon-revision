@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.models import SearchResponse
+from src.search.pg_service import SearchExecutionTelemetry
 from src.study.planning.models import QueryPlan
 from src.study.planning.retrieval import PlannedRetrievalService
 
@@ -11,6 +13,15 @@ from src.study.planning.retrieval import PlannedRetrievalService
 class FakeSearchService:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.telemetry: SearchExecutionTelemetry | None = SearchExecutionTelemetry(
+            embedding=ProviderCallTelemetry(
+                provider="voyage",
+                model="voyage-4-lite",
+                latency_ms=12,
+                usage=None,
+            ),
+            rerank=None,
+        )
 
     def search(
         self,
@@ -31,6 +42,11 @@ class FakeSearchService:
             }
         )
         return SearchResponse(query=query, collection=collection, results=[], total=0)
+
+    def pop_last_execution_telemetry(self) -> SearchExecutionTelemetry | None:
+        telemetry = self.telemetry
+        self.telemetry = None
+        return telemetry
 
 
 def _plan() -> QueryPlan:
@@ -107,3 +123,19 @@ def test_retrieve_preserves_repeated_filter_conditions() -> None:
         FilterCondition(field="year", op="gte", value=2020),
         FilterCondition(field="year", op="lte", value=2024),
     ]
+
+
+def test_retrieve_carries_search_telemetry_from_search_service_hook() -> None:
+    search_service = FakeSearchService()
+    service = PlannedRetrievalService(search_service=search_service)
+
+    result = service.retrieve(
+        _plan(),
+        hard_filters=None,
+        collection="cam",
+        limit=10,
+    )
+
+    assert result.search_telemetry is not None
+    assert result.search_telemetry.embedding.provider == "voyage"
+    assert result.search_telemetry.rerank is None

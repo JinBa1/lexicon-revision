@@ -104,6 +104,16 @@ class LocalObjectStorage:
             raise ValueError("expires_in_seconds must be positive")
         return self._presign("PUT", key, expires_in_seconds)
 
+    def health(self) -> str:
+        try:
+            self._root.mkdir(parents=True, exist_ok=True)
+            probe_path = self._root / ".storage-healthcheck"
+            probe_path.write_bytes(b"ok")
+            probe_path.unlink()
+        except OSError:
+            return "error"
+        return "ok"
+
     def _resolve(self, key: str) -> Path:
         resolved = (self._root / key).resolve(strict=False)
         if not resolved.is_relative_to(self._root):
