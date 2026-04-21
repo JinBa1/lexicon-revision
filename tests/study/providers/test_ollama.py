@@ -26,6 +26,8 @@ async def test_ollama_provider_posts_schema_format() -> None:
                 "message": {"content": '{"answer_status":"ok","overview":"x"}'},
                 "model": "qwen2.5:7b-instruct",
                 "done_reason": "stop",
+                "prompt_eval_count": 12,
+                "eval_count": 6,
             },
         )
 
@@ -50,6 +52,10 @@ async def test_ollama_provider_posts_schema_format() -> None:
     assert seen_payload["stream"] is False
     assert seen_payload["format"] == {"type": "object"}
     assert result.raw_content.startswith("{")
+    assert result.usage is not None
+    assert result.usage.input_tokens == 12
+    assert result.usage.output_tokens == 6
+    assert result.usage.total_tokens == 18
     await client.aclose()
 
 
@@ -106,6 +112,36 @@ async def test_ollama_provider_maps_max_tokens_to_num_predict() -> None:
     )
 
     assert seen_payload["options"]["num_predict"] == 128
+    await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_ollama_provider_stream_generate_yields_token_and_done() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"message": {"content": "{}"}, "model": "m", "done_reason": "stop"},
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = OllamaProvider(base_url="http://ollama.test", model="m", client=client)
+
+    events = [
+        event
+        async for event in provider.stream_generate(
+            GenerationRequest(
+                messages=[],
+                response_schema=None,
+                temperature=0.1,
+                max_tokens=None,
+                timeout_seconds=10,
+            )
+        )
+    ]
+
+    assert [event.type for event in events] == ["token", "done"]
+    assert events[0].text == "{}"
+    assert events[1].text is None
     await client.aclose()
 
 

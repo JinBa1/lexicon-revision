@@ -5,11 +5,11 @@ import json
 import pytest
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import HealthStatus, TokenUsage
 from src.study.config import PlanningSettings
 from src.study.models import GenerationRequest, GenerationResult, ProviderCapabilities
 from src.study.planning.models import InvalidPlanError, QueryPlanDraft
 from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner
-from src.study.providers.base import GeneratorHealth
 
 
 class FakeProvider:
@@ -29,17 +29,21 @@ class FakeProvider:
             return self.payload
         return _result(self.payload)
 
-    async def health(self) -> GeneratorHealth:
+    async def stream_generate(self, request: GenerationRequest):
+        yield
+
+    async def health(self) -> HealthStatus:
         return "ok"
 
 
 def _result(payload: object) -> GenerationResult:
     return GenerationResult(
         raw_content=json.dumps(payload),
-        model="qwen2.5:7b-instruct",
-        provider="ollama",
+        model="planner-model",
+        provider="openai_compatible",
         finish_reason="stop",
         latency_ms=7,
+        usage=TokenUsage(input_tokens=11, output_tokens=7, total_tokens=18),
     )
 
 
@@ -49,12 +53,10 @@ def _settings() -> PlanningSettings:
 
 @pytest.mark.anyio
 async def test_happy_path_builds_server_owned_plan() -> None:
-    provider = FakeProvider(
-        {"semantic_queries": ["  binary search invariant proofs  "]}
-    )
+    provider = FakeProvider({"semantic_queries": ["  binary search  "]})
     planner = LLMQueryPlanner(provider, _settings())
 
-    plan = await planner.plan(
+    result = await planner.plan(
         "  2024 paper 2 binary search invariant proofs  ",
         [
             FilterCondition(field="year", op="eq", value=2024),
@@ -62,9 +64,14 @@ async def test_happy_path_builds_server_owned_plan() -> None:
         ],
     )
 
-    assert plan.planner_version == "query_planner_v1"
-    assert plan.original_query == "  2024 paper 2 binary search invariant proofs  "
-    assert plan.semantic_queries == ["binary search invariant proofs"]
+    assert result.plan.planner_version == "query_planner_v1"
+    assert (
+        result.plan.original_query == "  2024 paper 2 binary search invariant proofs  "
+    )
+    assert result.plan.semantic_queries == ["binary search"]
+    assert result.telemetry.provider == "openai_compatible"
+    assert result.telemetry.model == "planner-model"
+    assert result.telemetry.usage is not None
     assert len(provider.calls) == 1
 
 
@@ -88,9 +95,9 @@ user: "{{ raw_query }}"
     provider = FakeProvider({"semantic_queries": ["binary trees"]})
     planner = LLMQueryPlanner(provider, settings)
 
-    plan = await planner.plan("binary trees", None)
+    result = await planner.plan("binary trees", None)
 
-    assert plan.planner_version == "query_planner_custom"
+    assert result.plan.planner_version == "query_planner_custom"
 
 
 def test_prompt_version_must_match_loaded_prompt_template(tmp_path) -> None:
@@ -220,11 +227,11 @@ async def test_raw_query_planner_returns_raw_query_without_provider_call() -> No
     provider = FakeProvider({"semantic_queries": ["unused"]})
     planner = RawQueryPlanner()
 
-    plan = await planner.plan(
+    result = await planner.plan(
         "messy original query",
         [FilterCondition(field="year", op="eq", value=2025)],
     )
 
-    assert plan.original_query == "messy original query"
-    assert plan.semantic_queries == ["messy original query"]
+    assert result.plan.original_query == "messy original query"
+    assert result.plan.semantic_queries == ["messy original query"]
     assert provider.calls == []

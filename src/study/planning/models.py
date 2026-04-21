@@ -9,7 +9,9 @@ from pydantic import (
     model_validator,
 )
 from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.models import SearchResponse
+from src.search.pg_service import SearchExecutionTelemetry
 
 PlanningStatus = Literal["ok", "fallback"]
 PlanningErrorCategory = Literal[
@@ -56,6 +58,13 @@ class PlanningMetadata(BaseModel):
         return self
 
 
+class PlannerExecution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plan: QueryPlan
+    telemetry: ProviderCallTelemetry
+
+
 class PlannedRetrievalResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -63,6 +72,7 @@ class PlannedRetrievalResult(BaseModel):
     executed_queries: list[str]
     filters_applied: list[FilterCondition]
     collection_schema: CollectionMetadataSchema | None = None
+    search_telemetry: SearchExecutionTelemetry | None = None
 
 
 class InvalidPlanError(Exception):

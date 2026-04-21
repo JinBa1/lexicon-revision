@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import TokenUsage
 
 if TYPE_CHECKING:
     from src.study.planning.models import PlanningMetadata
@@ -178,6 +179,13 @@ class GenerationRequest(BaseModel):
     timeout_seconds: float
 
 
+class GenerationEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["token", "done"]
+    text: str | None = None
+
+
 class GenerationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -186,6 +194,7 @@ class GenerationResult(BaseModel):
     provider: str
     finish_reason: str
     latency_ms: int = Field(ge=0)
+    usage: TokenUsage | None = None
 
 
 class ValidationResult(BaseModel):

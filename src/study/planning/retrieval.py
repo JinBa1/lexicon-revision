@@ -34,10 +34,19 @@ class PlannedRetrievalService:
             limit=limit,
             rerank=rerank,
         )
+        search_telemetry = None
+        pop_last_execution_telemetry = getattr(
+            self._search_service,
+            "pop_last_execution_telemetry",
+            None,
+        )
+        if callable(pop_last_execution_telemetry):
+            search_telemetry = pop_last_execution_telemetry()
 
         return PlannedRetrievalResult(
             search_response=search_response,
             executed_queries=list(plan.semantic_queries),
             filters_applied=applied_filters,
             collection_schema=collection_schema,
+            search_telemetry=search_telemetry,
         )

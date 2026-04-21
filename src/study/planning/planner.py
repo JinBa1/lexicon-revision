@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Protocol
 
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.study.config import PlanningSettings
 from src.study.models import GenerationRequest
 from src.study.planning.models import (
     InvalidPlanError,
+    PlannerExecution,
     QueryPlan,
     QueryPlanDraft,
 )
@@ -22,7 +24,7 @@ class QueryPlanner(Protocol):
         self,
         raw_query: str,
         hard_filters: list[FilterCondition] | None,
-    ) -> QueryPlan: ...
+    ) -> PlannerExecution: ...
 
 
 class RawQueryPlanner:
@@ -30,8 +32,16 @@ class RawQueryPlanner:
         self,
         raw_query: str,
         hard_filters: list[FilterCondition] | None,
-    ) -> QueryPlan:
-        return QueryPlan(original_query=raw_query, semantic_queries=[raw_query])
+    ) -> PlannerExecution:
+        return PlannerExecution(
+            plan=QueryPlan(original_query=raw_query, semantic_queries=[raw_query]),
+            telemetry=ProviderCallTelemetry(
+                provider="raw_query",
+                model="raw_query",
+                latency_ms=0,
+                usage=None,
+            ),
+        )
 
 
 class LLMQueryPlanner:
@@ -55,7 +65,7 @@ class LLMQueryPlanner:
         self,
         raw_query: str,
         hard_filters: list[FilterCondition] | None,
-    ) -> QueryPlan:
+    ) -> PlannerExecution:
         messages = self._prompt.render(
             raw_query=raw_query,
             applied_filters=[
@@ -76,10 +86,18 @@ class LLMQueryPlanner:
 
         result = await self._provider.generate(request)
         draft = QueryPlanDraft.model_validate_json(result.raw_content)
-        return _build_plan(
-            draft,
-            raw_query,
-            planner_version=self._settings.prompt_version,
+        return PlannerExecution(
+            plan=_build_plan(
+                draft,
+                raw_query,
+                planner_version=self._settings.prompt_version,
+            ),
+            telemetry=ProviderCallTelemetry(
+                provider=result.provider,
+                model=result.model,
+                latency_ms=result.latency_ms,
+                usage=result.usage,
+            ),
         )
 
 

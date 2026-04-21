@@ -1,18 +1,32 @@
 from __future__ import annotations
 
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, AsyncIterator, Protocol
 
-from src.study.models import GenerationRequest, GenerationResult, ProviderCapabilities
+from src.runtime.telemetry import HealthStatus
 
-GeneratorHealth = Literal["ok", "unreachable", "model_missing", "error"]
+if TYPE_CHECKING:
+    from src.study.models import (
+        GenerationEvent,
+        GenerationRequest,
+        GenerationResult,
+        ProviderCapabilities,
+    )
+
+GeneratorHealth = HealthStatus
 
 
 class GenerationProvider(Protocol):
-    capabilities: ProviderCapabilities
+    capabilities: "ProviderCapabilities"
+    model_name: str
 
-    async def generate(self, request: GenerationRequest) -> GenerationResult: ...
+    async def generate(self, request: "GenerationRequest") -> "GenerationResult": ...
 
-    async def health(self) -> GeneratorHealth: ...
+    async def stream_generate(
+        self,
+        request: "GenerationRequest",
+    ) -> AsyncIterator["GenerationEvent"]: ...
+
+    async def health(self) -> HealthStatus: ...
 
 
 class ProviderError(Exception):

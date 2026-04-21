@@ -9,6 +9,8 @@ from typing import Any
 
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
+from src.runtime.config import AppRuntimeSettings
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.errors import InvalidMetadataFilterError
 from src.search.models import SearchResponse, SearchResult
 from src.study.config import StudySettings
@@ -36,6 +38,7 @@ from src.study.packing import (
 )
 from src.study.planning.models import (
     InvalidPlanError,
+    PlannerExecution,
     PlanningErrorCategory,
     PlanningMetadata,
     QueryPlan,
@@ -69,11 +72,13 @@ class StudyService:
         planned_retrieval: PlannedRetrievalService,
         provider: GenerationProvider,
         settings: StudySettings,
+        runtime_settings: AppRuntimeSettings | None = None,
     ) -> None:
         self.query_planner = query_planner
         self.planned_retrieval = planned_retrieval
         self.provider = provider
         self.settings = settings
+        self.runtime_settings = runtime_settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
 
     async def orchestrate(self, request: StudyRequest) -> StudyResponse:
@@ -136,15 +141,15 @@ class StudyService:
             deduped_chunks = dedupe_parent_child(ranked_chunks)
             packing = pack_chunks(
                 deduped_chunks,
-                budget_tokens=self.settings.context.budget_tokens,
-                max_single_chunk_tokens=self.settings.context.max_single_chunk_tokens,
+                budget_tokens=self._context_budget_tokens(),
+                max_single_chunk_tokens=self._max_single_chunk_tokens(),
                 estimator=HeuristicTokenEstimator(),
             )
             retrieval = RetrievalMetadata(
                 status="ok",
                 top_k=request.top_k,
                 returned_result_count=len(search_response.results),
-                context_budget_tokens=self.settings.context.budget_tokens,
+                context_budget_tokens=self._context_budget_tokens(),
                 context_chunk_ids=[packed.chunk.chunk_id for packed in packing.chunks],
                 omitted_chunk_ids=packing.omitted_chunk_ids,
                 truncated_chunk_ids=packing.truncated_chunk_ids,
@@ -160,7 +165,7 @@ class StudyService:
                 status="ok",
                 top_k=request.top_k,
                 returned_result_count=len(search_response.results),
-                context_budget_tokens=self.settings.context.budget_tokens,
+                context_budget_tokens=self._context_budget_tokens(),
                 context_chunk_ids=[],
                 omitted_chunk_ids=[],
                 truncated_chunk_ids=[],
@@ -203,7 +208,7 @@ class StudyService:
                 else None
             ),
             temperature=self.settings.generation.temperature,
-            max_tokens=None,
+            max_tokens=self._generation_max_output_tokens(),
             timeout_seconds=self.settings.generation.request_timeout_seconds,
         )
 
@@ -349,7 +354,7 @@ class StudyService:
             async with asyncio.timeout(
                 self.settings.planning.total_planning_deadline_seconds
             ):
-                plan = await self.query_planner.plan(raw_query, hard_filters)
+                execution = await self.query_planner.plan(raw_query, hard_filters)
         except Exception as exc:
             fallback_plan = QueryPlan(
                 original_query=raw_query,
@@ -364,13 +369,24 @@ class StudyService:
                 latency_ms=_elapsed_ms(started),
             )
 
-        return plan, PlanningMetadata(
+        if isinstance(execution, QueryPlan):
+            execution = PlannerExecution(
+                plan=execution,
+                telemetry=ProviderCallTelemetry(
+                    provider="legacy_query_plan",
+                    model="legacy_query_plan",
+                    latency_ms=_elapsed_ms(started),
+                    usage=None,
+                ),
+            )
+
+        return execution.plan, PlanningMetadata(
             status="ok",
-            planner_version=plan.planner_version,
-            original_query=plan.original_query,
-            semantic_queries=list(plan.semantic_queries),
+            planner_version=execution.plan.planner_version,
+            original_query=execution.plan.original_query,
+            semantic_queries=list(execution.plan.semantic_queries),
             error_category=None,
-            latency_ms=_elapsed_ms(started),
+            latency_ms=execution.telemetry.latency_ms,
         )
 
     def _empty_response(
@@ -404,7 +420,7 @@ class StudyService:
                 status=retrieval_status,
                 top_k=request.top_k,
                 returned_result_count=0,
-                context_budget_tokens=self.settings.context.budget_tokens,
+                context_budget_tokens=self._context_budget_tokens(),
                 context_chunk_ids=[],
                 omitted_chunk_ids=[],
                 truncated_chunk_ids=[],
@@ -543,6 +559,27 @@ class StudyService:
                 "planner_version": response.planning.planner_version,
                 "planning_latency_ms": response.planning.latency_ms,
             },
+        )
+
+    def _context_budget_tokens(self) -> int:
+        if self.runtime_settings is None:
+            return self.settings.context.budget_tokens
+        return min(
+            self.settings.context.budget_tokens,
+            self.runtime_settings.study_context_budget_tokens,
+        )
+
+    def _generation_max_output_tokens(self) -> int | None:
+        if self.runtime_settings is None:
+            return None
+        return self.runtime_settings.study_generation_max_output_tokens
+
+    def _max_single_chunk_tokens(self) -> int:
+        context_budget = self._context_budget_tokens()
+        # Reserve one token so truncated chunks still fit after the marker is added.
+        return min(
+            self.settings.context.max_single_chunk_tokens,
+            max(1, context_budget - 1),
         )
 
 
