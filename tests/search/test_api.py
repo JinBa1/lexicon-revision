@@ -6,8 +6,11 @@ from fastapi import Request
 from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
 from src.access.models import RequestIdentity
 from src.metadata_schema.models import FilterCondition
+from src.runtime.config import AppRuntimeSettings
+from src.runtime.telemetry import ProviderCallTelemetry, TokenUsage
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.search.models import MediaRefResponse, SearchResponse, SearchResult
+from src.search.pg_service import SearchExecutionTelemetry
 
 MEDIA_OBJECT_KEY = "artifacts/mineru/run-y2023p2q5/images/fig1.png"
 
@@ -18,6 +21,15 @@ class FakeSearchService:
 
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
+        self._telemetry = SearchExecutionTelemetry(
+            embedding=ProviderCallTelemetry(
+                provider="voyage",
+                model="voyage-3",
+                latency_ms=12,
+                usage=TokenUsage(total_tokens=5),
+            ),
+            rerank=None,
+        )
 
     def search(
         self,
@@ -74,6 +86,11 @@ class FakeSearchService:
             ],
         )
 
+    def pop_last_execution_telemetry(self) -> SearchExecutionTelemetry | None:
+        telemetry = self._telemetry
+        self._telemetry = None
+        return telemetry
+
 
 class MissingCollectionSearchService(FakeSearchService):
     def search(
@@ -103,6 +120,20 @@ class InvalidFilterSearchService(FakeSearchService):
         raise InvalidMetadataFilterError(
             "Filter field 'topic' is not declared in collection metadata schema"
         )
+
+
+class ExplodingSearchService(FakeSearchService):
+    def search(
+        self,
+        *,
+        query: str,
+        collection: str,
+        filters: list[FilterCondition] | None,
+        limit: int,
+        rerank: bool,
+    ) -> SearchResponse:
+        del query, collection, filters, limit, rerank
+        raise RuntimeError("embedding provider exploded")
 
 
 class FakeAccessService:
@@ -147,6 +178,60 @@ class FakeAuthResolver:
     def resolve_request_identity(self, request: Request) -> RequestIdentity:
         self.calls.append(request.url.path)
         return self.identity
+
+
+class FakeUsageLogRepository:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.records = []
+        self.fail = fail
+
+    def insert(self, record) -> None:
+        if self.fail:
+            raise RuntimeError("usage log insert failed")
+        self.records.append(record)
+
+
+class GuardedStreamingBody:
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = chunks
+        self._index = 0
+
+    async def __aiter__(self):
+        for chunk in self._chunks:
+            yield chunk
+
+
+class SentinelStreamingBody:
+    def __init__(self) -> None:
+        self.read_chunks = 0
+
+    async def __aiter__(self):
+        raise AssertionError("request body should not be consumed")
+
+
+def _runtime_settings(
+    *,
+    request_body_max_bytes: int = 131072,
+    query_max_chars: int = 2000,
+    search_limit_max: int = 50,
+    rate_limit_window_seconds: int = 60,
+    rate_limit_max_requests: int = 30,
+    enable_dev_routes: bool = False,
+) -> AppRuntimeSettings:
+    return AppRuntimeSettings(
+        environment="test",
+        enable_dev_routes=enable_dev_routes,
+        cors_allowed_origins=[],
+        request_body_max_bytes=request_body_max_bytes,
+        query_max_chars=query_max_chars,
+        search_limit_max=search_limit_max,
+        study_top_k_max=20,
+        study_context_budget_tokens=4000,
+        study_generation_max_output_tokens=1200,
+        study_wall_clock_timeout_seconds=45,
+        rate_limit_window_seconds=rate_limit_window_seconds,
+        rate_limit_max_requests=rate_limit_max_requests,
+    )
 
 
 @pytest.fixture
@@ -275,6 +360,288 @@ async def test_post_search_invalid_metadata_filter_returns_422() -> None:
 
     assert response.status_code == 422
     assert "not declared in collection metadata schema" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_post_search_rejects_query_longer_than_runtime_limit() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(query_max_chars=10),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={
+                "query": "x" * 11,
+                "collection": "fixture",
+                "filters": [],
+                "limit": 10,
+                "rerank": False,
+            },
+        )
+
+    assert response.status_code == 422
+    assert "query length" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_post_search_rejects_limit_above_runtime_limit() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(search_limit_max=5),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={
+                "query": "algorithms",
+                "collection": "fixture",
+                "limit": 6,
+                "rerank": False,
+            },
+        )
+
+    assert response.status_code == 422
+    assert "limit cannot exceed 5" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_post_search_rejects_request_body_over_runtime_limit() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(request_body_max_bytes=32),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            content=(
+                '{"query":"'
+                + ("x" * 80)
+                + '","collection":"fixture","filters":[],"limit":1,"rerank":false}'
+            ),
+            headers={"content-type": "application/json"},
+        )
+
+    assert response.status_code == 413
+
+
+@pytest.mark.anyio
+async def test_post_search_rejects_over_limit_stream_before_full_read() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(request_body_max_bytes=20),
+        allow_unauthorized_test_mode=True,
+    )
+    body = SentinelStreamingBody()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            content=body,
+            headers={
+                "content-type": "application/json",
+                "content-length": "999",
+            },
+        )
+
+    assert response.status_code == 413
+    assert body.read_chunks == 0
+
+
+@pytest.mark.anyio
+async def test_post_search_rate_limits_requests_and_sets_retry_after() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(
+            rate_limit_window_seconds=60,
+            rate_limit_max_requests=1,
+        ),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        first = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+        second = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert int(second.headers["Retry-After"]) >= 1
+
+
+@pytest.mark.anyio
+async def test_post_search_rate_limit_ignores_spoofed_x_forwarded_for() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(
+            rate_limit_window_seconds=60,
+            rate_limit_max_requests=1,
+        ),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        first = await client.post(
+            "/search",
+            headers={"X-Forwarded-For": "203.0.113.10"},
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+        second = await client.post(
+            "/search",
+            headers={"X-Forwarded-For": "198.51.100.77"},
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+@pytest.mark.anyio
+async def test_post_search_logs_usage_on_success() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+
+    assert response.status_code == 200
+    assert len(repository.records) == 1
+    assert repository.records[0].endpoint == "search"
+    assert repository.records[0].outcome == "ok"
+    assert repository.records[0].collection_name == "fixture"
+    assert repository.records[0].embedding is not None
+    assert repository.records[0].embedding.provider == "voyage"
+
+
+@pytest.mark.anyio
+async def test_post_search_usage_log_failure_does_not_break_success_response() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=FakeUsageLogRepository(fail=True),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_post_search_logs_request_validation_failure_once() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms"},
+        )
+
+    assert response.status_code == 422
+    assert len(repository.records) == 1
+    assert repository.records[0].endpoint == "search"
+    assert repository.records[0].outcome == "invalid_request"
+
+
+@pytest.mark.anyio
+async def test_post_search_logs_unexpected_internal_failure() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=ExplodingSearchService(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/search",
+            json={"query": "algorithms", "collection": "fixture", "rerank": False},
+        )
+
+    assert response.status_code == 500
+    assert len(repository.records) == 1
+    assert repository.records[0].outcome == "internal_error"
+    assert repository.records[0].collection_name == "fixture"
 
 
 @pytest.mark.anyio
