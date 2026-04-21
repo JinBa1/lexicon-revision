@@ -1,0 +1,37 @@
+app = "rag-exam-tool"
+primary_region = "lhr"
+
+[env]
+  APP_ENV = "prod"
+
+[build]
+  target = "prod"
+
+[deploy]
+  release_command = "alembic upgrade head"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "get"
+    path = "/healthz"
+    timeout = "5s"
+
+  [[http_service.checks]]
+    grace_period = "45s"
+    interval = "20s"
+    method = "get"
+    path = "/readyz"
+    timeout = "5s"
+
+[vm]
+  memory = "1024mb"
+  cpu_kind = "shared"
+  cpus = 1
