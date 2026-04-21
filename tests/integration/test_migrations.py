@@ -4,6 +4,7 @@ import os
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from src.metadata_schema import default_schema_path, load_collection_schema
 
@@ -315,6 +316,112 @@ def test_alembic_access_model_upgrade_adds_public_private_collection_shape() -> 
                         """
                         insert into users (id, email)
                         values ('user-spaced', ' member@example.com ')
+                        """
+                    )
+                )
+    finally:
+        command.upgrade(config, "head")
+        engine.dispose()
+
+
+def test_alembic_upgrade_from_0005_adds_request_usage_logs_table() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260420_0005")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            tables_before = set(inspector.get_table_names())
+
+        assert "request_usage_logs" not in tables_before
+
+        command.upgrade(config, "20260421_0006")
+
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            tables = set(inspector.get_table_names())
+            columns = {
+                column["name"]: column
+                for column in inspector.get_columns("request_usage_logs")
+            }
+            unique_constraints = {
+                constraint["name"]: set(constraint["column_names"])
+                for constraint in inspector.get_unique_constraints("request_usage_logs")
+            }
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    insert into request_usage_logs (
+                        id,
+                        request_id,
+                        endpoint,
+                        collection_name,
+                        app_user_id,
+                        outcome,
+                        latency_ms,
+                        detail
+                    ) values (
+                        'usage-log-1',
+                        'req-migration-1',
+                        'search',
+                        'fixture-public',
+                        null,
+                        'ok',
+                        10,
+                        '{}'::jsonb
+                    )
+                    """
+                )
+            )
+
+        assert "request_usage_logs" in tables
+        assert {"embedding", "rerank", "planning", "generation", "detail"} <= set(
+            columns
+        )
+        assert isinstance(columns["embedding"]["type"], JSONB)
+        assert isinstance(columns["rerank"]["type"], JSONB)
+        assert isinstance(columns["planning"]["type"], JSONB)
+        assert isinstance(columns["generation"]["type"], JSONB)
+        assert isinstance(columns["detail"]["type"], JSONB)
+        assert columns["created_at"]["nullable"] is False
+        assert unique_constraints["uq_request_usage_logs_request_id"] == {"request_id"}
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        """
+                        insert into request_usage_logs (
+                            id,
+                            request_id,
+                            endpoint,
+                            collection_name,
+                            app_user_id,
+                            outcome,
+                            latency_ms,
+                            detail
+                        ) values (
+                            'usage-log-2',
+                            'req-migration-1',
+                            'study',
+                            'fixture-public',
+                            null,
+                            'provider_error',
+                            12,
+                            '{}'::jsonb
+                        )
                         """
                     )
                 )
