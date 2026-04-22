@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Engine, select, text
+from sqlalchemy import Engine, bindparam, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from src.access.affiliation import CommunityDomainMatch, ManualAccessOverride
@@ -125,6 +125,10 @@ class PgCollectionAccessRepository:
             )
 
         normalized_email = require_normalized_email(identity.email)
+        is_verified_external_identity = (
+            identity.provider not in (None, STUB_EMAIL_IDENTITY_PROVIDER)
+            and identity.email_verified
+        )
 
         lookup_by_external_identity_stmt = (
             select(
@@ -147,35 +151,81 @@ class PgCollectionAccessRepository:
             .where(users.c.email == normalized_email)
             .limit(1)
         )
+        lookup_provider_identity_for_user_stmt = select(
+            user_external_identities.c.external_subject
+        ).where(
+            user_external_identities.c.user_id == bindparam("user_id"),
+            user_external_identities.c.provider == bindparam("provider"),
+        )
 
         with Session(self.engine) as session:
+
+            def _has_conflicting_provider_subjects(user_id: str) -> bool:
+                existing_provider_subjects = (
+                    session.execute(
+                        lookup_provider_identity_for_user_stmt,
+                        {
+                            "user_id": user_id,
+                            "provider": identity.provider,
+                        },
+                    )
+                    .scalars()
+                    .all()
+                )
+                return any(
+                    existing_subject != identity.external_subject
+                    for existing_subject in existing_provider_subjects
+                )
+
             self._lock_external_identity(
                 session,
                 provider=identity.provider,
                 external_subject=identity.external_subject,
             )
+            if is_verified_external_identity:
+                self._lock_email(session, normalized_email)
             row = None
             if identity.provider is not None and identity.external_subject is not None:
                 row = session.execute(lookup_by_external_identity_stmt).first()
+                if row is not None and _has_conflicting_provider_subjects(str(row.id)):
+                    raise ValueError(
+                        "external identity email collision requires "
+                        "explicit account linking"
+                    )
 
             if row is None:
-                insert_user_stmt = (
-                    pg_insert(users)
-                    .values(
-                        id=str(uuid.uuid4()),
-                        email=normalized_email,
-                        email_verified=identity.email_verified,
+                if is_verified_external_identity:
+                    row = session.execute(lookup_by_email_stmt).first()
+                    if row is not None and _has_conflicting_provider_subjects(
+                        str(row.id)
+                    ):
+                        raise ValueError(
+                            "external identity email collision requires "
+                            "explicit account linking"
+                        )
+
+                if row is None:
+                    insert_user_stmt = (
+                        pg_insert(users)
+                        .values(
+                            id=str(uuid.uuid4()),
+                            email=normalized_email,
+                            email_verified=identity.email_verified,
+                        )
+                        .on_conflict_do_nothing(index_elements=[users.c.email])
+                        .returning(users.c.id, users.c.email)
                     )
-                    .on_conflict_do_nothing(index_elements=[users.c.email])
-                    .returning(users.c.id, users.c.email)
-                )
-                row = session.execute(insert_user_stmt).first()
+                    row = session.execute(insert_user_stmt).first()
 
                 if row is None:
                     if identity.provider in (None, STUB_EMAIL_IDENTITY_PROVIDER):
                         row = session.execute(lookup_by_email_stmt).one()
                     else:
-                        row = session.execute(lookup_by_external_identity_stmt).first()
+                        row = session.execute(lookup_by_email_stmt).first()
+                        if row is None:
+                            row = session.execute(
+                                lookup_by_external_identity_stmt
+                            ).first()
                         if row is None:
                             raise ValueError(
                                 "external identity email collision requires "
@@ -214,6 +264,27 @@ class PgCollectionAccessRepository:
             email=str(row.email),
         )
 
+    def ensure_active_membership(self, *, user_id: str, community_id: str) -> None:
+        with Session(self.engine) as session:
+            session.execute(
+                pg_insert(community_memberships)
+                .values(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    community_id=community_id,
+                    role="member",
+                    status="active",
+                )
+                .on_conflict_do_update(
+                    index_elements=[
+                        community_memberships.c.user_id,
+                        community_memberships.c.community_id,
+                    ],
+                    set_={"status": "active"},
+                )
+            )
+            session.commit()
+
     def _lock_external_identity(
         self,
         session: Session,
@@ -233,6 +304,18 @@ class PgCollectionAccessRepository:
                 """
             ),
             {"lock_key": f"{provider}:{external_subject}"},
+        )
+
+    def _lock_email(self, session: Session, email: str) -> None:
+        session.execute(
+            text(
+                """
+                select pg_advisory_xact_lock(
+                    (('x' || substr(md5(:lock_key), 1, 16))::bit(64)::bigint)
+                )
+                """
+            ),
+            {"lock_key": f"email:{email}"},
         )
 
     def _domain_rule_matches(
