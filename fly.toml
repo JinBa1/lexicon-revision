@@ -5,7 +5,7 @@ primary_region = "lhr"
   APP_ENV = "prod"
 
 [build]
-  target = "prod"
+  build-target = "prod"
 
 [deploy]
   release_command = "alembic upgrade head"
