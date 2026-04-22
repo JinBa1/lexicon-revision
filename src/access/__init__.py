@@ -8,10 +8,13 @@ from src.access.affiliation import (
     ManualAccessOverride,
 )
 from src.access.auth import (
+    CLERK_IDENTITY_PROVIDER,
     STUB_EMAIL_IDENTITY_PROVIDER,
     X_USER_EMAIL_HEADER,
+    ClerkRequestIdentityResolver,
     HeaderEmailRequestIdentityResolver,
     RequestIdentityResolver,
+    build_request_identity_resolver,
 )
 from src.access.config import AccessAuthSettings, load_access_auth_settings
 from src.access.errors import (
@@ -38,7 +41,9 @@ __all__ = [
     "CollectionAccessRepository",
     "CollectionAccessService",
     "CommunityAffiliationResolver",
+    "ClerkRequestIdentityResolver",
     "CommunityDomainMatch",
+    "CLERK_IDENTITY_PROVIDER",
     "HeaderEmailRequestIdentityResolver",
     "IdentityProvisioningError",
     "ManualAccessOverride",
@@ -46,6 +51,7 @@ __all__ = [
     "RequestIdentityResolver",
     "ResolvedIdentity",
     "STUB_EMAIL_IDENTITY_PROVIDER",
+    "build_request_identity_resolver",
     "load_access_auth_settings",
     "X_USER_EMAIL_HEADER",
 ]

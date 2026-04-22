@@ -20,9 +20,12 @@ from src.access import (
     AuthorizationContext,
     CollectionAccessDeniedError,
     CollectionAccessService,
+    CommunityAffiliationResolver,
     HeaderEmailRequestIdentityResolver,
     IdentityProvisioningError,
     RequestIdentityResolver,
+    build_request_identity_resolver,
+    load_access_auth_settings,
 )
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
@@ -89,6 +92,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     object_storage: ObjectStorage | None = None
     planner_provider: object | None = None
     generation_provider: object | None = None
+    auth_resolver: object | None = None
 
     try:
         runtime_settings: AppRuntimeSettings = getattr(
@@ -99,11 +103,16 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         provider_settings = load_retrieval_provider_settings()
         storage_settings = load_object_storage_settings()
         study_settings = load_study_settings()
+        auth_settings = load_access_auth_settings()
         validate_production_profile(
             runtime_settings=runtime_settings,
             retrieval_settings=provider_settings,
             study_settings=study_settings,
             storage_settings=storage_settings,
+        )
+        _validate_access_auth_settings(
+            runtime_settings=runtime_settings,
+            auth_settings=auth_settings,
         )
         embedding_model = build_embedding_provider(provider_settings)
         reranker = build_rerank_provider(provider_settings)
@@ -119,10 +128,13 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
             engine=engine,
             object_storage=object_storage,
         )
+        repository = PgCollectionAccessRepository(engine=engine)
         app.state.access_service = CollectionAccessService(
-            repository=PgCollectionAccessRepository(engine=engine)
+            repository=repository,
+            affiliation_resolver=CommunityAffiliationResolver(repository=repository),
         )
-        app.state.auth_resolver = HeaderEmailRequestIdentityResolver()
+        auth_resolver = build_request_identity_resolver(auth_settings)
+        app.state.auth_resolver = auth_resolver
         planner_provider, generation_provider = build_generation_providers(
             study_settings
         )
@@ -161,6 +173,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         await _aclose_if_supported(planner_provider)
         await _aclose_if_supported(generation_provider)
+        _close_if_supported(auth_resolver)
         _close_if_supported(embedding_model)
         _close_if_supported(reranker)
         _close_if_supported(object_storage)
@@ -766,10 +779,25 @@ def _configure_runtime_state(
     application.state.planning_provider = None
     application.state.object_storage = None
     application.state.access_service = None
-    application.state.auth_resolver = HeaderEmailRequestIdentityResolver()
+    application.state.auth_resolver = None
     application.state.search_service = None
     application.state.study_service = None
     application.state.generation_provider = None
+
+
+def _validate_access_auth_settings(
+    *,
+    runtime_settings: AppRuntimeSettings,
+    auth_settings,
+) -> None:
+    if runtime_settings.environment != "prod":
+        return
+    if auth_settings.provider != "clerk":
+        raise ValueError("production auth requires ACCESS_AUTH_PROVIDER=clerk")
+    if not auth_settings.clerk_secret_key:
+        raise ValueError("production auth requires CLERK_SECRET_KEY")
+    if not auth_settings.clerk_authorized_parties:
+        raise ValueError("production auth requires CLERK_AUTHORIZED_PARTIES")
 
 
 def _database_probe(engine: Engine) -> str:
