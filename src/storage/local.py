@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote
 
+from src.runtime.telemetry import HealthStatus
 from src.storage.base import (
     InvalidKeyError,
     ObjectNotFoundError,
@@ -104,12 +106,12 @@ class LocalObjectStorage:
             raise ValueError("expires_in_seconds must be positive")
         return self._presign("PUT", key, expires_in_seconds)
 
-    def health(self) -> str:
+    def health(self) -> HealthStatus:
         try:
             self._root.mkdir(parents=True, exist_ok=True)
-            probe_path = self._root / ".storage-healthcheck"
+            probe_path = self._root / f".storage-healthcheck-{uuid.uuid4().hex}"
             probe_path.write_bytes(b"ok")
-            probe_path.unlink()
+            probe_path.unlink(missing_ok=True)
         except OSError:
             return "error"
         return "ok"

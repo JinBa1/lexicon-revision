@@ -26,10 +26,6 @@ from src.storage.base import ObjectStorage
 
 logger = logging.getLogger(__name__)
 
-_last_execution_telemetry_var: ContextVar["SearchExecutionTelemetry | None"] = (
-    ContextVar("pg_search_last_execution_telemetry", default=None)
-)
-
 
 @dataclass(frozen=True)
 class SearchExecutionTelemetry:
@@ -56,6 +52,12 @@ class PgSearchService:
         self._object_storage = object_storage
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
         self._schema_cache: dict[str, CollectionMetadataSchema] = {}
+        self._last_execution_telemetry_var: ContextVar[
+            SearchExecutionTelemetry | None
+        ] = ContextVar(
+            f"pg_search_last_execution_telemetry_{id(self)}",
+            default=None,
+        )
 
     @property
     def embedding_model_id(self) -> str:
@@ -82,7 +84,7 @@ class PgSearchService:
         limit: int = 10,
         rerank: bool = True,
     ) -> SearchResponse:
-        _last_execution_telemetry_var.set(None)
+        self._last_execution_telemetry_var.set(None)
         if limit <= 0:
             raise ValueError("limit must be positive")
         if rerank and limit > RERANK_CANDIDATE_CAP:
@@ -115,7 +117,7 @@ class PgSearchService:
         )
 
         if not rows:
-            _last_execution_telemetry_var.set(
+            self._last_execution_telemetry_var.set(
                 SearchExecutionTelemetry(
                     embedding=embedding_telemetry,
                     rerank=None,
@@ -181,7 +183,7 @@ class PgSearchService:
             if len(results) == limit:
                 break
 
-        _last_execution_telemetry_var.set(
+        self._last_execution_telemetry_var.set(
             SearchExecutionTelemetry(
                 embedding=embedding_telemetry,
                 rerank=rerank_telemetry,
@@ -195,8 +197,8 @@ class PgSearchService:
         )
 
     def pop_last_execution_telemetry(self) -> SearchExecutionTelemetry | None:
-        telemetry = _last_execution_telemetry_var.get()
-        _last_execution_telemetry_var.set(None)
+        telemetry = self._last_execution_telemetry_var.get()
+        self._last_execution_telemetry_var.set(None)
         return telemetry
 
     def _load_media_map(self, collection: str) -> dict[str, list[dict[str, Any]]]:

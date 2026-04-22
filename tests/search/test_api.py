@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 from fastapi import Request
@@ -249,6 +251,19 @@ def test_create_app_injected_mode_requires_explicit_access_choice() -> None:
 
     with pytest.raises(ValueError, match="allow_unauthorized_test_mode"):
         create_app(search_service=FakeSearchService())
+
+
+def test_install_body_limit_receive_wrapper_requires_starlette_receive() -> None:
+    from src.main import _install_body_limit_receive_wrapper
+
+    with pytest.raises(
+        RuntimeError,
+        match="requires Starlette Request._receive",
+    ):
+        _install_body_limit_receive_wrapper(
+            SimpleNamespace(),
+            max_bytes=16,
+        )
 
 
 @pytest.mark.anyio

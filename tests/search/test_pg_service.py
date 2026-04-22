@@ -310,6 +310,59 @@ def test_pg_search_service_clears_stale_telemetry_when_search_fails() -> None:
     assert service.pop_last_execution_telemetry() is None
 
 
+class _EmbedderAlt:
+    model_id = "fake-v2"
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        del texts
+        return EmbeddingResult(
+            vectors=[[0.0, 1.0]],
+            model_id=self.model_id,
+            provider="openai",
+            latency_ms=4,
+            usage=TokenUsage(total_tokens=2),
+        )
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        del text
+        return EmbeddingResult(
+            vectors=[[0.0, 1.0]],
+            model_id=self.model_id,
+            provider="openai",
+            latency_ms=6,
+            usage=TokenUsage(total_tokens=3),
+        )
+
+    def health(self) -> str:
+        return "ok"
+
+
+def test_pg_search_service_telemetry_is_scoped_per_instance() -> None:
+    first = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+    second = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_EmbedderAlt(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    first.search("first", collection="fixture", filters=[], limit=2, rerank=False)
+    second.search("second", collection="fixture", filters=[], limit=2, rerank=False)
+
+    first_telemetry = first.pop_last_execution_telemetry()
+    second_telemetry = second.pop_last_execution_telemetry()
+
+    assert first_telemetry is not None
+    assert second_telemetry is not None
+    assert first_telemetry.embedding.model == "fake-v1"
+    assert second_telemetry.embedding.model == "fake-v2"
+
+
 class _InvalidChunkLevelRepo:
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         del collection_name

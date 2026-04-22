@@ -48,3 +48,41 @@ async def test_build_generation_providers_supports_default_ollama_settings() -> 
 
     await planner_provider.aclose()
     await generation_provider.aclose()
+
+
+def test_build_generation_providers_reports_missing_planning_api_key(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PLANNING__PROVIDER", "openai_compatible")
+    monkeypatch.setenv("PLANNING__BASE_URL", "https://planner.example.com/v1")
+    monkeypatch.setenv("PLANNING__MODEL", "planner-model")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    with pytest.raises(
+        ValueError,
+        match="planning openai_compatible provider requires api_key",
+    ):
+        build_generation_providers(settings)
+
+
+def test_build_generation_providers_reports_missing_generation_api_key(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PLANNING__PROVIDER", "openai_compatible")
+    monkeypatch.setenv("PLANNING__BASE_URL", "https://planner.example.com/v1")
+    monkeypatch.setenv("PLANNING__API_KEY", "planner-key")
+    monkeypatch.setenv("PLANNING__MODEL", "planner-model")
+    monkeypatch.setenv("GENERATION__PROVIDER", "openai_compatible")
+    monkeypatch.setenv("GENERATION__BASE_URL", "https://generator.example.com/v1")
+    monkeypatch.setenv("GENERATION__MODEL", "generator-model")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    with pytest.raises(
+        ValueError,
+        match="generation openai_compatible provider requires api_key",
+    ):
+        build_generation_providers(settings)

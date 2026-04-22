@@ -831,7 +831,15 @@ def _install_body_limit_receive_wrapper(
     *,
     max_bytes: int,
 ) -> None:
-    original_receive = request._receive
+    # This currently depends on Starlette's private Request._receive attribute.
+    # If Starlette changes that internal contract, fail clearly instead of
+    # silently disabling the body-size guard. A proper ASGI middleware wrapper
+    # remains the longer-term fix.
+    original_receive = getattr(request, "_receive", None)
+    if not callable(original_receive):
+        raise RuntimeError(
+            "request body limit wrapper requires Starlette Request._receive"
+        )
     total_bytes = 0
 
     async def limited_receive():

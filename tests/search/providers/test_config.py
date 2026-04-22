@@ -1,4 +1,6 @@
 import os
+import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -133,11 +135,20 @@ def test_build_embedding_provider_local_instantiates_model(clean_env):
         rerank_enabled=False,
         voyage_api_key=None,
     )
+    fake_sentence_transformers = SimpleNamespace()
     with (
-        patch("sentence_transformers.SentenceTransformer") as mock_st,
         patch(
             "src.search.providers.local.LocalSentenceTransformerEmbedder"
         ) as mock_embedder,
+        patch.object(
+            fake_sentence_transformers,
+            "SentenceTransformer",
+            create=True,
+        ) as mock_st,
+        patch.dict(
+            sys.modules,
+            {"sentence_transformers": fake_sentence_transformers},
+        ),
     ):
         provider = build_embedding_provider(settings)
 
@@ -155,9 +166,18 @@ def test_build_rerank_provider_local_instantiates_model(clean_env):
         rerank_enabled=True,
         voyage_api_key=None,
     )
+    fake_sentence_transformers = SimpleNamespace()
     with (
-        patch("sentence_transformers.CrossEncoder") as mock_ce,
         patch("src.search.providers.local.LocalCrossEncoderReranker") as mock_reranker,
+        patch.object(
+            fake_sentence_transformers,
+            "CrossEncoder",
+            create=True,
+        ) as mock_ce,
+        patch.dict(
+            sys.modules,
+            {"sentence_transformers": fake_sentence_transformers},
+        ),
     ):
         provider = build_rerank_provider(settings, device="cuda")
 

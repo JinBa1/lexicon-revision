@@ -15,13 +15,18 @@ def build_study_providers(
 def build_generation_providers(
     settings: StudySettings,
 ) -> tuple[GenerationProvider, GenerationProvider]:
-    planner_provider = build_generation_provider(settings.planning)
-    generation_provider = build_generation_provider(settings.generation)
+    planner_provider = build_generation_provider(settings.planning, role="planning")
+    generation_provider = build_generation_provider(
+        settings.generation,
+        role="generation",
+    )
     return planner_provider, generation_provider
 
 
 def build_generation_provider(
     settings: GenerationSettings | PlanningSettings,
+    *,
+    role: str = "generation",
 ) -> GenerationProvider:
     if settings.provider == "ollama":
         return OllamaProvider(
@@ -31,7 +36,7 @@ def build_generation_provider(
         )
     if settings.provider == "openai_compatible":
         if not settings.api_key:
-            raise ValueError("openai_compatible provider requires api_key")
+            raise ValueError(f"{role} openai_compatible provider requires api_key")
         return OpenAICompatibleProvider(
             base_url=settings.base_url,
             api_key=settings.api_key,
