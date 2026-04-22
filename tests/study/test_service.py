@@ -349,6 +349,40 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
 
 
 @pytest.mark.anyio
+async def test_orchestrate_uses_provided_request_id() -> None:
+    plan = QueryPlan(
+        original_query="2025 dp",
+        semantic_queries=["dynamic programming recurrence"],
+    )
+    query_planner = FakeQueryPlanner(planner_execution(plan))
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="dynamic programming recurrence",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["dynamic programming recurrence"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="2025 dp", scope={"collection": "cam-cs-tripos"}),
+        request_id="req-study-123",
+    )
+
+    assert response.request_id == "req-study-123"
+
+
+@pytest.mark.anyio
 async def test_orchestrate_accepts_legacy_query_plan_planner() -> None:
     plan = QueryPlan(original_query="legacy", semantic_queries=["legacy semantic"])
     query_planner = LegacyQueryPlanner(plan)

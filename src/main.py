@@ -600,7 +600,10 @@ def create_app(
                     payload.top_k,
                     max_top_k=runtime_settings.study_top_k_max,
                 )
-                response = await service.orchestrate(payload)
+                response = await service.orchestrate(
+                    payload,
+                    request_id=_request_id(request),
+                )
             _log_usage_best_effort(
                 request,
                 endpoint="study",

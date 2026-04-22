@@ -82,8 +82,13 @@ class StudyService:
         self.runtime_settings = runtime_settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
 
-    async def orchestrate(self, request: StudyRequest) -> StudyResponse:
-        request_id = str(uuid.uuid4())
+    async def orchestrate(
+        self,
+        request: StudyRequest,
+        *,
+        request_id: str | None = None,
+    ) -> StudyResponse:
+        request_id = request_id or str(uuid.uuid4())
         hard_filters = request.filters
         plan, planning_metadata = await self._plan(request.query, hard_filters)
 

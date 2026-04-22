@@ -28,10 +28,10 @@ class FakeStudyService:
     def __init__(self) -> None:
         self.requests = []
 
-    async def orchestrate(self, request):
+    async def orchestrate(self, request, request_id=None):
         self.requests.append(request)
         return StudyResponse(
-            request_id="00000000-0000-4000-8000-000000000000",
+            request_id=request_id or "00000000-0000-4000-8000-000000000000",
             query=request.query,
             scope=request.scope,
             answer_status="insufficient_evidence",
@@ -70,10 +70,10 @@ class FakeStudyService:
 
 
 class TelemetryStudyService(FakeStudyService):
-    async def orchestrate(self, request):
+    async def orchestrate(self, request, request_id=None):
         self.requests.append(request)
         return StudyResponse(
-            request_id="00000000-0000-4000-8000-000000000001",
+            request_id=request_id or "00000000-0000-4000-8000-000000000001",
             query=request.query,
             scope=request.scope,
             answer_status="ok",
@@ -131,9 +131,57 @@ class TelemetryStudyService(FakeStudyService):
         )
 
 
-class InvalidFilterStudyService(FakeStudyService):
-    async def orchestrate(self, request):
+class RequestIdEchoStudyService(FakeStudyService):
+    def __init__(self) -> None:
+        super().__init__()
+        self.request_ids: list[str | None] = []
+
+    async def orchestrate(self, request, request_id=None):
         self.requests.append(request)
+        self.request_ids.append(request_id)
+        return StudyResponse(
+            request_id=request_id or "00000000-0000-4000-8000-000000000002",
+            query=request.query,
+            scope=request.scope,
+            answer_status="insufficient_evidence",
+            answer={"overview": "", "patterns": [], "limitations": ["No match."]},
+            sources=[],
+            retrieval={
+                "status": "empty",
+                "top_k": request.top_k,
+                "returned_result_count": 0,
+                "context_budget_tokens": 4000,
+                "context_chunk_ids": [],
+                "omitted_chunk_ids": [],
+                "truncated_chunk_ids": [],
+                "filters_applied": request.filters,
+                "rerank": True,
+            },
+            generation={
+                "provider": "ollama",
+                "model": "qwen2.5:7b-instruct",
+                "prompt_version": "study_aid_v2",
+                "temperature": 0.1,
+                "attempt_count": 0,
+                "citation_drops": 0,
+                "error_category": None,
+                "latency_ms": 0,
+            },
+            planning={
+                "status": "ok",
+                "planner_version": "query_planner_v1",
+                "original_query": request.query,
+                "semantic_queries": [request.query],
+                "error_category": None,
+                "latency_ms": 0,
+            },
+        )
+
+
+class InvalidFilterStudyService(FakeStudyService):
+    async def orchestrate(self, request, request_id=None):
+        self.requests.append(request)
+        del request_id
         raise InvalidMetadataFilterError(
             "Filter field 'topic' is not declared in collection metadata schema"
         )
@@ -228,16 +276,18 @@ class CountingHealthProvider:
 
 
 class SlowStudyService:
-    async def orchestrate(self, request):
+    async def orchestrate(self, request, request_id=None):
         del request
+        del request_id
         await httpx.AsyncClient().aclose()
         await asyncio.sleep(0.05)
         raise AssertionError("timeout wrapper should trigger before completion")
 
 
 class ExplodingStudyService(FakeStudyService):
-    async def orchestrate(self, request):
+    async def orchestrate(self, request, request_id=None):
         self.requests.append(request)
+        del request_id
         raise RuntimeError("generation provider exploded")
 
 
@@ -1068,6 +1118,39 @@ async def test_post_study_logs_usage_on_success() -> None:
     assert repository.records[0].planning is not None
     assert repository.records[0].generation is not None
     assert repository.records[0].embedding is not None
+
+
+@pytest.mark.anyio
+async def test_post_study_passes_request_id_to_service_and_usage_log() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    study_service = RequestIdEchoStudyService()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 200
+    response_id = response.json()["request_id"]
+    assert study_service.request_ids == [response_id]
+    assert repository.records[0].request_id == response_id
 
 
 @pytest.mark.anyio
