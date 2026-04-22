@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+from src.access.affiliation import (
+    AffiliationDecision,
+    AffiliationRepository,
+    CommunityAffiliationResolver,
+    CommunityDomainMatch,
+    ManualAccessOverride,
+)
 from src.access.auth import (
     STUB_EMAIL_IDENTITY_PROVIDER,
     X_USER_EMAIL_HEADER,
@@ -24,12 +31,17 @@ __all__ = [
     "AuthenticatedUser",
     "AuthorizationContext",
     "AccessAuthSettings",
+    "AffiliationDecision",
+    "AffiliationRepository",
     "CollectionAccess",
     "CollectionAccessDeniedError",
     "CollectionAccessRepository",
     "CollectionAccessService",
+    "CommunityAffiliationResolver",
+    "CommunityDomainMatch",
     "HeaderEmailRequestIdentityResolver",
     "IdentityProvisioningError",
+    "ManualAccessOverride",
     "RequestIdentity",
     "RequestIdentityResolver",
     "ResolvedIdentity",

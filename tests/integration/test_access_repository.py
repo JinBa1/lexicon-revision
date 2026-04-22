@@ -7,13 +7,37 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from src.access.errors import CollectionAccessDeniedError
 from src.access.models import RequestIdentity
 from src.access.service import CollectionAccessService
 from src.search.errors import CollectionNotFoundError
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _clean_affiliation_tables() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        yield
+        return
+
+    engine = create_engine(database_url, future=True)
+
+    def _delete_affiliation_rows() -> None:
+        with engine.begin() as conn:
+            existing = set(inspect(conn).get_table_names())
+            for table in ("manual_access_overrides", "community_email_domains"):
+                if table in existing:
+                    conn.execute(text(f"DELETE FROM {table}"))
+
+    try:
+        _delete_affiliation_rows()
+        yield
+    finally:
+        _delete_affiliation_rows()
+        engine.dispose()
 
 
 def _engine():
@@ -375,6 +399,156 @@ def test_has_active_membership_rejects_inactive_membership() -> None:
         user_id="user-1",
         community_id="community-1",
     )
+
+
+def test_get_manual_access_override_ignores_inactive_or_expired_rows() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into communities (id, name, slug)
+                values
+                    ('community-1', 'Community One', 'community-one'),
+                    ('community-2', 'Community Two', 'community-two'),
+                    ('community-3', 'Community Three', 'community-three')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into manual_access_overrides (
+                    id,
+                    email,
+                    community_id,
+                    note,
+                    is_active,
+                    expires_at
+                ) values
+                    (
+                        'override-1',
+                        'student@example.edu',
+                        'community-1',
+                        'active access',
+                        true,
+                        now() + interval '1 day'
+                    ),
+                    (
+                        'override-2',
+                        'inactive@example.edu',
+                        'community-2',
+                        'inactive access',
+                        false,
+                        null
+                    ),
+                    (
+                        'override-3',
+                        'expired@example.edu',
+                        'community-3',
+                        'expired access',
+                        true,
+                        now() - interval '1 day'
+                    )
+                """
+            )
+        )
+
+    active_override = repository.get_manual_access_override(" Student@Example.edu ")
+    inactive_override = repository.get_manual_access_override("inactive@example.edu")
+    expired_override = repository.get_manual_access_override("expired@example.edu")
+
+    assert active_override is not None
+    assert active_override.email == "student@example.edu"
+    assert active_override.community_id == "community-1"
+    assert active_override.note == "active access"
+    assert inactive_override is None
+    assert expired_override is None
+
+
+def test_list_matching_communities_for_email_domain_supports_exact_and_suffix() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into communities (id, name, slug)
+                values
+                    ('community-1', 'Community One', 'community-one'),
+                    ('community-2', 'Community Two', 'community-two'),
+                    ('community-3', 'Community Three', 'community-three'),
+                    ('community-4', 'Community Four', 'community-four')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into community_email_domains (
+                    id,
+                    community_id,
+                    domain,
+                    match_mode,
+                    is_active
+                ) values
+                    (
+                        'domain-1',
+                        'community-1',
+                        'cs.example.edu',
+                        'exact',
+                        true
+                    ),
+                    (
+                        'domain-2',
+                        'community-2',
+                        'example.edu',
+                        'suffix',
+                        true
+                    ),
+                    (
+                        'domain-3',
+                        'community-3',
+                        'other.edu',
+                        'suffix',
+                        true
+                    ),
+                    (
+                        'domain-4',
+                        'community-4',
+                        'inactive.example.edu',
+                        'exact',
+                        false
+                    )
+                """
+            )
+        )
+
+    matches = repository.list_matching_communities_for_email_domain(
+        " Student@CS.Example.edu "
+    )
+
+    assert {
+        (match.community_id, match.domain, match.match_mode) for match in matches
+    } == {
+        ("community-1", "cs.example.edu", "exact"),
+        ("community-2", "example.edu", "suffix"),
+    }
+
+
+def test_domain_rule_matches_raises_for_unknown_match_mode() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with pytest.raises(ValueError, match="Unknown community email-domain match_mode"):
+        repository._domain_rule_matches(
+            email_domain="student.example.edu",
+            rule_domain="example.edu",
+            match_mode="wildcard",
+        )
 
 
 def test_service_allows_public_collection_without_header() -> None:

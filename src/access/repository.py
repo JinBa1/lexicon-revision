@@ -5,12 +5,15 @@ import uuid
 from sqlalchemy import Engine, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from src.access.affiliation import CommunityDomainMatch, ManualAccessOverride
 from src.access.auth import STUB_EMAIL_IDENTITY_PROVIDER
-from src.access.email import require_normalized_email
+from src.access.email import email_domain, require_normalized_email
 from src.access.models import AuthenticatedUser, CollectionAccess, RequestIdentity
 from src.db.schema import (
     collections,
+    community_email_domains,
     community_memberships,
+    manual_access_overrides,
     user_external_identities,
     users,
 )
@@ -19,6 +22,64 @@ from src.db.schema import (
 class PgCollectionAccessRepository:
     def __init__(self, *, engine: Engine) -> None:
         self.engine = engine
+
+    def get_manual_access_override(self, email: str) -> ManualAccessOverride | None:
+        normalized_email = require_normalized_email(email)
+        stmt = (
+            select(
+                manual_access_overrides.c.email,
+                manual_access_overrides.c.community_id,
+                manual_access_overrides.c.note,
+            )
+            .where(
+                manual_access_overrides.c.email == normalized_email,
+                manual_access_overrides.c.is_active.is_(True),
+                (
+                    manual_access_overrides.c.expires_at.is_(None)
+                    | (manual_access_overrides.c.expires_at > text("now()"))
+                ),
+            )
+            .limit(1)
+        )
+        with Session(self.engine) as session:
+            row = session.execute(stmt).first()
+
+        if row is None:
+            return None
+
+        return ManualAccessOverride(
+            email=str(row.email),
+            community_id=str(row.community_id),
+            note=row.note,
+        )
+
+    def list_matching_communities_for_email_domain(
+        self, email: str
+    ) -> list[CommunityDomainMatch]:
+        normalized_domain = email_domain(email)
+        stmt = select(
+            community_email_domains.c.community_id,
+            community_email_domains.c.domain,
+            community_email_domains.c.match_mode,
+        ).where(community_email_domains.c.is_active.is_(True))
+        with Session(self.engine) as session:
+            rows = session.execute(stmt).all()
+
+        matches: list[CommunityDomainMatch] = []
+        for row in rows:
+            if self._domain_rule_matches(
+                email_domain=normalized_domain,
+                rule_domain=str(row.domain),
+                match_mode=str(row.match_mode),
+            ):
+                matches.append(
+                    CommunityDomainMatch(
+                        community_id=str(row.community_id),
+                        domain=str(row.domain),
+                        match_mode=str(row.match_mode),
+                    )
+                )
+        return matches
 
     def get_collection_access(
         self,
@@ -173,6 +234,21 @@ class PgCollectionAccessRepository:
             ),
             {"lock_key": f"{provider}:{external_subject}"},
         )
+
+    def _domain_rule_matches(
+        self,
+        *,
+        email_domain: str,
+        rule_domain: str,
+        match_mode: str,
+    ) -> bool:
+        if match_mode == "exact":
+            return email_domain == rule_domain
+        if match_mode == "suffix":
+            return email_domain == rule_domain or email_domain.endswith(
+                f".{rule_domain}"
+            )
+        raise ValueError(f"Unknown community email-domain match_mode: {match_mode}")
 
     def has_active_membership(self, *, user_id: str, community_id: str) -> bool:
         stmt = (

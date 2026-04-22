@@ -13,3 +13,11 @@ def require_normalized_email(email: str) -> str:
     if normalized is None:
         raise ValueError("email must not be blank")
     return normalized
+
+
+def email_domain(email: str) -> str:
+    normalized = require_normalized_email(email)
+    local_part, separator, domain = normalized.partition("@")
+    if separator != "@" or not local_part or not domain:
+        raise ValueError("email must include local-part and domain")
+    return domain
