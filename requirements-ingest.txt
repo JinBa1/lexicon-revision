@@ -1,2 +1,2 @@
--r requirements.txt
+-r requirements-local.txt
 mineru[all]==3.0.8

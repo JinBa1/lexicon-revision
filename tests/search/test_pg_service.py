@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
+from src.runtime.telemetry import TokenUsage
 from src.search.errors import DEFAULT_COLLECTION, CollectionNotFoundError
 from src.search.models import SearchResponse
 from src.search.pg_repository import PgChunkRow
@@ -22,11 +23,24 @@ class _Embedder:
 
     def embed_documents(self, texts: list[str]) -> EmbeddingResult:
         return EmbeddingResult(
-            vectors=[[1.0, 0.0] for _ in texts], model_id=self.model_id
+            vectors=[[1.0, 0.0] for _ in texts],
+            model_id=self.model_id,
+            provider="voyage",
+            latency_ms=9,
+            usage=TokenUsage(total_tokens=4),
         )
 
     def embed_query(self, text: str) -> EmbeddingResult:
-        return EmbeddingResult(vectors=[[1.0, 0.0]], model_id=self.model_id)
+        return EmbeddingResult(
+            vectors=[[1.0, 0.0]],
+            model_id=self.model_id,
+            provider="voyage",
+            latency_ms=12,
+            usage=TokenUsage(total_tokens=5),
+        )
+
+    def health(self) -> str:
+        return "ok"
 
 
 class _Repo:
@@ -71,6 +85,18 @@ class _Repo:
         ]
 
 
+class _FlakySearchRepo(_Repo):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fail_search = False
+
+    def search(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.fail_search:
+            raise RuntimeError("search failed")
+        return super().search(**kwargs)
+
+
 def test_pg_search_service_returns_search_response() -> None:
     repo = _Repo()
     service = PgSearchService(
@@ -92,6 +118,12 @@ def test_pg_search_service_returns_search_response() -> None:
     assert response.results[0].chunk_id == "cam-1"
     assert repo.calls[1]["embedding_model_id"] == "fake-v1"
     assert repo.calls[1]["embedding_dimension"] == 2
+    telemetry = service.pop_last_execution_telemetry()
+    assert telemetry is not None
+    assert telemetry.embedding.provider == "voyage"
+    assert telemetry.embedding.model == "fake-v1"
+    assert telemetry.embedding.usage == TokenUsage(total_tokens=5)
+    assert telemetry.rerank is None
 
 
 def test_pg_search_service_uses_default_collection_constant() -> None:
@@ -161,7 +193,16 @@ class _Reranker:
     model_id = "fake-rerank"
 
     def rerank(self, query: str, documents: list[str]) -> RerankResult:
-        return RerankResult(scores=[2.0, 1.0], model_id=self.model_id)
+        return RerankResult(
+            scores=[2.0, 1.0],
+            model_id=self.model_id,
+            provider="voyage",
+            latency_ms=8,
+            usage=TokenUsage(total_tokens=3),
+        )
+
+    def health(self) -> str:
+        return "ok"
 
 
 class _TwoRowRepo:
@@ -251,6 +292,77 @@ def test_pg_search_service_propagates_missing_collection() -> None:
         service.search("q", collection="missing", filters=[], limit=2, rerank=False)
 
 
+def test_pg_search_service_clears_stale_telemetry_when_search_fails() -> None:
+    repo = _FlakySearchRepo()
+    service = PgSearchService(
+        repository=repo,
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    service.search("q", collection="fixture", filters=[], limit=2, rerank=False)
+    repo.fail_search = True
+
+    with pytest.raises(RuntimeError, match="search failed"):
+        service.search("q", collection="fixture", filters=[], limit=2, rerank=False)
+
+    assert service.pop_last_execution_telemetry() is None
+
+
+class _EmbedderAlt:
+    model_id = "fake-v2"
+
+    def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        del texts
+        return EmbeddingResult(
+            vectors=[[0.0, 1.0]],
+            model_id=self.model_id,
+            provider="openai",
+            latency_ms=4,
+            usage=TokenUsage(total_tokens=2),
+        )
+
+    def embed_query(self, text: str) -> EmbeddingResult:
+        del text
+        return EmbeddingResult(
+            vectors=[[0.0, 1.0]],
+            model_id=self.model_id,
+            provider="openai",
+            latency_ms=6,
+            usage=TokenUsage(total_tokens=3),
+        )
+
+    def health(self) -> str:
+        return "ok"
+
+
+def test_pg_search_service_telemetry_is_scoped_per_instance() -> None:
+    first = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+    second = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_EmbedderAlt(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    first.search("first", collection="fixture", filters=[], limit=2, rerank=False)
+    second.search("second", collection="fixture", filters=[], limit=2, rerank=False)
+
+    first_telemetry = first.pop_last_execution_telemetry()
+    second_telemetry = second.pop_last_execution_telemetry()
+
+    assert first_telemetry is not None
+    assert second_telemetry is not None
+    assert first_telemetry.embedding.model == "fake-v1"
+    assert second_telemetry.embedding.model == "fake-v2"
+
+
 class _InvalidChunkLevelRepo:
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         del collection_name
@@ -304,6 +416,74 @@ class _InvalidChunkLevelRepo:
         ]
 
 
+class _InvalidChunkLevelWithEnoughValidRepo:
+    def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
+        del collection_name
+        return CollectionMetadataSchema.model_validate(
+            {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "year",
+                        "label": "Year",
+                        "type": "integer",
+                        "operators": ["eq", "gte", "lte"],
+                        "exposed": True,
+                    }
+                ],
+            }
+        )
+
+    def search(self, **kwargs):
+        return [
+            PgChunkRow(
+                chunk_id="bad-1",
+                chunk_level="part",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="bad row",
+                score=0.9,
+                metadata={
+                    "chunk_level": "part",
+                    "source_pdf": "bad.pdf",
+                    "has_code": False,
+                    "has_figure": False,
+                    "has_table": False,
+                },
+            ),
+            PgChunkRow(
+                chunk_id="good-1",
+                chunk_level="question",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="good row 1",
+                score=0.8,
+                metadata={
+                    "chunk_level": "question",
+                    "source_pdf": "good1.pdf",
+                    "has_code": False,
+                    "has_figure": False,
+                    "has_table": False,
+                },
+            ),
+            PgChunkRow(
+                chunk_id="good-2",
+                chunk_level="question",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="good row 2",
+                score=0.7,
+                metadata={
+                    "chunk_level": "question",
+                    "source_pdf": "good2.pdf",
+                    "has_code": False,
+                    "has_figure": False,
+                    "has_table": False,
+                },
+            ),
+        ]
+
+
 def test_pg_search_service_skips_invalid_chunk_level(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -321,6 +501,25 @@ def test_pg_search_service_skips_invalid_chunk_level(
     assert [result.chunk_id for result in response.results] == ["good-1"]
     warning_mock.assert_called_once()
     assert "chunk_level" in warning_mock.call_args.args[0]
+
+
+def test_pg_search_service_invalid_rows_do_not_consume_limit_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warning_mock = Mock()
+    service = PgSearchService(
+        repository=_InvalidChunkLevelWithEnoughValidRepo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+    monkeypatch.setattr("src.search.pg_service.logger.warning", warning_mock)
+
+    response = service.search("q", collection="fixture", filters=[], limit=2)
+
+    assert [result.chunk_id for result in response.results] == ["good-1", "good-2"]
+    assert response.total == 2
+    warning_mock.assert_called_once()
 
 
 def test_pg_service_passes_filter_conditions_to_repository() -> None:

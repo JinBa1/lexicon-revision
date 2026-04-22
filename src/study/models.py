@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import TokenUsage
+from src.search.pg_service import SearchExecutionTelemetry
 
 if TYPE_CHECKING:
     from src.study.planning.models import PlanningMetadata
@@ -116,6 +118,10 @@ class RetrievalMetadata(BaseModel):
     truncated_chunk_ids: list[str] = Field(default_factory=list)
     filters_applied: list[FilterCondition]
     rerank: bool
+    search_telemetry: SearchExecutionTelemetry | None = Field(
+        default=None,
+        exclude=True,
+    )
 
 
 class GenerationMetadata(BaseModel):
@@ -129,6 +135,7 @@ class GenerationMetadata(BaseModel):
     citation_drops: int = Field(ge=0)
     error_category: ErrorCategory | None
     latency_ms: int = Field(ge=0)
+    usage: TokenUsage | None = Field(default=None, exclude=True)
 
 
 class RankedChunk(BaseModel):
@@ -178,6 +185,13 @@ class GenerationRequest(BaseModel):
     timeout_seconds: float
 
 
+class GenerationEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["token", "done"]
+    text: str | None = None
+
+
 class GenerationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -186,6 +200,7 @@ class GenerationResult(BaseModel):
     provider: str
     finish_reason: str
     latency_ms: int = Field(ge=0)
+    usage: TokenUsage | None = None
 
 
 class ValidationResult(BaseModel):

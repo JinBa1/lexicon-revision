@@ -86,6 +86,25 @@ def test_load_study_settings_applies_planning_env_override(
     assert settings.planning.prompt_version == "query_planner_v1_custom"
 
 
+def test_load_study_settings_applies_planning_connection_env_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PLANNING__PROVIDER", "openai_compatible")
+    monkeypatch.setenv("PLANNING__BASE_URL", "https://planner.example.com/v1")
+    monkeypatch.setenv("PLANNING__API_KEY", "planner-key")
+    monkeypatch.setenv("GENERATION__BASE_URL", "https://generator.example.com/v1")
+    monkeypatch.setenv("GENERATION__API_KEY", "generator-key")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.planning.provider == "openai_compatible"
+    assert settings.planning.base_url == "https://planner.example.com/v1"
+    assert settings.planning.api_key == "planner-key"
+    assert settings.generation.base_url == "https://generator.example.com/v1"
+    assert settings.generation.api_key == "generator-key"
+
+
 def test_env_overrides_keeps_only_known_settings_namespaces(monkeypatch) -> None:
     monkeypatch.setenv("OTHER_SERVICE__GENERATION__MODEL", "wrong-model")
     monkeypatch.setenv("GENERATION__MODEL", "env-model")

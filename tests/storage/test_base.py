@@ -87,6 +87,9 @@ def test_object_storage_is_runtime_checkable() -> None:
                 key=key,
             )
 
+        def health(self):
+            return "ok"
+
     assert isinstance(_Stub(), ObjectStorage)
 
 

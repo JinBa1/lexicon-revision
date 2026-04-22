@@ -70,6 +70,29 @@ def test_exists_matches_put(tmp_path: Path) -> None:
     assert storage.exists(key)
 
 
+def test_health_returns_ok_for_writable_root(tmp_path: Path) -> None:
+    storage = _storage(tmp_path / "object-store")
+
+    assert storage.health() == "ok"
+
+
+def test_health_ignores_missing_probe_during_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _storage(tmp_path / "object-store")
+    original_unlink = Path.unlink
+
+    def flaky_unlink(self: Path, *args, **kwargs) -> None:
+        if self.name == ".storage-healthcheck":
+            raise FileNotFoundError
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", flaky_unlink)
+
+    assert storage.health() == "ok"
+
+
 def test_traversal_rejected_even_with_symlink(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside"
     outside.mkdir(exist_ok=True)

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 from fastapi import FastAPI
 from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
 from src.access.models import RequestIdentity
 from src.metadata_schema.models import FilterCondition
+from src.runtime.config import AppRuntimeSettings
+from src.runtime.telemetry import ProviderCallTelemetry, TokenUsage
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
+from src.search.pg_service import SearchExecutionTelemetry
 from src.study.config import (
     ContextSettings,
     GenerationSettings,
@@ -23,10 +28,119 @@ class FakeStudyService:
     def __init__(self) -> None:
         self.requests = []
 
-    async def orchestrate(self, request):
+    async def orchestrate(self, request, request_id=None):
         self.requests.append(request)
         return StudyResponse(
-            request_id="00000000-0000-4000-8000-000000000000",
+            request_id=request_id or "00000000-0000-4000-8000-000000000000",
+            query=request.query,
+            scope=request.scope,
+            answer_status="insufficient_evidence",
+            answer={"overview": "", "patterns": [], "limitations": ["No match."]},
+            sources=[],
+            retrieval={
+                "status": "empty",
+                "top_k": request.top_k,
+                "returned_result_count": 0,
+                "context_budget_tokens": 4000,
+                "context_chunk_ids": [],
+                "omitted_chunk_ids": [],
+                "truncated_chunk_ids": [],
+                "filters_applied": request.filters,
+                "rerank": True,
+            },
+            generation={
+                "provider": "ollama",
+                "model": "qwen2.5:7b-instruct",
+                "prompt_version": "study_aid_v2",
+                "temperature": 0.1,
+                "attempt_count": 0,
+                "citation_drops": 0,
+                "error_category": None,
+                "latency_ms": 0,
+            },
+            planning={
+                "status": "ok",
+                "planner_version": "query_planner_v1",
+                "original_query": request.query,
+                "semantic_queries": [request.query],
+                "error_category": None,
+                "latency_ms": 0,
+            },
+        )
+
+
+class TelemetryStudyService(FakeStudyService):
+    async def orchestrate(self, request, request_id=None):
+        self.requests.append(request)
+        return StudyResponse(
+            request_id=request_id or "00000000-0000-4000-8000-000000000001",
+            query=request.query,
+            scope=request.scope,
+            answer_status="ok",
+            answer={
+                "overview": "Binary search narrows an ordered interval.",
+                "patterns": [],
+                "limitations": [],
+            },
+            sources=[],
+            retrieval={
+                "status": "ok",
+                "top_k": request.top_k,
+                "returned_result_count": 1,
+                "context_budget_tokens": 4000,
+                "context_chunk_ids": ["cam-1"],
+                "omitted_chunk_ids": [],
+                "truncated_chunk_ids": [],
+                "filters_applied": request.filters,
+                "rerank": True,
+                "search_telemetry": SearchExecutionTelemetry(
+                    embedding=ProviderCallTelemetry(
+                        provider="voyage",
+                        model="voyage-3",
+                        latency_ms=9,
+                        usage=TokenUsage(total_tokens=4),
+                    ),
+                    rerank=None,
+                ),
+            },
+            generation={
+                "provider": "openai_compatible",
+                "model": "generator-model",
+                "prompt_version": "study_aid_v2",
+                "temperature": 0.1,
+                "attempt_count": 1,
+                "citation_drops": 0,
+                "error_category": None,
+                "latency_ms": 15,
+                "usage": TokenUsage(total_tokens=18),
+            },
+            planning={
+                "status": "ok",
+                "planner_version": "query_planner_v1",
+                "original_query": request.query,
+                "semantic_queries": [request.query],
+                "error_category": None,
+                "latency_ms": 6,
+                "telemetry": ProviderCallTelemetry(
+                    provider="openai_compatible",
+                    model="planner-model",
+                    latency_ms=6,
+                    usage=TokenUsage(total_tokens=7),
+                ),
+            },
+        )
+
+
+class RequestIdEchoStudyService(FakeStudyService):
+    def __init__(self) -> None:
+        super().__init__()
+        self.request_ids: list[str | None] = []
+
+    async def orchestrate(self, request, request_id=None):
+        self.requests.append(request)
+        self.request_ids.append(request_id)
+        return StudyResponse(
+            request_id=request_id or "00000000-0000-4000-8000-000000000002",
             query=request.query,
             scope=request.scope,
             answer_status="insufficient_evidence",
@@ -65,8 +179,9 @@ class FakeStudyService:
 
 
 class InvalidFilterStudyService(FakeStudyService):
-    async def orchestrate(self, request):
+    async def orchestrate(self, request, request_id=None):
         self.requests.append(request)
+        del request_id
         raise InvalidMetadataFilterError(
             "Filter field 'topic' is not declared in collection metadata schema"
         )
@@ -150,6 +265,49 @@ class BrokenHealthProvider:
         raise RuntimeError("provider failed")
 
 
+class CountingHealthProvider:
+    def __init__(self, result: str) -> None:
+        self.result = result
+        self.calls = 0
+
+    async def health(self) -> str:
+        self.calls += 1
+        return self.result
+
+
+class SlowStudyService:
+    async def orchestrate(self, request, request_id=None):
+        del request
+        del request_id
+        await httpx.AsyncClient().aclose()
+        await asyncio.sleep(0.05)
+        raise AssertionError("timeout wrapper should trigger before completion")
+
+
+class ExplodingStudyService(FakeStudyService):
+    async def orchestrate(self, request, request_id=None):
+        self.requests.append(request)
+        del request_id
+        raise RuntimeError("generation provider exploded")
+
+
+class SlowStreamingStudyBody:
+    async def __aiter__(self):
+        yield b'{"query":"dynamic programming","scope":{"collection":"cam-cs-tripos"}}'
+        await asyncio.sleep(0.05)
+
+
+class FakeUsageLogRepository:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.records = []
+        self.fail = fail
+
+    def insert(self, record) -> None:
+        if self.fail:
+            raise RuntimeError("usage log insert failed")
+        self.records.append(record)
+
+
 class FakeSearchService:
     def health(self):
         return "ok"
@@ -198,6 +356,29 @@ def _study_settings() -> StudySettings:
             prompt_version="query_planner_v1",
             prompt_path="prompts/query_planner_v1.yaml",
         ),
+    )
+
+
+def _runtime_settings(
+    *,
+    query_max_chars: int = 2000,
+    study_top_k_max: int = 20,
+    study_wall_clock_timeout_seconds: float = 45,
+    enable_dev_routes: bool = False,
+) -> AppRuntimeSettings:
+    return AppRuntimeSettings(
+        environment="test",
+        enable_dev_routes=enable_dev_routes,
+        cors_allowed_origins=[],
+        request_body_max_bytes=131072,
+        query_max_chars=query_max_chars,
+        search_limit_max=50,
+        study_top_k_max=study_top_k_max,
+        study_context_budget_tokens=4000,
+        study_generation_max_output_tokens=1200,
+        study_wall_clock_timeout_seconds=study_wall_clock_timeout_seconds,
+        rate_limit_window_seconds=60,
+        rate_limit_max_requests=30,
     )
 
 
@@ -290,6 +471,63 @@ async def test_post_study_rejects_bad_top_k() -> None:
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_post_study_rejects_query_longer_than_runtime_limit() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(query_max_chars=10),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "x" * 11,
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "query length" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_post_study_rejects_top_k_above_runtime_limit() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(study_top_k_max=5),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+                "top_k": 6,
+            },
+        )
+
+    assert response.status_code == 422
+    assert "top_k cannot exceed 5" in response.json()["detail"]
 
 
 @pytest.mark.anyio
@@ -550,6 +788,7 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
     embedding_provider = CloseTrackingProvider()
     rerank_provider = CloseTrackingProvider()
     generation_provider = AsyncCloseTrackingProvider()
+    planning_provider = AsyncCloseTrackingProvider()
     engine = DisposableEngine()
     app = FastAPI()
 
@@ -572,7 +811,13 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
     )
     monkeypatch.setattr(main_module, "load_database_settings", lambda: object())
     monkeypatch.setattr(main_module, "create_database_engine", lambda settings: engine)
+    monkeypatch.setattr(main_module, "load_app_runtime_settings", _runtime_settings)
     monkeypatch.setattr(main_module, "load_object_storage_settings", lambda: object())
+    monkeypatch.setattr(
+        main_module,
+        "validate_production_profile",
+        lambda **kwargs: None,
+    )
     monkeypatch.setattr(main_module, "build_object_storage", lambda settings: object())
     monkeypatch.setattr(main_module, "create_search_service", lambda **kwargs: object())
     monkeypatch.setattr(
@@ -583,7 +828,9 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
     )
     monkeypatch.setattr(main_module, "load_study_settings", _study_settings)
     monkeypatch.setattr(
-        main_module, "OllamaProvider", lambda **kwargs: generation_provider
+        main_module,
+        "build_generation_providers",
+        lambda settings: (planning_provider, generation_provider),
     )
     monkeypatch.setattr(main_module, "LLMQueryPlanner", lambda **kwargs: object())
     monkeypatch.setattr(
@@ -599,9 +846,11 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
 
     assert embedding_provider.close_calls == 1
     assert rerank_provider.close_calls == 1
+    assert planning_provider.aclose_calls == 1
     assert generation_provider.aclose_calls == 1
     assert engine.dispose_calls == 1
     assert app.state.object_storage is None
+    assert app.state.runtime_settings is None
     assert app.state.access_service is None
     assert app.state.search_service is None
     assert app.state.study_service is None
@@ -609,7 +858,7 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
 
 
 @pytest.mark.anyio
-async def test_health_reports_generator() -> None:
+async def test_healthz_returns_liveness_payload() -> None:
     from src.main import create_app
 
     app = create_app(
@@ -623,20 +872,21 @@ async def test_health_reports_generator() -> None:
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/health")
+        response = await client.get("/healthz")
 
     assert response.status_code == 200
-    assert response.json() == {"retrieval": "ok", "generator": "ok"}
+    assert response.json() == {"status": "ok"}
 
 
 @pytest.mark.anyio
-async def test_health_accepts_sync_generator_health() -> None:
+async def test_health_alias_matches_healthz_liveness_payload() -> None:
     from src.main import create_app
 
     app = create_app(
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
-        generation_provider=SyncHealthProvider(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -644,20 +894,34 @@ async def test_health_accepts_sync_generator_health() -> None:
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/health")
+        healthz = await client.get("/healthz")
+        health = await client.get("/health")
 
-    assert response.status_code == 200
-    assert response.json() == {"retrieval": "ok", "generator": "ok"}
+    assert healthz.status_code == 200
+    assert health.status_code == 200
+    assert healthz.json() == {"status": "ok"}
+    assert health.json() == {"status": "ok"}
 
 
 @pytest.mark.anyio
-async def test_health_reports_error_for_unknown_generator_status() -> None:
+async def test_readyz_checks_planning_and_generation_providers_separately() -> None:
     from src.main import create_app
+    from src.runtime.readiness import ReadinessDependencies
 
+    planning = CountingHealthProvider("ok")
+    generation = CountingHealthProvider("ok")
     app = create_app(
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
-        generation_provider=InvalidHealthProvider(),
+        readiness_dependencies=ReadinessDependencies(
+            database_probe=lambda: "ok",
+            embedding_provider=SyncHealthProvider(),
+            rerank_provider=None,
+            planning_provider=planning,
+            generation_provider=generation,
+            object_storage=SyncHealthProvider(),
+        ),
+        runtime_settings=_runtime_settings(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -665,10 +929,12 @@ async def test_health_reports_error_for_unknown_generator_status() -> None:
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/health")
+        response = await client.get("/readyz")
 
     assert response.status_code == 200
-    assert response.json() == {"retrieval": "ok", "generator": "error"}
+    assert planning.calls == 1
+    assert generation.calls == 1
+    assert response.json()["status"] == "ok"
 
 
 @pytest.mark.anyio
@@ -697,32 +963,22 @@ async def test_post_study_returns_503_when_service_unconfigured() -> None:
 
 
 @pytest.mark.anyio
-async def test_health_reports_error_when_generator_unconfigured() -> None:
+async def test_readyz_returns_503_when_planning_provider_unhealthy() -> None:
     from src.main import create_app
-
-    app = create_app(
-        search_service=FakeSearchService(),
-        allow_unauthorized_test_mode=True,
-    )
-
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
-        base_url="http://testserver",
-    ) as client:
-        response = await client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json() == {"retrieval": "ok", "generator": "error"}
-
-
-@pytest.mark.anyio
-async def test_health_reports_error_when_generator_health_fails() -> None:
-    from src.main import create_app
+    from src.runtime.readiness import ReadinessDependencies
 
     app = create_app(
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
-        generation_provider=BrokenHealthProvider(),
+        readiness_dependencies=ReadinessDependencies(
+            database_probe=lambda: "ok",
+            embedding_provider=SyncHealthProvider(),
+            rerank_provider=None,
+            planning_provider=BrokenHealthProvider(),
+            generation_provider=SyncHealthProvider(),
+            object_storage=SyncHealthProvider(),
+        ),
+        runtime_settings=_runtime_settings(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -730,7 +986,256 @@ async def test_health_reports_error_when_generator_health_fails() -> None:
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/health")
+        response = await client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["status"] == "error"
+
+
+@pytest.mark.anyio
+async def test_readyz_returns_503_when_dependency_is_miswired() -> None:
+    from src.main import create_app
+    from src.runtime.readiness import ReadinessDependencies
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        readiness_dependencies=ReadinessDependencies(
+            database_probe=lambda: "ok",
+            embedding_provider=object(),
+            rerank_provider=None,
+            planning_provider=SyncHealthProvider(),
+            generation_provider=SyncHealthProvider(),
+            object_storage=SyncHealthProvider(),
+        ),
+        runtime_settings=_runtime_settings(),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["checks"]["embedding"] == "error"
+
+
+@pytest.mark.anyio
+async def test_post_study_times_out_at_runtime_wall_clock_limit_and_logs_failure() -> (
+    None
+):
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=SlowStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(study_wall_clock_timeout_seconds=0.01),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 504
+    assert len(repository.records) == 1
+    assert repository.records[0].endpoint == "study"
+    assert repository.records[0].outcome == "timeout"
+
+
+@pytest.mark.anyio
+async def test_post_study_end_to_end_timeout_includes_pre_service_work() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(study_wall_clock_timeout_seconds=0.01),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            content=SlowStreamingStudyBody(),
+            headers={"content-type": "application/json"},
+        )
+
+    assert response.status_code == 504
+    assert len(repository.records) == 1
+    assert repository.records[0].outcome == "timeout"
+
+
+@pytest.mark.anyio
+async def test_post_study_logs_usage_on_success() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=TelemetryStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
 
     assert response.status_code == 200
-    assert response.json() == {"retrieval": "ok", "generator": "error"}
+    assert len(repository.records) == 1
+    assert repository.records[0].endpoint == "study"
+    assert repository.records[0].outcome == "ok"
+    assert repository.records[0].planning is not None
+    assert repository.records[0].generation is not None
+    assert repository.records[0].embedding is not None
+
+
+@pytest.mark.anyio
+async def test_post_study_passes_request_id_to_service_and_usage_log() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    study_service = RequestIdEchoStudyService()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 200
+    response_id = response.json()["request_id"]
+    assert study_service.request_ids == [response_id]
+    assert repository.records[0].request_id == response_id
+
+
+@pytest.mark.anyio
+async def test_post_study_usage_log_failure_does_not_break_success_response() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=TelemetryStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=FakeUsageLogRepository(fail=True),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_post_study_logs_request_validation_failure_once() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "dynamic programming"},
+        )
+
+    assert response.status_code == 422
+    assert len(repository.records) == 1
+    assert repository.records[0].endpoint == "study"
+    assert repository.records[0].outcome == "invalid_request"
+
+
+@pytest.mark.anyio
+async def test_post_study_logs_unexpected_internal_failure() -> None:
+    from src.main import create_app
+
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=ExplodingStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(),
+        usage_log_repository=repository,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "cam-cs-tripos"},
+            },
+        )
+
+    assert response.status_code == 500
+    assert len(repository.records) == 1
+    assert repository.records[0].outcome == "internal_error"

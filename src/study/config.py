@@ -16,6 +16,7 @@ class GenerationSettings(BaseModel):
     model: str = "qwen2.5:7b-instruct"
     temperature: float = 0.1
     base_url: str = "http://localhost:11434"
+    api_key: str | None = None
     request_timeout_seconds: float = 60
     max_provider_retries: int = 1
     total_generation_deadline_seconds: float = 75
@@ -34,6 +35,10 @@ class PromptSettings(BaseModel):
 
 
 class PlanningSettings(BaseModel):
+    provider: str = "ollama"
+    model: str = "qwen2.5:7b-instruct"
+    base_url: str = "http://localhost:11434"
+    api_key: str | None = None
     temperature: float = 0.0
     request_timeout_seconds: float = 15
     total_planning_deadline_seconds: float = 20

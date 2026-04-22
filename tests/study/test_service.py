@@ -7,7 +7,10 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
+from src.runtime.config import AppRuntimeSettings
+from src.runtime.telemetry import HealthStatus, ProviderCallTelemetry, TokenUsage
 from src.search.models import SearchResponse, SearchResult
+from src.search.pg_service import SearchExecutionTelemetry
 from src.study.config import (
     ContextSettings,
     GenerationSettings,
@@ -19,6 +22,7 @@ from src.study.models import GenerationRequest, GenerationResult, StudyRequest
 from src.study.planning.models import (
     InvalidPlanError,
     PlannedRetrievalResult,
+    PlannerExecution,
     QueryPlan,
 )
 from src.study.providers.base import (
@@ -32,7 +36,11 @@ from src.study.service import StudyService
 
 class FakeQueryPlanner:
     def __init__(
-        self, plan: QueryPlan | Exception | list[QueryPlan | Exception]
+        self,
+        plan: PlannerExecution
+        | QueryPlan
+        | Exception
+        | list[PlannerExecution | QueryPlan | Exception],
     ) -> None:
         self.plan_results = plan if isinstance(plan, list) else [plan]
         self.calls: list[dict[str, Any]] = []
@@ -42,14 +50,28 @@ class FakeQueryPlanner:
         self,
         raw_query: str,
         hard_filters: list[FilterCondition] | None,
-    ) -> QueryPlan:
+    ) -> PlannerExecution:
         self.calls.append({"raw_query": raw_query, "hard_filters": hard_filters})
         if self.delay:
             await asyncio.sleep(self.delay)
         result = self.plan_results.pop(0)
         if isinstance(result, Exception):
             raise result
+        if isinstance(result, QueryPlan):
+            return planner_execution(result)
         return result
+
+
+class LegacyQueryPlanner:
+    def __init__(self, plan: QueryPlan) -> None:
+        self._plan = plan
+
+    async def plan(
+        self,
+        raw_query: str,
+        hard_filters: list[FilterCondition] | None,
+    ) -> QueryPlan:
+        return self._plan
 
 
 class FakePlannedRetrieval:
@@ -110,7 +132,10 @@ class FakeProvider:
             raise result
         return result
 
-    async def health(self) -> str:
+    async def stream_generate(self, request: GenerationRequest):
+        yield
+
+    async def health(self) -> HealthStatus:
         return "ok"
 
 
@@ -160,6 +185,39 @@ def study_settings() -> StudySettings:
     )
 
 
+def runtime_settings(
+    *,
+    study_context_budget_tokens: int = 4000,
+    study_generation_max_output_tokens: int = 1200,
+) -> AppRuntimeSettings:
+    return AppRuntimeSettings(
+        environment="test",
+        enable_dev_routes=False,
+        cors_allowed_origins=[],
+        request_body_max_bytes=131072,
+        query_max_chars=2000,
+        search_limit_max=50,
+        study_top_k_max=20,
+        study_context_budget_tokens=study_context_budget_tokens,
+        study_generation_max_output_tokens=study_generation_max_output_tokens,
+        study_wall_clock_timeout_seconds=45,
+        rate_limit_window_seconds=60,
+        rate_limit_max_requests=30,
+    )
+
+
+def planner_execution(plan: QueryPlan) -> PlannerExecution:
+    return PlannerExecution(
+        plan=plan,
+        telemetry=ProviderCallTelemetry(
+            provider="openai_compatible",
+            model="planner-model",
+            latency_ms=9,
+            usage=TokenUsage(input_tokens=11, output_tokens=7, total_tokens=18),
+        ),
+    )
+
+
 def valid_generation_result(
     *,
     chunk_id: str = "a",
@@ -190,6 +248,7 @@ def valid_generation_result(
         provider="ollama",
         finish_reason="stop",
         latency_ms=latency_ms,
+        usage=TokenUsage(input_tokens=14, output_tokens=9, total_tokens=23),
     )
 
 
@@ -199,12 +258,14 @@ def make_service(
     planned_retrieval: FakePlannedRetrieval,
     provider: FakeProvider,
     settings: StudySettings | None = None,
+    runtime: AppRuntimeSettings | None = None,
 ) -> StudyService:
     return StudyService(
         query_planner=query_planner,
         planned_retrieval=planned_retrieval,
         provider=provider,
         settings=settings or study_settings(),
+        runtime_settings=runtime,
     )
 
 
@@ -214,7 +275,7 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
         original_query="2025 dp",
         semantic_queries=["dynamic programming recurrence"],
     )
-    query_planner = FakeQueryPlanner(plan)
+    query_planner = FakeQueryPlanner(planner_execution(plan))
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
             search_response=SearchResponse(
@@ -225,6 +286,15 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
             ),
             executed_queries=["dynamic programming recurrence"],
             filters_applied=[],
+            search_telemetry=SearchExecutionTelemetry(
+                embedding=ProviderCallTelemetry(
+                    provider="voyage",
+                    model="voyage-4-lite",
+                    latency_ms=12,
+                    usage=None,
+                ),
+                rerank=None,
+            ),
         )
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
@@ -245,7 +315,17 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     assert response.planning.original_query == "2025 dp"
     assert response.planning.semantic_queries == ["dynamic programming recurrence"]
     assert response.planning.error_category is None
+    assert response.planning.telemetry is not None
+    assert response.planning.telemetry.provider == "openai_compatible"
+    assert response.planning.telemetry.model == "planner-model"
+    assert response.planning.telemetry.usage is not None
+    assert response.retrieval.search_telemetry is not None
+    assert response.retrieval.search_telemetry.embedding.provider == "voyage"
+    assert response.retrieval.search_telemetry.rerank is None
     assert response.generation.error_category is None
+    assert response.generation.usage is not None
+    assert response.generation.usage.total_tokens == 23
+    assert response.generation.latency_ms == 10
     assert response.sources[0].metadata == {
         "year": 2025,
         "paper": 2,
@@ -269,9 +349,79 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
 
 
 @pytest.mark.anyio
+async def test_orchestrate_uses_provided_request_id() -> None:
+    plan = QueryPlan(
+        original_query="2025 dp",
+        semantic_queries=["dynamic programming recurrence"],
+    )
+    query_planner = FakeQueryPlanner(planner_execution(plan))
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="dynamic programming recurrence",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["dynamic programming recurrence"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="2025 dp", scope={"collection": "cam-cs-tripos"}),
+        request_id="req-study-123",
+    )
+
+    assert response.request_id == "req-study-123"
+
+
+@pytest.mark.anyio
+async def test_orchestrate_accepts_legacy_query_plan_planner() -> None:
+    plan = QueryPlan(original_query="legacy", semantic_queries=["legacy semantic"])
+    query_planner = LegacyQueryPlanner(plan)
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="legacy semantic",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["legacy semantic"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = StudyService(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+        settings=study_settings(),
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="legacy", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.answer_status == "ok"
+    assert response.planning.status == "ok"
+    assert response.planning.semantic_queries == ["legacy semantic"]
+    assert response.planning.latency_ms >= 0
+
+
+@pytest.mark.anyio
 async def test_orchestrate_preserves_sub_question_label_on_sources() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="q", semantic_queries=["dynamic programming"])
+        planner_execution(
+            QueryPlan(original_query="q", semantic_queries=["dynamic programming"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -311,7 +461,9 @@ async def test_orchestrate_preserves_sub_question_label_on_sources() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_empty_retrieval_skips_generation() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="missing", semantic_queries=["missing"])
+        planner_execution(
+            QueryPlan(original_query="missing", semantic_queries=["missing"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -320,6 +472,15 @@ async def test_orchestrate_empty_retrieval_skips_generation() -> None:
             ),
             executed_queries=["missing"],
             filters_applied=[],
+            search_telemetry=SearchExecutionTelemetry(
+                embedding=ProviderCallTelemetry(
+                    provider="voyage",
+                    model="voyage-4-lite",
+                    latency_ms=12,
+                    usage=None,
+                ),
+                rerank=None,
+            ),
         )
     )
     provider = FakeProvider([])
@@ -335,13 +496,19 @@ async def test_orchestrate_empty_retrieval_skips_generation() -> None:
 
     assert response.answer_status == "insufficient_evidence"
     assert response.retrieval.status == "empty"
+    assert response.retrieval.search_telemetry is not None
+    assert response.retrieval.search_telemetry.embedding.provider == "voyage"
+    assert response.generation.usage is None
+    assert response.generation.latency_ms == 0
     assert len(provider.calls) == 0
 
 
 @pytest.mark.anyio
 async def test_orchestrate_filtered_empty_retrieval() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="filtered", semantic_queries=["filtered"])
+        planner_execution(
+            QueryPlan(original_query="filtered", semantic_queries=["filtered"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -373,7 +540,7 @@ async def test_orchestrate_filtered_empty_retrieval() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_retrieval_error() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="err", semantic_queries=["err"])
+        planner_execution(QueryPlan(original_query="err", semantic_queries=["err"]))
     )
     planned_retrieval = FakePlannedRetrieval(RuntimeError("search failed"))
     provider = FakeProvider([])
@@ -394,7 +561,7 @@ async def test_orchestrate_retrieval_error() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_provider_failure_returns_fallback_sources() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="fail", semantic_queries=["fail"])
+        planner_execution(QueryPlan(original_query="fail", semantic_queries=["fail"]))
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -439,7 +606,7 @@ async def test_orchestrate_maps_provider_failures(
     expected_category: str,
 ) -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="fail", semantic_queries=["fail"])
+        planner_execution(QueryPlan(original_query="fail", semantic_queries=["fail"]))
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -473,7 +640,9 @@ async def test_orchestrate_maps_provider_failures(
 @pytest.mark.anyio
 async def test_orchestrate_schema_repair_success() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="repair", semantic_queries=["repair"])
+        planner_execution(
+            QueryPlan(original_query="repair", semantic_queries=["repair"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -524,7 +693,9 @@ async def test_orchestrate_schema_repair_success() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_does_not_repair_when_retry_count_is_zero() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="repair", semantic_queries=["repair"])
+        planner_execution(
+            QueryPlan(original_query="repair", semantic_queries=["repair"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -569,7 +740,9 @@ async def test_orchestrate_does_not_repair_when_retry_count_is_zero() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="repair", semantic_queries=["repair"])
+        planner_execution(
+            QueryPlan(original_query="repair", semantic_queries=["repair"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -620,7 +793,7 @@ async def test_orchestrate_schema_repair_failure_returns_fallback_sources() -> N
 @pytest.mark.anyio
 async def test_orchestrate_generation_timeout() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="slow", semantic_queries=["slow"])
+        planner_execution(QueryPlan(original_query="slow", semantic_queries=["slow"]))
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -659,7 +832,9 @@ async def test_orchestrate_generation_timeout() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_citation_cascade_failure() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="bad_cite", semantic_queries=["bad_cite"])
+        planner_execution(
+            QueryPlan(original_query="bad_cite", semantic_queries=["bad_cite"])
+        )
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -801,7 +976,7 @@ async def test_orchestrate_planner_error_categories(
 @pytest.mark.anyio
 async def test_orchestrate_planner_deadline_exceeded() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="slow", semantic_queries=["slow"])
+        planner_execution(QueryPlan(original_query="slow", semantic_queries=["slow"]))
     )
     query_planner.delay = 0.2
 
@@ -840,7 +1015,7 @@ async def test_orchestrate_planner_deadline_exceeded() -> None:
 @pytest.mark.anyio
 async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() -> None:
     query_planner = FakeQueryPlanner(
-        QueryPlan(original_query="cat", semantic_queries=["cat"])
+        planner_execution(QueryPlan(original_query="cat", semantic_queries=["cat"]))
     )
     planned_retrieval = FakePlannedRetrieval(
         PlannedRetrievalResult(
@@ -873,3 +1048,42 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
     assert query_planner.calls[0]["hard_filters"] == filters
     assert planned_retrieval.calls[0]["hard_filters"] == filters
     assert response.retrieval.filters_applied == filters
+
+
+@pytest.mark.anyio
+async def test_orchestrate_enforces_runtime_context_and_output_caps() -> None:
+    query_planner = FakeQueryPlanner(
+        planner_execution(QueryPlan(original_query="caps", semantic_queries=["caps"]))
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="caps",
+                collection="cam-cs-tripos",
+                results=[search_result("a", text="x " * 200)],
+                total=1,
+            ),
+            executed_queries=["caps"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    settings = study_settings()
+    settings.context.budget_tokens = 4000
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+        settings=settings,
+        runtime=runtime_settings(
+            study_context_budget_tokens=40,
+            study_generation_max_output_tokens=120,
+        ),
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="caps", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.retrieval.context_budget_tokens == 40
+    assert provider.calls[0].max_tokens == 120

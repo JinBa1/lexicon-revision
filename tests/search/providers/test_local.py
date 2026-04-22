@@ -47,6 +47,9 @@ def test_embedder_embed_documents_preserves_order():
     assert model.last_texts == docs
     assert result.vectors == [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0]]
     assert result.model_id == "test-model"
+    assert result.provider == "local"
+    assert result.latency_ms >= 0
+    assert result.usage is None
 
 
 def test_embedder_embed_documents_empty():
@@ -57,6 +60,7 @@ def test_embedder_embed_documents_empty():
 
     assert model.call_count == 0
     assert result.vectors == []
+    assert result.provider == "local"
 
 
 def test_embedder_embed_query_exactly_one_vector():
@@ -69,6 +73,8 @@ def test_embedder_embed_query_exactly_one_vector():
     assert model.last_texts == "query"
     assert result.vectors == [[0.1, 0.2, 0.3]]
     assert result.model_id == "test-model"
+    assert result.provider == "local"
+    assert result.latency_ms >= 0
 
 
 def test_reranker_rerank_preserves_order():
@@ -82,6 +88,8 @@ def test_reranker_rerank_preserves_order():
     assert model.last_pairs == [("query", "a"), ("query", "abc"), ("query", "ab")]
     assert result.scores == [1.0, 3.0, 2.0]
     assert result.model_id == "test-reranker"
+    assert result.provider == "local"
+    assert result.latency_ms >= 0
 
 
 def test_reranker_rerank_empty():
@@ -92,3 +100,18 @@ def test_reranker_rerank_empty():
 
     assert model.call_count == 0
     assert result.scores == []
+    assert result.provider == "local"
+
+
+def test_local_providers_report_ok_health():
+    embedder = LocalSentenceTransformerEmbedder(
+        model=FakeSentenceTransformer(),
+        model_id="test-model",
+    )
+    reranker = LocalCrossEncoderReranker(
+        model=FakeCrossEncoder(),
+        model_id="test-reranker",
+    )
+
+    assert embedder.health() == "ok"
+    assert reranker.health() == "ok"

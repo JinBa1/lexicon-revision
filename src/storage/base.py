@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from src.runtime.telemetry import HealthStatus
 
 
 class ObjectStorageError(Exception):
@@ -81,3 +84,5 @@ class ObjectStorage(Protocol):
         expires_in_seconds: int,
         content_type: str | None = None,
     ) -> PresignedUrl: ...
+
+    def health(self) -> HealthStatus: ...

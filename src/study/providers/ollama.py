@@ -5,13 +5,14 @@ import time
 from typing import Any
 
 import httpx
+from src.runtime.telemetry import HealthStatus, TokenUsage
 from src.study.models import (
+    GenerationEvent,
     GenerationRequest,
     GenerationResult,
     ProviderCapabilities,
 )
 from src.study.providers.base import (
-    GeneratorHealth,
     ModelNotAvailableError,
     ProviderConnectionError,
     ProviderHTTPError,
@@ -41,6 +42,10 @@ class OllamaProvider:
         self._retry_backoff_seconds = retry_backoff_seconds
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient()
+
+    @property
+    def model_name(self) -> str:
+        return self._model
 
     async def generate(self, request: GenerationRequest) -> GenerationResult:
         payload: dict[str, Any] = {
@@ -89,6 +94,7 @@ class OllamaProvider:
                     provider="ollama",
                     finish_reason=data.get("done_reason", "unknown"),
                     latency_ms=int((time.monotonic() - started) * 1000),
+                    usage=_ollama_usage(data),
                 )
             except httpx.TimeoutException as exc:
                 if attempt == attempts - 1:
@@ -109,11 +115,17 @@ class OllamaProvider:
     async def close(self) -> None:
         await self.aclose()
 
+    async def stream_generate(self, request: GenerationRequest):
+        result = await self.generate(request)
+        if result.raw_content:
+            yield GenerationEvent(type="token", text=result.raw_content)
+        yield GenerationEvent(type="done")
+
     async def _sleep_before_retry(self) -> None:
         if self._retry_backoff_seconds > 0:
             await asyncio.sleep(self._retry_backoff_seconds)
 
-    async def health(self) -> GeneratorHealth:
+    async def health(self) -> HealthStatus:
         try:
             response = await self._client.get(f"{self._base_url}/api/tags", timeout=5)
         except (httpx.ConnectError, httpx.TimeoutException):
@@ -137,3 +149,18 @@ class OllamaProvider:
             return "error"
         names = {model.get("name") for model in models}
         return "ok" if self._model in names else "model_missing"
+
+
+def _ollama_usage(data: dict[str, Any]) -> TokenUsage | None:
+    input_tokens = data.get("prompt_eval_count")
+    output_tokens = data.get("eval_count")
+    if not isinstance(input_tokens, int) or not isinstance(output_tokens, int):
+        return None
+    total_tokens = data.get("total_tokens")
+    if not isinstance(total_tokens, int):
+        total_tokens = input_tokens + output_tokens
+    return TokenUsage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+    )

@@ -164,6 +164,16 @@ class S3ObjectStorage:
         expires_at = now + timedelta(seconds=expires_in_seconds)
         return PresignedUrl(url=url, expires_at=expires_at, method="PUT", key=key)
 
+    def health(self) -> str:
+        try:
+            self._client.head_bucket(Bucket=self._bucket)
+        except (
+            botocore.exceptions.BotoCoreError,
+            botocore.exceptions.ClientError,
+        ):
+            return "error"
+        return "ok"
+
     def _map_error(self, exc: botocore.exceptions.ClientError) -> ObjectStorageError:
         code = exc.response["Error"]["Code"]
         status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)

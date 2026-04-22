@@ -10,6 +10,7 @@ from src.db.schema import (
     community_memberships,
     metadata,
     papers,
+    request_usage_logs,
     user_external_identities,
     users,
 )
@@ -25,6 +26,7 @@ def test_schema_has_expected_tables() -> None:
         "user_external_identities",
         "communities",
         "community_memberships",
+        "request_usage_logs",
     }
 
 
@@ -107,6 +109,25 @@ def test_users_email_is_unique() -> None:
         if isinstance(constraint, CheckConstraint) and constraint.name is not None
     }
     assert checks["ck_users_email_lowercase"] == "email = lower(btrim(email))"
+
+
+def test_request_usage_logs_has_expected_columns() -> None:
+    assert {"request_id", "endpoint", "collection_name", "outcome", "latency_ms"} <= {
+        column.name for column in request_usage_logs.columns
+    }
+    unique_constraints = {
+        constraint.name: {column.name for column in constraint.columns}
+        for constraint in request_usage_logs.constraints
+        if constraint.name is not None
+    }
+    assert isinstance(request_usage_logs.c.embedding.type, JSONB)
+    assert isinstance(request_usage_logs.c.rerank.type, JSONB)
+    assert isinstance(request_usage_logs.c.planning.type, JSONB)
+    assert isinstance(request_usage_logs.c.generation.type, JSONB)
+    assert isinstance(request_usage_logs.c.detail.type, JSONB)
+    assert request_usage_logs.c.app_user_id.nullable is True
+    assert request_usage_logs.c.created_at.nullable is False
+    assert unique_constraints["uq_request_usage_logs_request_id"] == {"request_id"}
 
 
 def test_user_external_identities_are_unique_per_provider_subject() -> None:

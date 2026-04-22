@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timezone
 
 import boto3
+import botocore.exceptions
 import pytest
 from botocore.stub import Stubber
 from src.storage.base import (
@@ -147,6 +148,30 @@ def test_exists_false_on_404() -> None:
     )
     with stubber:
         assert storage.exists("k") is False
+
+
+def test_health_returns_ok_when_bucket_is_reachable() -> None:
+    storage, stubber = _make_storage()
+    stubber.add_response(
+        "head_bucket",
+        expected_params={"Bucket": "b"},
+        service_response={},
+    )
+
+    with stubber:
+        assert storage.health() == "ok"
+
+
+def test_health_returns_error_on_transport_failure() -> None:
+    class _Client:
+        def head_bucket(self, **kwargs) -> None:
+            raise botocore.exceptions.EndpointConnectionError(
+                endpoint_url="https://example-r2.cloudflarestorage.com"
+            )
+
+    storage = S3ObjectStorage(bucket="b", client=_Client())
+
+    assert storage.health() == "error"
 
 
 def test_presign_get_builds_url_with_expires() -> None:

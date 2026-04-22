@@ -220,3 +220,32 @@ chunk_embeddings = Table(
     Column("embedding", Vector(), nullable=False),
     PrimaryKeyConstraint("chunk_id", "embedding_model_id"),
 )
+
+request_usage_logs = Table(
+    "request_usage_logs",
+    metadata,
+    Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    Column("request_id", Text, nullable=False),
+    Column("endpoint", Text, nullable=False),
+    Column("collection_name", Text, nullable=False),
+    Column("app_user_id", String, ForeignKey("users.id"), nullable=True),
+    Column("outcome", Text, nullable=False),
+    Column("latency_ms", Integer, nullable=False),
+    Column("embedding", JSONB, nullable=True),
+    Column("rerank", JSONB, nullable=True),
+    Column("planning", JSONB, nullable=True),
+    Column("generation", JSONB, nullable=True),
+    Column(
+        "detail",
+        JSONB,
+        nullable=False,
+        server_default=sql_text("'{}'::jsonb"),
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+    UniqueConstraint("request_id", name="uq_request_usage_logs_request_id"),
+)

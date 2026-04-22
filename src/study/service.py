@@ -9,8 +9,11 @@ from typing import Any
 
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
+from src.runtime.config import AppRuntimeSettings
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.errors import InvalidMetadataFilterError
 from src.search.models import SearchResponse, SearchResult
+from src.search.pg_service import SearchExecutionTelemetry
 from src.study.config import StudySettings
 from src.study.models import (
     AnswerStatus,
@@ -36,6 +39,7 @@ from src.study.packing import (
 )
 from src.study.planning.models import (
     InvalidPlanError,
+    PlannerExecution,
     PlanningErrorCategory,
     PlanningMetadata,
     QueryPlan,
@@ -69,16 +73,22 @@ class StudyService:
         planned_retrieval: PlannedRetrievalService,
         provider: GenerationProvider,
         settings: StudySettings,
+        runtime_settings: AppRuntimeSettings | None = None,
     ) -> None:
         self.query_planner = query_planner
         self.planned_retrieval = planned_retrieval
         self.provider = provider
         self.settings = settings
+        self.runtime_settings = runtime_settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
 
-    async def orchestrate(self, request: StudyRequest) -> StudyResponse:
-        started = time.monotonic()
-        request_id = str(uuid.uuid4())
+    async def orchestrate(
+        self,
+        request: StudyRequest,
+        *,
+        request_id: str | None = None,
+    ) -> StudyResponse:
+        request_id = request_id or str(uuid.uuid4())
         hard_filters = request.filters
         plan, planning_metadata = await self._plan(request.query, hard_filters)
 
@@ -114,7 +124,6 @@ class StudyService:
                 retrieval_status="error",
                 filters=list(hard_filters or []),
                 planning=planning_metadata,
-                latency_ms=_elapsed_ms(started),
             )
 
         if not search_response.results:
@@ -126,7 +135,7 @@ class StudyService:
                 retrieval_status=retrieval_status,
                 filters=filters,
                 planning=planning_metadata,
-                latency_ms=_elapsed_ms(started),
+                search_telemetry=retrieval_result.search_telemetry,
             )
 
         try:
@@ -136,20 +145,21 @@ class StudyService:
             deduped_chunks = dedupe_parent_child(ranked_chunks)
             packing = pack_chunks(
                 deduped_chunks,
-                budget_tokens=self.settings.context.budget_tokens,
-                max_single_chunk_tokens=self.settings.context.max_single_chunk_tokens,
+                budget_tokens=self._context_budget_tokens(),
+                max_single_chunk_tokens=self._max_single_chunk_tokens(),
                 estimator=HeuristicTokenEstimator(),
             )
             retrieval = RetrievalMetadata(
                 status="ok",
                 top_k=request.top_k,
                 returned_result_count=len(search_response.results),
-                context_budget_tokens=self.settings.context.budget_tokens,
+                context_budget_tokens=self._context_budget_tokens(),
                 context_chunk_ids=[packed.chunk.chunk_id for packed in packing.chunks],
                 omitted_chunk_ids=packing.omitted_chunk_ids,
                 truncated_chunk_ids=packing.truncated_chunk_ids,
                 filters_applied=filters,
                 rerank=True,
+                search_telemetry=retrieval_result.search_telemetry,
             )
         except Exception:
             logger.exception(
@@ -160,12 +170,13 @@ class StudyService:
                 status="ok",
                 top_k=request.top_k,
                 returned_result_count=len(search_response.results),
-                context_budget_tokens=self.settings.context.budget_tokens,
+                context_budget_tokens=self._context_budget_tokens(),
                 context_chunk_ids=[],
                 omitted_chunk_ids=[],
                 truncated_chunk_ids=[],
                 filters_applied=filters,
                 rerank=True,
+                search_telemetry=retrieval_result.search_telemetry,
             )
             return self._generation_failed_response(
                 request=request,
@@ -175,7 +186,7 @@ class StudyService:
                 planning=planning_metadata,
                 error_category="context_build_failed",
                 attempt_count=0,
-                latency_ms=_elapsed_ms(started),
+                generation_result=None,
             )
 
         if packing.status == "context_pack_failed":
@@ -187,7 +198,7 @@ class StudyService:
                 planning=planning_metadata,
                 error_category="context_pack_failed",
                 attempt_count=0,
-                latency_ms=_elapsed_ms(started),
+                generation_result=None,
             )
 
         messages = self._prompt.render(
@@ -203,7 +214,7 @@ class StudyService:
                 else None
             ),
             temperature=self.settings.generation.temperature,
-            max_tokens=None,
+            max_tokens=self._generation_max_output_tokens(),
             timeout_seconds=self.settings.generation.request_timeout_seconds,
         )
 
@@ -239,7 +250,7 @@ class StudyService:
                                 planning=planning_metadata,
                                 error_category=_provider_error_category(exc),
                                 attempt_count=attempt_count,
-                                latency_ms=_elapsed_ms(started),
+                                generation_result=generation_result,
                             )
                         if repair_result is not None:
                             break
@@ -252,7 +263,7 @@ class StudyService:
                             planning=planning_metadata,
                             error_category="schema_validation_failed",
                             attempt_count=attempt_count,
-                            latency_ms=_elapsed_ms(started),
+                            generation_result=generation_result,
                         )
                     generation_result, draft = repair_result
                 except PROVIDER_ERRORS as exc:
@@ -264,7 +275,7 @@ class StudyService:
                         planning=planning_metadata,
                         error_category=_provider_error_category(exc),
                         attempt_count=attempt_count,
-                        latency_ms=_elapsed_ms(started),
+                        generation_result=generation_result,
                     )
         except TimeoutError:
             return self._generation_failed_response(
@@ -275,7 +286,7 @@ class StudyService:
                 planning=planning_metadata,
                 error_category="provider_timeout",
                 attempt_count=attempt_count,
-                latency_ms=_elapsed_ms(started),
+                generation_result=generation_result,
             )
 
         validation = validate_citations(
@@ -294,7 +305,7 @@ class StudyService:
                 ),
                 attempt_count=attempt_count,
                 citation_drops=validation.citation_drops,
-                latency_ms=generation_result.latency_ms,
+                generation_result=generation_result,
             )
 
         response = self._success_response(
@@ -349,7 +360,7 @@ class StudyService:
             async with asyncio.timeout(
                 self.settings.planning.total_planning_deadline_seconds
             ):
-                plan = await self.query_planner.plan(raw_query, hard_filters)
+                execution = await self.query_planner.plan(raw_query, hard_filters)
         except Exception as exc:
             fallback_plan = QueryPlan(
                 original_query=raw_query,
@@ -361,16 +372,29 @@ class StudyService:
                 original_query=fallback_plan.original_query,
                 semantic_queries=list(fallback_plan.semantic_queries),
                 error_category=_planning_error_category(exc),
+                telemetry=None,
                 latency_ms=_elapsed_ms(started),
             )
 
-        return plan, PlanningMetadata(
+        if isinstance(execution, QueryPlan):
+            execution = PlannerExecution(
+                plan=execution,
+                telemetry=ProviderCallTelemetry(
+                    provider="legacy_query_plan",
+                    model="legacy_query_plan",
+                    latency_ms=_elapsed_ms(started),
+                    usage=None,
+                ),
+            )
+
+        return execution.plan, PlanningMetadata(
             status="ok",
-            planner_version=plan.planner_version,
-            original_query=plan.original_query,
-            semantic_queries=list(plan.semantic_queries),
+            planner_version=execution.plan.planner_version,
+            original_query=execution.plan.original_query,
+            semantic_queries=list(execution.plan.semantic_queries),
             error_category=None,
-            latency_ms=_elapsed_ms(started),
+            telemetry=execution.telemetry,
+            latency_ms=execution.telemetry.latency_ms,
         )
 
     def _empty_response(
@@ -382,7 +406,7 @@ class StudyService:
         retrieval_status: RetrievalStatus,
         filters: list[FilterCondition],
         planning: PlanningMetadata,
-        latency_ms: int,
+        search_telemetry: SearchExecutionTelemetry | None = None,
     ) -> StudyResponse:
         limitation = (
             "Retrieval failed before any past questions could be selected."
@@ -404,23 +428,20 @@ class StudyService:
                 status=retrieval_status,
                 top_k=request.top_k,
                 returned_result_count=0,
-                context_budget_tokens=self.settings.context.budget_tokens,
+                context_budget_tokens=self._context_budget_tokens(),
                 context_chunk_ids=[],
                 omitted_chunk_ids=[],
                 truncated_chunk_ids=[],
                 filters_applied=filters,
                 rerank=True,
+                search_telemetry=search_telemetry,
             ),
             planning=planning,
-            generation=GenerationMetadata(
-                provider=self.settings.generation.provider,
-                model=self.settings.generation.model,
-                prompt_version=self.settings.prompt.version,
-                temperature=self.settings.generation.temperature,
+            generation=self._generation_metadata(
                 attempt_count=0,
                 citation_drops=0,
                 error_category=None,
-                latency_ms=latency_ms,
+                generation_result=None,
             ),
         )
         self._log_response(response)
@@ -436,8 +457,8 @@ class StudyService:
         planning: PlanningMetadata,
         error_category: ErrorCategory,
         attempt_count: int,
-        latency_ms: int,
         citation_drops: int = 0,
+        generation_result: GenerationResult | None = None,
     ) -> StudyResponse:
         response = StudyResponse(
             request_id=request_id,
@@ -452,15 +473,11 @@ class StudyService:
             sources=_fallback_sources(search_response, retrieval),
             retrieval=retrieval,
             planning=planning,
-            generation=GenerationMetadata(
-                provider=self.settings.generation.provider,
-                model=self.settings.generation.model,
-                prompt_version=self.settings.prompt.version,
-                temperature=self.settings.generation.temperature,
+            generation=self._generation_metadata(
                 attempt_count=attempt_count,
                 citation_drops=citation_drops,
                 error_category=error_category,
-                latency_ms=latency_ms,
+                generation_result=generation_result,
             ),
         )
         self._log_response(response)
@@ -512,15 +529,11 @@ class StudyService:
             ],
             retrieval=retrieval,
             planning=planning,
-            generation=GenerationMetadata(
-                provider=generation_result.provider,
-                model=generation_result.model,
-                prompt_version=self.settings.prompt.version,
-                temperature=self.settings.generation.temperature,
+            generation=self._generation_metadata(
                 attempt_count=attempt_count,
                 citation_drops=validation.citation_drops,
                 error_category=None,
-                latency_ms=generation_result.latency_ms,
+                generation_result=generation_result,
             ),
         )
 
@@ -543,6 +556,58 @@ class StudyService:
                 "planner_version": response.planning.planner_version,
                 "planning_latency_ms": response.planning.latency_ms,
             },
+        )
+
+    def _context_budget_tokens(self) -> int:
+        if self.runtime_settings is None:
+            return self.settings.context.budget_tokens
+        return min(
+            self.settings.context.budget_tokens,
+            self.runtime_settings.study_context_budget_tokens,
+        )
+
+    def _generation_max_output_tokens(self) -> int | None:
+        if self.runtime_settings is None:
+            return None
+        return self.runtime_settings.study_generation_max_output_tokens
+
+    def _max_single_chunk_tokens(self) -> int:
+        context_budget = self._context_budget_tokens()
+        # Reserve one token so truncated chunks still fit after the marker is added.
+        return min(
+            self.settings.context.max_single_chunk_tokens,
+            max(1, context_budget - 1),
+        )
+
+    def _generation_metadata(
+        self,
+        *,
+        attempt_count: int,
+        citation_drops: int,
+        error_category: ErrorCategory | None,
+        generation_result: GenerationResult | None,
+    ) -> GenerationMetadata:
+        if generation_result is None:
+            provider = self.settings.generation.provider
+            model = self.settings.generation.model
+            latency_ms = 0
+            usage = None
+        else:
+            provider = generation_result.provider
+            model = generation_result.model
+            latency_ms = generation_result.latency_ms
+            usage = generation_result.usage
+
+        return GenerationMetadata(
+            provider=provider,
+            model=model,
+            prompt_version=self.settings.prompt.version,
+            temperature=self.settings.generation.temperature,
+            attempt_count=attempt_count,
+            citation_drops=citation_drops,
+            error_category=error_category,
+            latency_ms=latency_ms,
+            usage=usage,
         )
 
 
