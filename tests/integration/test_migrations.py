@@ -17,6 +17,36 @@ def _expected_legacy_schema() -> dict:
     ).model_dump(mode="json")
 
 
+@pytest.fixture(autouse=True)
+def _clean_pg() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        return
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.connect() as conn:
+            existing = set(inspect(conn).get_table_names())
+            for table in (
+                "request_usage_logs",
+                "chunk_embeddings",
+                "chunks",
+                "papers",
+                "manual_access_overrides",
+                "community_email_domains",
+                "community_memberships",
+                "collections",
+                "user_external_identities",
+                "users",
+                "communities",
+            ):
+                if table in existing:
+                    conn.execute(text(f"DELETE FROM {table}"))
+            conn.commit()
+    finally:
+        engine.dispose()
+
+
 def test_alembic_upgrade_creates_retrieval_tables() -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
@@ -421,6 +451,253 @@ def test_alembic_upgrade_from_0005_adds_request_usage_logs_table() -> None:
                             'provider_error',
                             12,
                             '{}'::jsonb
+                        )
+                        """
+                    )
+                )
+    finally:
+        command.upgrade(config, "head")
+        engine.dispose()
+
+
+def test_alembic_upgrade_from_0006_adds_auth_domain_gating_tables() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260421_0006")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            tables_before = set(inspector.get_table_names())
+
+        assert "community_email_domains" not in tables_before
+        assert "manual_access_overrides" not in tables_before
+
+        command.upgrade(config, "head")
+
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            tables = set(inspector.get_table_names())
+            community_email_domain_columns = {
+                column["name"]
+                for column in inspector.get_columns("community_email_domains")
+            }
+            manual_access_override_columns = {
+                column["name"]
+                for column in inspector.get_columns("manual_access_overrides")
+            }
+            community_email_domain_unique_constraints = {
+                constraint["name"]: set(constraint["column_names"])
+                for constraint in inspector.get_unique_constraints(
+                    "community_email_domains"
+                )
+            }
+            community_email_domain_check_constraints = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints(
+                    "community_email_domains"
+                )
+            }
+            manual_access_override_check_constraints = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints(
+                    "manual_access_overrides"
+                )
+            }
+            manual_access_override_active_email_index = conn.execute(
+                text(
+                    """
+                    select indexdef
+                    from pg_indexes
+                    where schemaname = current_schema()
+                      and tablename = 'manual_access_overrides'
+                      and indexname = 'uq_manual_access_overrides_active_email'
+                    """
+                )
+            ).scalar_one()
+
+        assert {"community_email_domains", "manual_access_overrides"} <= tables
+        assert {
+            "community_id",
+            "domain",
+            "match_mode",
+            "is_active",
+        } <= community_email_domain_columns
+        assert {
+            "email",
+            "community_id",
+            "is_active",
+            "expires_at",
+        } <= manual_access_override_columns
+        assert community_email_domain_unique_constraints[
+            "uq_community_email_domains_community_domain"
+        ] == {"community_id", "domain"}
+        assert (
+            "ck_community_email_domains_match_mode_valid"
+            in community_email_domain_check_constraints
+        )
+        assert (
+            "ck_community_email_domains_domain_lowercase"
+            in community_email_domain_check_constraints
+        )
+        assert (
+            "ck_manual_access_overrides_email_lowercase"
+            in manual_access_override_check_constraints
+        )
+        assert "CREATE UNIQUE INDEX" in manual_access_override_active_email_index
+        assert (
+            "ON public.manual_access_overrides USING btree (email)"
+            in manual_access_override_active_email_index
+        )
+        assert "WHERE is_active" in manual_access_override_active_email_index
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    insert into communities (id, name, slug)
+                    values
+                        (
+                            'community-domain-1',
+                            'Community Domain 1',
+                            'community-domain-1'
+                        ),
+                        (
+                            'community-domain-2',
+                            'Community Domain 2',
+                            'community-domain-2'
+                        )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    insert into manual_access_overrides (
+                        id,
+                        email,
+                        community_id,
+                        note,
+                        is_active
+                    ) values (
+                        'manual-override-active-1',
+                        'member@example.com',
+                        'community-domain-1',
+                        'active access',
+                        true
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    insert into manual_access_overrides (
+                        id,
+                        email,
+                        community_id,
+                        note,
+                        is_active
+                    ) values (
+                        'manual-override-inactive-1',
+                        'member@example.com',
+                        'community-domain-2',
+                        'inactive duplicate allowed',
+                        false
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    insert into community_email_domains (
+                        id,
+                        community_id,
+                        domain,
+                        match_mode,
+                        is_active
+                    ) values (
+                        'community-domain-rule-1',
+                        'community-domain-1',
+                        'example.edu',
+                        'suffix',
+                        true
+                    )
+                    """
+                )
+            )
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        """
+                        insert into manual_access_overrides (
+                            id,
+                            email,
+                            community_id,
+                            note,
+                            is_active
+                        ) values (
+                            'manual-override-active-2',
+                            'member@example.com',
+                            'community-domain-2',
+                            'second active duplicate should fail',
+                            true
+                        )
+                        """
+                    )
+                )
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        """
+                        insert into manual_access_overrides (
+                            id,
+                            email,
+                            community_id,
+                            note,
+                            is_active
+                        ) values (
+                            'manual-override-invalid-email',
+                            'Member@Example.com',
+                            'community-domain-1',
+                            'mixed-case email should fail',
+                            true
+                        )
+                        """
+                    )
+                )
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        """
+                        insert into community_email_domains (
+                            id,
+                            community_id,
+                            domain,
+                            match_mode,
+                            is_active
+                        ) values (
+                            'community-domain-rule-invalid',
+                            'community-domain-1',
+                            'Example.edu',
+                            'prefix',
+                            true
                         )
                         """
                     )
