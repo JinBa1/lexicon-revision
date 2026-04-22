@@ -6,7 +6,11 @@ from src.access.auth import (
     HeaderEmailRequestIdentityResolver,
     RequestIdentityResolver,
 )
-from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
+from src.access.config import AccessAuthSettings, load_access_auth_settings
+from src.access.errors import (
+    CollectionAccessDeniedError,
+    IdentityProvisioningError,
+)
 from src.access.models import (
     AuthenticatedUser,
     AuthorizationContext,
@@ -19,6 +23,7 @@ from src.access.service import CollectionAccessRepository, CollectionAccessServi
 __all__ = [
     "AuthenticatedUser",
     "AuthorizationContext",
+    "AccessAuthSettings",
     "CollectionAccess",
     "CollectionAccessDeniedError",
     "CollectionAccessRepository",
@@ -29,5 +34,6 @@ __all__ = [
     "RequestIdentityResolver",
     "ResolvedIdentity",
     "STUB_EMAIL_IDENTITY_PROVIDER",
+    "load_access_auth_settings",
     "X_USER_EMAIL_HEADER",
 ]
