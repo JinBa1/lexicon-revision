@@ -17,6 +17,7 @@ class FakeCollectionAccessRepository:
     ) -> None:
         self.collections = collections
         self.users: dict[str, AuthenticatedUser] = {}
+        self.identity_users: dict[tuple[str | None, str | None], AuthenticatedUser] = {}
         self.memberships: set[tuple[str, str]] = set()
         self.calls: list[tuple[str, tuple[object, ...]]] = []
         self.events = events
@@ -44,13 +45,17 @@ class FakeCollectionAccessRepository:
         if self.events is not None:
             self.events.append("repository:get_or_create_user_for_identity")
         assert identity.email is not None
-        user = self.users.get(identity.email)
+        identity_key = (identity.provider, identity.external_subject)
+        user = self.identity_users.get(identity_key)
+        if user is None:
+            user = self.users.get(identity.email)
         if user is None:
             user = AuthenticatedUser(
                 user_id=f"user-{len(self.users) + 1}",
                 email=identity.email,
             )
-            self.users[identity.email] = user
+        self.users[identity.email] = user
+        self.identity_users[identity_key] = user
         return user
 
     def has_active_membership(self, *, user_id: str, community_id: str) -> bool:
@@ -310,6 +315,47 @@ def test_collection_access_service_denies_wrong_user_for_private_collection() ->
             ("stub_header", "other@example.com", "other@example.com", False),
         ),
         ("has_active_membership", ("user-2", "community-1")),
+    ]
+
+
+def test_service_denies_stale_clerk_membership_for_private_collection() -> None:
+    repository = FakeCollectionAccessRepository(
+        collections={
+            "private": CollectionAccess(
+                collection_id="collection-private",
+                collection_name="private",
+                community_id="community-1",
+            )
+        }
+    )
+    user = AuthenticatedUser(user_id="user-1", email="member@old.example.edu")
+    repository.users[user.email] = user
+    repository.identity_users[("clerk", "user_123")] = user
+    repository.memberships.add((user.user_id, "community-1"))
+    resolver = FakeAffiliationResolver(AffiliationDecision(community_id="community-2"))
+    service = CollectionAccessService(
+        repository=repository,
+        affiliation_resolver=resolver,
+    )
+
+    with pytest.raises(CollectionAccessDeniedError, match="private"):
+        service.authorize_collection(
+            collection_name="private",
+            request_identity=RequestIdentity(
+                provider="clerk",
+                external_subject="user_123",
+                email="member@new.example.edu",
+                email_verified=True,
+            ),
+        )
+
+    assert repository.calls == [
+        ("get_collection_access", ("private",)),
+        (
+            "get_or_create_user_for_identity",
+            ("clerk", "user_123", "member@new.example.edu", True),
+        ),
+        ("ensure_active_membership", ("user-1", "community-2")),
     ]
 
 

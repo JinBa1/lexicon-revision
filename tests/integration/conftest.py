@@ -16,9 +16,12 @@ def _clean_pg(request: pytest.FixtureRequest) -> None:
         with engine.connect() as conn:
             existing = set(inspect(conn).get_table_names())
             for table in (
+                "request_usage_logs",
                 "chunk_embeddings",
                 "chunks",
                 "papers",
+                "manual_access_overrides",
+                "community_email_domains",
                 "community_memberships",
                 "collections",
                 "user_external_identities",

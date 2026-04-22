@@ -191,6 +191,43 @@ def test_clerk_request_identity_resolver_returns_verified_primary_email() -> Non
     ]
 
 
+def test_clerk_request_identity_resolver_omits_authorized_parties_when_unset() -> None:
+    from src.access.auth import ClerkRequestIdentityResolver
+    from src.access.config import AccessAuthSettings
+
+    captured: dict[str, object] = {}
+
+    def _authenticate_request(request, options):
+        del request
+        captured["options"] = options
+        return SimpleNamespace(
+            is_signed_in=False,
+            payload=None,
+        )
+
+    clerk = SimpleNamespace(authenticate_request=_authenticate_request)
+    resolver = ClerkRequestIdentityResolver(
+        AccessAuthSettings(
+            provider="clerk",
+            stub_header_name="X-User-Email",
+            clerk_secret_key="sk_test_123",
+            clerk_authorized_parties=[],
+        ),
+        clerk=clerk,
+    )
+
+    resolver.resolve_request_identity(
+        _request_with_headers(
+            [
+                (b"host", b"testserver"),
+                (b"authorization", b"Bearer test-token"),
+            ]
+        )
+    )
+
+    assert captured["options"].authorized_parties is None
+
+
 def test_clerk_request_identity_resolver_rejects_non_clerk_provider() -> None:
     from src.access.auth import ClerkRequestIdentityResolver
     from src.access.config import AccessAuthSettings

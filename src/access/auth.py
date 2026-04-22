@@ -56,7 +56,7 @@ class ClerkRequestIdentityResolver:
             self._build_httpx_request(request),
             AuthenticateRequestOptions(
                 secret_key=self._settings.clerk_secret_key,
-                authorized_parties=self._settings.clerk_authorized_parties,
+                authorized_parties=self._settings.clerk_authorized_parties or None,
             ),
         )
         if not request_state.is_signed_in:

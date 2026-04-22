@@ -46,8 +46,15 @@ class CollectionAccessService:
         self.affiliation_resolver = affiliation_resolver
 
     def resolve_identity(self, request_identity: RequestIdentity) -> ResolvedIdentity:
+        identity, _ = self._resolve_identity_with_affiliation(request_identity)
+        return identity
+
+    def _resolve_identity_with_affiliation(
+        self,
+        request_identity: RequestIdentity,
+    ) -> tuple[ResolvedIdentity, AffiliationDecision | None]:
         if request_identity.is_anonymous:
-            return ResolvedIdentity(request_identity=request_identity, user=None)
+            return ResolvedIdentity(request_identity=request_identity, user=None), None
 
         affiliation = self._resolve_affiliation(request_identity)
         try:
@@ -60,7 +67,9 @@ class CollectionAccessService:
                 user_id=user.user_id,
                 community_id=affiliation.community_id,
             )
-        return ResolvedIdentity(request_identity=request_identity, user=user)
+        return ResolvedIdentity(
+            request_identity=request_identity, user=user
+        ), affiliation
 
     def _resolve_affiliation(
         self, request_identity: RequestIdentity
@@ -97,10 +106,19 @@ class CollectionAccessService:
         if collection is None:
             raise CollectionNotFoundError(collection_name)
 
-        identity = self.resolve_identity(request_identity)
+        identity, affiliation = self._resolve_identity_with_affiliation(
+            request_identity
+        )
         if collection.community_id is not None:
             user = identity.user
-            if user is None or not self.repository.has_active_membership(
+            if user is None:
+                raise CollectionAccessDeniedError(collection_name)
+            if (
+                affiliation is not None
+                and affiliation.community_id != collection.community_id
+            ):
+                raise CollectionAccessDeniedError(collection_name)
+            if not self.repository.has_active_membership(
                 user_id=user.user_id,
                 community_id=collection.community_id,
             ):
