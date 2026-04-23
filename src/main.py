@@ -58,7 +58,12 @@ from src.search.errors import (
     InvalidMetadataFilterError,
 )
 from src.search.factory import create_search_service
-from src.search.models import SearchRequest, SearchResponse
+from src.search.models import (
+    ChunkDetailResponse,
+    ChunkParentContext,
+    SearchRequest,
+    SearchResponse,
+)
 from src.search.pg_service import SearchExecutionTelemetry
 from src.search.providers.config import (
     build_embedding_provider,
@@ -578,6 +583,64 @@ def create_app(
                 detail={"status_code": 422},
             )
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @application.get(
+        "/collections/{collection}/chunks/{chunk_id}",
+        response_model=ChunkDetailResponse,
+    )
+    async def chunk_detail(
+        request: Request,
+        collection: str,
+        chunk_id: str,
+    ) -> ChunkDetailResponse:
+        try:
+            authorize_collection(request, collection_name=collection)
+        except CollectionAccessDeniedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except IdentityProvisioningError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except CollectionNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{exc.collection_name}' not found",
+            ) from exc
+
+        service = request.app.state.search_service
+        repo = getattr(service, "search_repository", None)
+        if repo is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Chunk detail service is not configured",
+            )
+        try:
+            row = repo.get_chunk_by_id(collection_name=collection, chunk_id=chunk_id)
+        except CollectionNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{exc.collection_name}' not found",
+            ) from exc
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Chunk '{chunk_id}' not found in collection '{collection}'",
+            )
+
+        return ChunkDetailResponse(
+            chunk_id=row.chunk_id,
+            chunk_level=row.chunk_level,
+            parent_chunk_id=row.parent_chunk_id,
+            sub_question_label=row.sub_question_label,
+            text=row.text,
+            metadata=row.metadata,
+            media=[],
+            collection=collection,
+            parent=(
+                ChunkParentContext(text=row.parent.text, metadata=row.parent.metadata)
+                if row.parent is not None
+                else None
+            ),
+        )
 
     @application.post("/study", response_model=StudyResponse)
     async def study(request: Request, payload: StudyRequest) -> StudyResponse:

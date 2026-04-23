@@ -69,6 +69,10 @@ class PgSearchService:
             return None
         return self._reranker.model_id
 
+    @property
+    def search_repository(self) -> PgSearchRepository:
+        return self._repository
+
     def get_collection_schema(self, collection: str) -> CollectionMetadataSchema:
         if collection not in self._schema_cache:
             self._schema_cache[collection] = self._repository.get_collection_schema(
