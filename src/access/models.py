@@ -93,7 +93,7 @@ class CollectionAccessListing:
     paper_count: int
     year_start: int | None
     year_end: int | None
-    access_state: str
+    access_state: CollectionAccessState
     lock_reason: str | None
     metadata_schema: dict | None  # JSONB payload, null when not accessible
 

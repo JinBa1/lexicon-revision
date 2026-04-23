@@ -12,6 +12,7 @@ from src.access.models import (
     CollectionAccessListing,
     RequestIdentity,
     ResolvedIdentity,
+    SupportedUniversityRecord,
 )
 from src.search.errors import CollectionNotFoundError
 
@@ -24,6 +25,8 @@ class CollectionAccessRepository(Protocol):
         resolved_user_id: str | None,
         affiliation_community_id: str | None,
     ) -> list[CollectionAccessListing]: ...
+
+    def list_supported_universities(self) -> list[SupportedUniversityRecord]: ...
 
     def get_collection_access(
         self,
@@ -57,6 +60,9 @@ class CollectionAccessService:
     def resolve_identity(self, request_identity: RequestIdentity) -> ResolvedIdentity:
         identity, _ = self._resolve_identity_with_affiliation(request_identity)
         return identity
+
+    def list_supported_universities(self) -> list[SupportedUniversityRecord]:
+        return self.repository.list_supported_universities()
 
     def list_collections(
         self,

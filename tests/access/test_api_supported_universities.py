@@ -54,6 +54,9 @@ class _FakeAccessServiceWithRepo:
     def __init__(self, repository) -> None:
         self.repository = repository
 
+    def list_supported_universities(self) -> list[SupportedUniversityRecord]:
+        return self.repository.list_supported_universities()
+
 
 @pytest.mark.anyio
 async def test_get_supported_universities_empty_list_returns_empty_array() -> None:
@@ -117,3 +120,40 @@ async def test_get_supported_universities_sets_cache_control_header() -> None:
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "public, max-age=3600"
+
+
+@pytest.mark.anyio
+async def test_get_supported_universities_uses_service_method() -> None:
+    from src.main import create_app
+
+    records = [
+        SupportedUniversityRecord(
+            community_id="c-cam",
+            display_name="Cambridge",
+            email_domains=("cam.ac.uk",),
+        )
+    ]
+
+    class _FakeAccessService:
+        def list_supported_universities(self) -> list[SupportedUniversityRecord]:
+            return list(records)
+
+        @property
+        def repository(self):
+            raise AssertionError(
+                "route should not reach into access_service.repository"
+            )
+
+    app = create_app(
+        search_service=object(),
+        access_service=_FakeAccessService(),
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/supported-universities")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": "c-cam", "display_name": "Cambridge", "email_domains": ["cam.ac.uk"]}
+    ]

@@ -12,6 +12,7 @@ from src.access.models import (
     AuthenticatedUser,
     CollectionAccess,
     CollectionAccessListing,
+    CollectionAccessState,
     RequestIdentity,
     SupportedUniversityRecord,
 )
@@ -511,7 +512,7 @@ class PgCollectionAccessRepository:
         collection_community_name: str | None,
         affiliation_community_id: str | None,
         active_membership_community_ids: set[str],
-    ) -> tuple[str, str | None]:
+    ) -> tuple[CollectionAccessState, str | None]:
         if collection_community_id is None:
             return "accessible", None
 

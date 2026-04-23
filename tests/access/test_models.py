@@ -1,5 +1,6 @@
 from src.access.models import (
     CollectionAccessListing,
+    CollectionAccessState,
     CollectionCommunitySummary,
     CollectionListItem,
     CollectionYearRange,
@@ -35,6 +36,14 @@ def test_supported_university_record_holds_required_fields():
         email_domains=("cam.ac.uk",),
     )
     assert record.email_domains == ("cam.ac.uk",)
+
+
+def test_collection_access_listing_uses_literal_access_state_type():
+    from typing import get_type_hints
+
+    hints = get_type_hints(CollectionAccessListing)
+
+    assert hints["access_state"] == CollectionAccessState
 
 
 def test_collection_list_item_json_roundtrip():

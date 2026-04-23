@@ -858,7 +858,7 @@ def create_app(
         response: Response,
     ) -> list[SupportedUniversity]:
         access_service: CollectionAccessService = request.app.state.access_service
-        records = access_service.repository.list_supported_universities()
+        records = access_service.list_supported_universities()
         response_items = [
             SupportedUniversity(
                 id=record.community_id,

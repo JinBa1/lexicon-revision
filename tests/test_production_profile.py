@@ -14,13 +14,8 @@ async def test_new_endpoints_respond_to_cors_preflight() -> None:
         def list_collections(self, *, request_identity):
             return []
 
-        @property
-        def repository(self):
-            class _Repo:
-                def list_supported_universities(self):
-                    return []
-
-            return _Repo()
+        def list_supported_universities(self):
+            return []
 
         def authorize_collection(self, *, collection_name, request_identity):
             from src.access.models import (

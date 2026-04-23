@@ -9,6 +9,7 @@ from src.access.models import (
     AuthenticatedUser,
     CollectionAccessListing,
     RequestIdentity,
+    SupportedUniversityRecord,
 )
 from src.access.service import CollectionAccessService
 
@@ -24,6 +25,13 @@ class _FakeAffiliationResolver:
 class _FakeAccessRepository:
     def __init__(self, listings: list[CollectionAccessListing]) -> None:
         self._listings = listings
+        self._universities = [
+            SupportedUniversityRecord(
+                community_id="c-cam",
+                display_name="Cambridge",
+                email_domains=("cam.ac.uk",),
+            )
+        ]
         self.user = AuthenticatedUser(user_id="user-1", email="a@cam.ac.uk")
         self.received_identity: RequestIdentity | None = None
         self.received_user_id: str | None = None
@@ -40,6 +48,9 @@ class _FakeAccessRepository:
         self.received_user_id = resolved_user_id
         self.received_affiliation = affiliation_community_id
         return list(self._listings)
+
+    def list_supported_universities(self) -> list[SupportedUniversityRecord]:
+        return list(self._universities)
 
     def get_or_create_user_for_identity(self, identity):
         return self.user
@@ -193,3 +204,12 @@ def test_list_collections_falls_back_by_error_code_not_message() -> None:
     assert repo.received_identity == identity
     assert repo.received_user_id is None
     assert repo.received_affiliation is None
+
+
+def test_list_supported_universities_delegates_to_repository() -> None:
+    repo = _FakeAccessRepository(listings=[])
+    service = CollectionAccessService(repository=repo, affiliation_resolver=None)
+
+    result = service.list_supported_universities()
+
+    assert result == repo.list_supported_universities()
