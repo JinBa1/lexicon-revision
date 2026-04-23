@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from src.metadata_schema.models import CollectionMetadataSchema
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +135,7 @@ class CollectionListItem(BaseModel):
     community: CollectionCommunitySummary | None
     paper_count: int = Field(ge=0)
     year_range: CollectionYearRange | None
-    metadata_schema: dict | None
+    metadata_schema: CollectionMetadataSchema | None
     access_state: CollectionAccessState
     lock_reason: str | None
 

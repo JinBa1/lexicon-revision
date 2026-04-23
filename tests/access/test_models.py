@@ -6,6 +6,7 @@ from src.access.models import (
     SupportedUniversity,
     SupportedUniversityRecord,
 )
+from src.metadata_schema.models import CollectionMetadataSchema
 
 
 def test_collection_access_listing_is_frozen_dataclass():
@@ -74,6 +75,48 @@ def test_collection_list_item_rejects_unknown_fields():
                 "stray": "extra",
             }
         )
+
+
+def test_collection_list_item_accepts_and_serializes_metadata_schema():
+    item = CollectionListItem.model_validate(
+        {
+            "name": "cam-cs-tripos",
+            "display_name": "Cambridge CS Tripos",
+            "community": None,
+            "paper_count": 744,
+            "year_range": {"start": 2018, "end": 2025},
+            "metadata_schema": {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "year",
+                        "label": "Year",
+                        "type": "integer",
+                        "operators": ["eq", "gte", "lte"],
+                        "exposed": True,
+                    }
+                ],
+            },
+            "access_state": "accessible",
+            "lock_reason": None,
+        }
+    )
+    payload = item.model_dump(mode="json")
+
+    assert isinstance(item.metadata_schema, CollectionMetadataSchema)
+    assert payload["metadata_schema"] == {
+        "version": 1,
+        "fields": [
+            {
+                "key": "year",
+                "label": "Year",
+                "type": "integer",
+                "operators": ["eq", "gte", "lte"],
+                "exposed": True,
+                "source": None,
+            }
+        ],
+    }
 
 
 def test_supported_university_json_shape():
