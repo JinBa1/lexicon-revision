@@ -26,6 +26,8 @@ def test_schema_has_expected_tables() -> None:
         "user_external_identities",
         "communities",
         "community_memberships",
+        "community_email_domains",
+        "manual_access_overrides",
         "request_usage_logs",
     }
 

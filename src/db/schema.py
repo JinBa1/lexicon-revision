@@ -9,6 +9,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     MetaData,
     PrimaryKeyConstraint,
@@ -121,6 +122,82 @@ community_memberships = Table(
         "user_id",
         "community_id",
         name="uq_community_memberships_user_community",
+    ),
+)
+
+community_email_domains = Table(
+    "community_email_domains",
+    metadata,
+    Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    Column(
+        "community_id",
+        String,
+        ForeignKey("communities.id"),
+        nullable=False,
+    ),
+    Column("domain", Text, nullable=False),
+    Column("match_mode", Text, nullable=False),
+    Column(
+        "is_active",
+        Boolean,
+        nullable=False,
+        server_default=sql_text("true"),
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+    CheckConstraint(
+        "domain = lower(btrim(domain))",
+        name="ck_community_email_domains_domain_lowercase",
+    ),
+    CheckConstraint(
+        "match_mode IN ('exact', 'suffix')",
+        name="ck_community_email_domains_match_mode_valid",
+    ),
+    UniqueConstraint(
+        "community_id",
+        "domain",
+        name="uq_community_email_domains_community_domain",
+    ),
+)
+
+manual_access_overrides = Table(
+    "manual_access_overrides",
+    metadata,
+    Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    Column("email", Text, nullable=False),
+    Column(
+        "community_id",
+        String,
+        ForeignKey("communities.id"),
+        nullable=False,
+    ),
+    Column("note", Text, nullable=True),
+    Column(
+        "is_active",
+        Boolean,
+        nullable=False,
+        server_default=sql_text("true"),
+    ),
+    Column("expires_at", DateTime(timezone=True), nullable=True),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+    CheckConstraint(
+        "email = lower(btrim(email))",
+        name="ck_manual_access_overrides_email_lowercase",
+    ),
+    Index(
+        "uq_manual_access_overrides_active_email",
+        "email",
+        unique=True,
+        postgresql_where=sql_text("is_active"),
     ),
 )
 

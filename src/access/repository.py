@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Engine, select, text
+from sqlalchemy import Engine, bindparam, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from src.access.affiliation import CommunityDomainMatch, ManualAccessOverride
 from src.access.auth import STUB_EMAIL_IDENTITY_PROVIDER
-from src.access.email import require_normalized_email
+from src.access.email import email_domain, require_normalized_email
 from src.access.models import AuthenticatedUser, CollectionAccess, RequestIdentity
 from src.db.schema import (
     collections,
+    community_email_domains,
     community_memberships,
+    manual_access_overrides,
     user_external_identities,
     users,
 )
@@ -19,6 +22,64 @@ from src.db.schema import (
 class PgCollectionAccessRepository:
     def __init__(self, *, engine: Engine) -> None:
         self.engine = engine
+
+    def get_manual_access_override(self, email: str) -> ManualAccessOverride | None:
+        normalized_email = require_normalized_email(email)
+        stmt = (
+            select(
+                manual_access_overrides.c.email,
+                manual_access_overrides.c.community_id,
+                manual_access_overrides.c.note,
+            )
+            .where(
+                manual_access_overrides.c.email == normalized_email,
+                manual_access_overrides.c.is_active.is_(True),
+                (
+                    manual_access_overrides.c.expires_at.is_(None)
+                    | (manual_access_overrides.c.expires_at > func.now())
+                ),
+            )
+            .limit(1)
+        )
+        with Session(self.engine) as session:
+            row = session.execute(stmt).first()
+
+        if row is None:
+            return None
+
+        return ManualAccessOverride(
+            email=str(row.email),
+            community_id=str(row.community_id),
+            note=row.note,
+        )
+
+    def list_matching_communities_for_email_domain(
+        self, email: str
+    ) -> list[CommunityDomainMatch]:
+        normalized_domain = email_domain(email)
+        stmt = select(
+            community_email_domains.c.community_id,
+            community_email_domains.c.domain,
+            community_email_domains.c.match_mode,
+        ).where(community_email_domains.c.is_active.is_(True))
+        with Session(self.engine) as session:
+            rows = session.execute(stmt).all()
+
+        matches: list[CommunityDomainMatch] = []
+        for row in rows:
+            if self._domain_rule_matches(
+                email_domain=normalized_domain,
+                rule_domain=str(row.domain),
+                match_mode=str(row.match_mode),
+            ):
+                matches.append(
+                    CommunityDomainMatch(
+                        community_id=str(row.community_id),
+                        domain=str(row.domain),
+                        match_mode=str(row.match_mode),
+                    )
+                )
+        return matches
 
     def get_collection_access(
         self,
@@ -64,6 +125,10 @@ class PgCollectionAccessRepository:
             )
 
         normalized_email = require_normalized_email(identity.email)
+        is_verified_external_identity = (
+            identity.provider not in (None, STUB_EMAIL_IDENTITY_PROVIDER)
+            and identity.email_verified
+        )
 
         lookup_by_external_identity_stmt = (
             select(
@@ -86,35 +151,81 @@ class PgCollectionAccessRepository:
             .where(users.c.email == normalized_email)
             .limit(1)
         )
+        lookup_provider_identity_for_user_stmt = select(
+            user_external_identities.c.external_subject
+        ).where(
+            user_external_identities.c.user_id == bindparam("user_id"),
+            user_external_identities.c.provider == bindparam("provider"),
+        )
 
         with Session(self.engine) as session:
+
+            def _has_conflicting_provider_subjects(user_id: str) -> bool:
+                existing_provider_subjects = (
+                    session.execute(
+                        lookup_provider_identity_for_user_stmt,
+                        {
+                            "user_id": user_id,
+                            "provider": identity.provider,
+                        },
+                    )
+                    .scalars()
+                    .all()
+                )
+                return any(
+                    existing_subject != identity.external_subject
+                    for existing_subject in existing_provider_subjects
+                )
+
             self._lock_external_identity(
                 session,
                 provider=identity.provider,
                 external_subject=identity.external_subject,
             )
+            if is_verified_external_identity:
+                self._lock_email(session, normalized_email)
             row = None
             if identity.provider is not None and identity.external_subject is not None:
                 row = session.execute(lookup_by_external_identity_stmt).first()
+                if row is not None and _has_conflicting_provider_subjects(str(row.id)):
+                    raise ValueError(
+                        "external identity email collision requires "
+                        "explicit account linking"
+                    )
 
             if row is None:
-                insert_user_stmt = (
-                    pg_insert(users)
-                    .values(
-                        id=str(uuid.uuid4()),
-                        email=normalized_email,
-                        email_verified=identity.email_verified,
+                if is_verified_external_identity:
+                    row = session.execute(lookup_by_email_stmt).first()
+                    if row is not None and _has_conflicting_provider_subjects(
+                        str(row.id)
+                    ):
+                        raise ValueError(
+                            "external identity email collision requires "
+                            "explicit account linking"
+                        )
+
+                if row is None:
+                    insert_user_stmt = (
+                        pg_insert(users)
+                        .values(
+                            id=str(uuid.uuid4()),
+                            email=normalized_email,
+                            email_verified=identity.email_verified,
+                        )
+                        .on_conflict_do_nothing(index_elements=[users.c.email])
+                        .returning(users.c.id, users.c.email)
                     )
-                    .on_conflict_do_nothing(index_elements=[users.c.email])
-                    .returning(users.c.id, users.c.email)
-                )
-                row = session.execute(insert_user_stmt).first()
+                    row = session.execute(insert_user_stmt).first()
 
                 if row is None:
                     if identity.provider in (None, STUB_EMAIL_IDENTITY_PROVIDER):
                         row = session.execute(lookup_by_email_stmt).one()
                     else:
-                        row = session.execute(lookup_by_external_identity_stmt).first()
+                        row = session.execute(lookup_by_email_stmt).first()
+                        if row is None:
+                            row = session.execute(
+                                lookup_by_external_identity_stmt
+                            ).first()
                         if row is None:
                             raise ValueError(
                                 "external identity email collision requires "
@@ -153,6 +264,27 @@ class PgCollectionAccessRepository:
             email=str(row.email),
         )
 
+    def ensure_active_membership(self, *, user_id: str, community_id: str) -> None:
+        with Session(self.engine) as session:
+            session.execute(
+                pg_insert(community_memberships)
+                .values(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    community_id=community_id,
+                    role="member",
+                    status="active",
+                )
+                .on_conflict_do_update(
+                    index_elements=[
+                        community_memberships.c.user_id,
+                        community_memberships.c.community_id,
+                    ],
+                    set_={"status": "active"},
+                )
+            )
+            session.commit()
+
     def _lock_external_identity(
         self,
         session: Session,
@@ -173,6 +305,33 @@ class PgCollectionAccessRepository:
             ),
             {"lock_key": f"{provider}:{external_subject}"},
         )
+
+    def _lock_email(self, session: Session, email: str) -> None:
+        session.execute(
+            text(
+                """
+                select pg_advisory_xact_lock(
+                    (('x' || substr(md5(:lock_key), 1, 16))::bit(64)::bigint)
+                )
+                """
+            ),
+            {"lock_key": f"email:{email}"},
+        )
+
+    def _domain_rule_matches(
+        self,
+        *,
+        email_domain: str,
+        rule_domain: str,
+        match_mode: str,
+    ) -> bool:
+        if match_mode == "exact":
+            return email_domain == rule_domain
+        if match_mode == "suffix":
+            return email_domain == rule_domain or email_domain.endswith(
+                f".{rule_domain}"
+            )
+        raise ValueError(f"Unknown community email-domain match_mode: {match_mode}")
 
     def has_active_membership(self, *, user_id: str, community_id: str) -> bool:
         stmt = (

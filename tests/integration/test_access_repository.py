@@ -7,13 +7,37 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from src.access.errors import CollectionAccessDeniedError
 from src.access.models import RequestIdentity
 from src.access.service import CollectionAccessService
 from src.search.errors import CollectionNotFoundError
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _clean_affiliation_tables() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        yield
+        return
+
+    engine = create_engine(database_url, future=True)
+
+    def _delete_affiliation_rows() -> None:
+        with engine.begin() as conn:
+            existing = set(inspect(conn).get_table_names())
+            for table in ("manual_access_overrides", "community_email_domains"):
+                if table in existing:
+                    conn.execute(text(f"DELETE FROM {table}"))
+
+    try:
+        _delete_affiliation_rows()
+        yield
+    finally:
+        _delete_affiliation_rows()
+        engine.dispose()
 
 
 def _engine():
@@ -240,7 +264,79 @@ def test_get_or_create_user_for_external_identity_serializes_first_provisioning(
     assert linked_identities == [("clerk", "user_123", first_user.user_id)]
 
 
-def test_verified_external_identity_rejects_email_collision() -> None:
+def test_verified_external_identity_email_reuse_blocks_on_email_lock() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+    identity = RequestIdentity(
+        provider="clerk",
+        external_subject="user_456",
+        email="member@example.com",
+        email_verified=True,
+    )
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into users (id, email, email_verified)
+                values ('user-1', 'member@example.com', true)
+                """
+            )
+        )
+
+    with engine.connect() as blocker_conn:
+        blocker_tx = blocker_conn.begin()
+        blocker_conn.execute(
+            text(
+                """
+                select pg_advisory_xact_lock(
+                    (('x' || substr(md5(:lock_key), 1, 16))::bit(64)::bigint)
+                )
+                """
+            ),
+            {"lock_key": "email:member@example.com"},
+        )
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                repository.get_or_create_user_for_identity,
+                identity,
+            )
+
+            with pytest.raises(FutureTimeoutError):
+                future.result(timeout=0.2)
+
+            blocker_tx.rollback()
+            user = future.result(timeout=3)
+
+    assert user.user_id == "user-1"
+    assert user.email == "member@example.com"
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                select id, email, email_verified
+                from users
+                order by created_at asc
+                """
+            )
+        ).all()
+        linked_identities = conn.execute(
+            text(
+                """
+                select provider, external_subject, user_id
+                from user_external_identities
+                order by created_at asc
+                """
+            )
+        ).all()
+
+    assert rows == [("user-1", "member@example.com", True)]
+    assert linked_identities == [("clerk", "user_456", "user-1")]
+
+
+def test_verified_external_identity_reuses_existing_email_owned_user() -> None:
     engine = _engine()
     repository = _repository(engine)
 
@@ -254,11 +350,96 @@ def test_verified_external_identity_rejects_email_collision() -> None:
             )
         )
 
+    user = repository.get_or_create_user_for_identity(
+        RequestIdentity(
+            provider="clerk",
+            external_subject="user_123",
+            email="member@example.com",
+            email_verified=True,
+        )
+    )
+
+    assert user.user_id == "user-1"
+    assert user.email == "member@example.com"
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                select id, email, email_verified
+                from users
+                order by created_at asc
+                """
+            )
+        ).all()
+        linked_identities = conn.execute(
+            text(
+                """
+                select provider, external_subject, user_id
+                from user_external_identities
+                order by created_at asc
+                """
+            )
+        ).all()
+
+    assert rows == [("user-1", "member@example.com", True)]
+    assert linked_identities == [("clerk", "user_123", "user-1")]
+
+
+def test_verified_external_identity_rejects_email_collision_when_provider_subject_conflicts(  # noqa: E501
+) -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into users (id, email, email_verified)
+                values ('user-1', 'member@example.com', true)
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into user_external_identities (
+                    id,
+                    user_id,
+                    provider,
+                    external_subject
+                ) values (
+                    'identity-1',
+                    'user-1',
+                    'clerk',
+                    'user_existing'
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into user_external_identities (
+                    id,
+                    user_id,
+                    provider,
+                    external_subject
+                ) values (
+                    'identity-2',
+                    'user-1',
+                    'clerk',
+                    'user_other'
+                )
+                """
+            )
+        )
+
     with pytest.raises(ValueError, match="account linking"):
         repository.get_or_create_user_for_identity(
             RequestIdentity(
                 provider="clerk",
-                external_subject="user_123",
+                external_subject="user_existing",
                 email="member@example.com",
                 email_verified=True,
             )
@@ -375,6 +556,214 @@ def test_has_active_membership_rejects_inactive_membership() -> None:
         user_id="user-1",
         community_id="community-1",
     )
+
+
+def test_ensure_active_membership_reactivates_existing_inactive_membership_without_changing_role(  # noqa: E501
+) -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into communities (id, name, slug)
+                values ('community-1', 'Community One', 'community-one')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into users (id, email)
+                values ('user-1', 'member@example.com')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into community_memberships (
+                    id,
+                    user_id,
+                    community_id,
+                    role,
+                    status
+                ) values (
+                    'membership-1',
+                    'user-1',
+                    'community-1',
+                    'admin',
+                    'inactive'
+                )
+                """
+            )
+        )
+
+    repository.ensure_active_membership(user_id="user-1", community_id="community-1")
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                select role, status
+                from community_memberships
+                where user_id = 'user-1' and community_id = 'community-1'
+                """
+            )
+        ).one()
+
+    assert row == ("admin", "active")
+
+
+def test_get_manual_access_override_ignores_inactive_or_expired_rows() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into communities (id, name, slug)
+                values
+                    ('community-1', 'Community One', 'community-one'),
+                    ('community-2', 'Community Two', 'community-two'),
+                    ('community-3', 'Community Three', 'community-three')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into manual_access_overrides (
+                    id,
+                    email,
+                    community_id,
+                    note,
+                    is_active,
+                    expires_at
+                ) values
+                    (
+                        'override-1',
+                        'student@example.edu',
+                        'community-1',
+                        'active access',
+                        true,
+                        now() + interval '1 day'
+                    ),
+                    (
+                        'override-2',
+                        'inactive@example.edu',
+                        'community-2',
+                        'inactive access',
+                        false,
+                        null
+                    ),
+                    (
+                        'override-3',
+                        'expired@example.edu',
+                        'community-3',
+                        'expired access',
+                        true,
+                        now() - interval '1 day'
+                    )
+                """
+            )
+        )
+
+    active_override = repository.get_manual_access_override(" Student@Example.edu ")
+    inactive_override = repository.get_manual_access_override("inactive@example.edu")
+    expired_override = repository.get_manual_access_override("expired@example.edu")
+
+    assert active_override is not None
+    assert active_override.email == "student@example.edu"
+    assert active_override.community_id == "community-1"
+    assert active_override.note == "active access"
+    assert inactive_override is None
+    assert expired_override is None
+
+
+def test_list_matching_communities_for_email_domain_supports_exact_and_suffix() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into communities (id, name, slug)
+                values
+                    ('community-1', 'Community One', 'community-one'),
+                    ('community-2', 'Community Two', 'community-two'),
+                    ('community-3', 'Community Three', 'community-three'),
+                    ('community-4', 'Community Four', 'community-four')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                insert into community_email_domains (
+                    id,
+                    community_id,
+                    domain,
+                    match_mode,
+                    is_active
+                ) values
+                    (
+                        'domain-1',
+                        'community-1',
+                        'cs.example.edu',
+                        'exact',
+                        true
+                    ),
+                    (
+                        'domain-2',
+                        'community-2',
+                        'example.edu',
+                        'suffix',
+                        true
+                    ),
+                    (
+                        'domain-3',
+                        'community-3',
+                        'other.edu',
+                        'suffix',
+                        true
+                    ),
+                    (
+                        'domain-4',
+                        'community-4',
+                        'inactive.example.edu',
+                        'exact',
+                        false
+                    )
+                """
+            )
+        )
+
+    matches = repository.list_matching_communities_for_email_domain(
+        " Student@CS.Example.edu "
+    )
+
+    assert {
+        (match.community_id, match.domain, match.match_mode) for match in matches
+    } == {
+        ("community-1", "cs.example.edu", "exact"),
+        ("community-2", "example.edu", "suffix"),
+    }
+
+
+def test_domain_rule_matches_raises_for_unknown_match_mode() -> None:
+    engine = _engine()
+    repository = _repository(engine)
+
+    with pytest.raises(ValueError, match="Unknown community email-domain match_mode"):
+        repository._domain_rule_matches(
+            email_domain="student.example.edu",
+            rule_domain="example.edu",
+            match_mode="wildcard",
+        )
 
 
 def test_service_allows_public_collection_without_header() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -414,6 +415,130 @@ async def test_post_study_returns_response() -> None:
 
 
 @pytest.mark.anyio
+async def test_post_study_public_collection_stays_anonymous_after_auth_swap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    study_service = FakeStudyService()
+    access_service = FakeAccessService()
+
+    import src.main as main_module
+
+    auth_resolver = SimpleNamespace(
+        calls=[],
+        resolve_request_identity=lambda request: (
+            auth_resolver.calls.append(request.url.path) or RequestIdentity.anonymous()
+        ),
+    )
+    app = main_module.create_app()
+
+    monkeypatch.setattr(
+        main_module, "load_retrieval_provider_settings", lambda: object()
+    )
+    monkeypatch.setattr(
+        main_module,
+        "build_embedding_provider",
+        lambda settings: object(),
+    )
+    monkeypatch.setattr(main_module, "build_rerank_provider", lambda settings: None)
+    monkeypatch.setattr(main_module, "load_database_settings", lambda: object())
+    monkeypatch.setattr(
+        main_module,
+        "create_database_engine",
+        lambda settings: object(),
+    )
+    monkeypatch.setattr(main_module, "load_object_storage_settings", lambda: object())
+    monkeypatch.setattr(main_module, "build_object_storage", lambda settings: object())
+    monkeypatch.setattr(
+        main_module,
+        "create_search_service",
+        lambda **kwargs: FakeSearchService(),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "PgCollectionAccessRepository",
+        lambda *, engine: object(),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "CommunityAffiliationResolver",
+        lambda *, repository: object(),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "CollectionAccessService",
+        lambda **kwargs: access_service,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "load_access_auth_settings",
+        lambda: SimpleNamespace(
+            provider="clerk",
+            clerk_secret_key="sk_test_123",
+            clerk_authorized_parties=["https://example.com"],
+            stub_header_name="X-User-Email",
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "build_request_identity_resolver",
+        lambda settings: auth_resolver,
+        raising=False,
+    )
+    monkeypatch.setattr(main_module, "load_study_settings", _study_settings)
+    monkeypatch.setattr(
+        main_module,
+        "build_generation_providers",
+        lambda settings: (FakeProvider(), FakeProvider()),
+    )
+    monkeypatch.setattr(main_module, "LLMQueryPlanner", lambda **kwargs: object())
+    monkeypatch.setattr(
+        main_module,
+        "PlannedRetrievalService",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "StudyService",
+        lambda **kwargs: study_service,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "validate_production_profile",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "PgRequestUsageLogRepository",
+        lambda engine: FakeUsageLogRepository(),
+    )
+
+    async with main_module._default_lifespan(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            response = await client.post(
+                "/study",
+                json={
+                    "query": "dynamic programming",
+                    "scope": {"collection": "public-fixture"},
+                },
+            )
+
+    assert response.status_code == 200
+    assert auth_resolver.calls == ["/study"]
+    assert access_service.calls == [
+        {
+            "collection_name": "public-fixture",
+            "request_identity": RequestIdentity.anonymous(),
+        }
+    ]
+    assert study_service.requests[0].scope.collection == "public-fixture"
+
+
+@pytest.mark.anyio
 async def test_post_study_invalid_metadata_filter_returns_422() -> None:
     from src.main import create_app
 
@@ -824,7 +949,7 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
         main_module, "PgCollectionAccessRepository", lambda *, engine: object()
     )
     monkeypatch.setattr(
-        main_module, "CollectionAccessService", lambda *, repository: object()
+        main_module, "CollectionAccessService", lambda **kwargs: object()
     )
     monkeypatch.setattr(main_module, "load_study_settings", _study_settings)
     monkeypatch.setattr(
