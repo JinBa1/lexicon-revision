@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import httpx
+import pytest
+from src.access.models import SupportedUniversityRecord
+
+
+class FakeAccessRepoWithUniversities:
+    def __init__(self, universities: list[SupportedUniversityRecord]) -> None:
+        self._universities = universities
+
+    def list_supported_universities(self) -> list[SupportedUniversityRecord]:
+        return list(self._universities)
+
+
+@pytest.mark.anyio
+async def test_get_supported_universities_returns_list() -> None:
+    from src.main import create_app
+
+    records = [
+        SupportedUniversityRecord(
+            community_id="c-cam",
+            display_name="Cambridge",
+            email_domains=("cam.ac.uk",),
+        ),
+        SupportedUniversityRecord(
+            community_id="c-ox",
+            display_name="Oxford",
+            email_domains=("ox.ac.uk",),
+        ),
+    ]
+
+    app = create_app(
+        search_service=object(),
+        access_service=_FakeAccessServiceWithRepo(
+            FakeAccessRepoWithUniversities(records)
+        ),
+        allow_unauthorized_test_mode=True,
+    )
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/supported-universities")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == [
+        {"id": "c-cam", "display_name": "Cambridge", "email_domains": ["cam.ac.uk"]},
+        {"id": "c-ox", "display_name": "Oxford", "email_domains": ["ox.ac.uk"]},
+    ]
+
+
+class _FakeAccessServiceWithRepo:
+    def __init__(self, repository) -> None:
+        self.repository = repository
+
+
+@pytest.mark.anyio
+async def test_get_supported_universities_empty_list_returns_empty_array() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=object(),
+        access_service=_FakeAccessServiceWithRepo(FakeAccessRepoWithUniversities([])),
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/supported-universities")
+
+    assert response.status_code == 200
+    assert response.json() == []

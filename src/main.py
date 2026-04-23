@@ -27,6 +27,7 @@ from src.access import (
     build_request_identity_resolver,
     load_access_auth_settings,
 )
+from src.access.models import SupportedUniversity
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
 from src.runtime import (
@@ -709,6 +710,22 @@ def create_app(
     @application.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @application.get(
+        "/supported-universities",
+        response_model=list[SupportedUniversity],
+    )
+    async def supported_universities(request: Request) -> list[SupportedUniversity]:
+        access_service: CollectionAccessService = request.app.state.access_service
+        records = access_service.repository.list_supported_universities()
+        return [
+            SupportedUniversity(
+                id=record.community_id,
+                display_name=record.display_name,
+                email_domains=list(record.email_domains),
+            )
+            for record in records
+        ]
 
     @application.get("/health")
     async def health() -> dict[str, str]:
