@@ -8,9 +8,15 @@ from sqlalchemy.orm import Session
 from src.access.affiliation import CommunityDomainMatch, ManualAccessOverride
 from src.access.auth import STUB_EMAIL_IDENTITY_PROVIDER
 from src.access.email import email_domain, require_normalized_email
-from src.access.models import AuthenticatedUser, CollectionAccess, RequestIdentity
+from src.access.models import (
+    AuthenticatedUser,
+    CollectionAccess,
+    RequestIdentity,
+    SupportedUniversityRecord,
+)
 from src.db.schema import (
     collections,
+    communities,
     community_email_domains,
     community_memberships,
     manual_access_overrides,
@@ -80,6 +86,42 @@ class PgCollectionAccessRepository:
                     )
                 )
         return matches
+
+    def list_supported_universities(self) -> list[SupportedUniversityRecord]:
+        stmt = (
+            select(
+                communities.c.id,
+                communities.c.name,
+                community_email_domains.c.domain,
+            )
+            .select_from(
+                communities.join(
+                    community_email_domains,
+                    community_email_domains.c.community_id == communities.c.id,
+                )
+            )
+            .where(community_email_domains.c.is_active.is_(True))
+            .order_by(communities.c.name, community_email_domains.c.domain)
+        )
+        with Session(self.engine) as session:
+            rows = session.execute(stmt).all()
+
+        grouped: dict[str, tuple[str, list[str]]] = {}
+        for row in rows:
+            entry = grouped.get(str(row.id))
+            if entry is None:
+                grouped[str(row.id)] = (str(row.name), [str(row.domain)])
+            else:
+                entry[1].append(str(row.domain))
+
+        return [
+            SupportedUniversityRecord(
+                community_id=community_id,
+                display_name=name,
+                email_domains=tuple(domains),
+            )
+            for community_id, (name, domains) in grouped.items()
+        ]
 
     def get_collection_access(
         self,
