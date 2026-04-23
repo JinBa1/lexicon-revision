@@ -7,6 +7,7 @@ from src.access.errors import (
     IdentityProvisioningError,
 )
 from src.access.models import (
+    AuthenticatedUser,
     AuthorizationContext,
     CollectionAccess,
     RequestIdentity,
@@ -40,9 +41,11 @@ class _FakeAccessServiceWithAuthorize:
         *,
         allowed: bool = True,
         provisioning_error: str | None = None,
+        user_id: str | None = None,
     ) -> None:
         self.allowed = allowed
         self.provisioning_error = provisioning_error
+        self.user_id = user_id
 
     def authorize_collection(
         self,
@@ -60,13 +63,33 @@ class _FakeAccessServiceWithAuthorize:
                 collection_name=collection_name,
                 community_id=None,
             ),
-            identity=ResolvedIdentity(request_identity=request_identity, user=None),
+            identity=ResolvedIdentity(
+                request_identity=request_identity,
+                user=(
+                    AuthenticatedUser(
+                        user_id=self.user_id,
+                        email=request_identity.email or "user@example.com",
+                    )
+                    if self.user_id is not None
+                    else None
+                ),
+            ),
         )
 
 
 class _FakeIdentityResolver:
     def resolve_request_identity(self, request) -> RequestIdentity:
         return RequestIdentity.anonymous()
+
+
+class _AuthenticatedIdentityResolver:
+    def resolve_request_identity(self, request) -> RequestIdentity:
+        return RequestIdentity(
+            provider="clerk",
+            external_subject="sub-1",
+            email="reader@example.com",
+            email_verified=True,
+        )
 
 
 class _FakeSearchServiceWithMedia:
@@ -297,3 +320,42 @@ async def test_get_chunk_detail_returns_403_when_identity_provisioning_fails() -
         response = await client.get("/collections/demo/chunks/q-1")
 
     assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_get_chunk_detail_logs_usage_on_success_with_app_user_id() -> None:
+    from src.main import create_app
+    from src.runtime.usage_logs import RequestUsageLogRecord
+
+    class _FakeUsageRepo:
+        def __init__(self) -> None:
+            self.records: list[RequestUsageLogRecord] = []
+
+        def insert(self, record: RequestUsageLogRecord) -> None:
+            self.records.append(record)
+
+    repo = _FakeChunkRepo(chunks={("demo", "q-1"): _row()})
+    usage_repo = _FakeUsageRepo()
+
+    class _Service:
+        search_repository = repo
+
+    app = create_app(
+        search_service=_Service(),
+        access_service=_FakeAccessServiceWithAuthorize(
+            allowed=True, user_id="user-123"
+        ),
+        auth_resolver=_AuthenticatedIdentityResolver(),
+        usage_log_repository=usage_repo,
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/collections/demo/chunks/q-1")
+
+    assert response.status_code == 200
+    assert len(usage_repo.records) == 1
+    record = usage_repo.records[0]
+    assert record.endpoint == "chunk_detail"
+    assert record.outcome == "ok"
+    assert record.app_user_id == "user-123"

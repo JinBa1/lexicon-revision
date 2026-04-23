@@ -91,7 +91,12 @@ from src.study.service import StudyService
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 logger = logging.getLogger(__name__)
-OPERATIONS_ENDPOINTS = {"/search": "search", "/study": "study"}
+OPERATIONS_ENDPOINTS = {
+    "/search": "search",
+    "/study": "study",
+    "/collections": "collections",
+    "/supported-universities": "supported_universities",
+}
 UNKNOWN_COLLECTION_NAME = "<unknown>"
 
 
@@ -594,13 +599,35 @@ def create_app(
         collection: str,
         chunk_id: str,
     ) -> ChunkDetailResponse:
+        auth_context: AuthorizationContext | None = None
         try:
-            authorize_collection(request, collection_name=collection)
+            auth_context = authorize_collection(request, collection_name=collection)
         except CollectionAccessDeniedError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="forbidden",
+                detail={"status_code": 403, "chunk_id": chunk_id},
+            )
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except IdentityProvisioningError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="forbidden",
+                detail={"status_code": 403, "chunk_id": chunk_id},
+            )
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except CollectionNotFoundError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="not_found",
+                detail={"status_code": 404, "chunk_id": chunk_id},
+            )
             raise HTTPException(
                 status_code=404,
                 detail=f"Collection '{exc.collection_name}' not found",
@@ -609,6 +636,14 @@ def create_app(
         service = request.app.state.search_service
         repo = getattr(service, "search_repository", None)
         if repo is None:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="service_unavailable",
+                app_user_id=_app_user_id(auth_context),
+                detail={"status_code": 503, "chunk_id": chunk_id},
+            )
             raise HTTPException(
                 status_code=503,
                 detail="Chunk detail service is not configured",
@@ -616,12 +651,28 @@ def create_app(
         try:
             row = repo.get_chunk_by_id(collection_name=collection, chunk_id=chunk_id)
         except CollectionNotFoundError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="not_found",
+                app_user_id=_app_user_id(auth_context),
+                detail={"status_code": 404, "chunk_id": chunk_id},
+            )
             raise HTTPException(
                 status_code=404,
                 detail=f"Collection '{exc.collection_name}' not found",
             ) from exc
 
         if row is None:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="not_found",
+                app_user_id=_app_user_id(auth_context),
+                detail={"status_code": 404, "chunk_id": chunk_id},
+            )
             raise HTTPException(
                 status_code=404,
                 detail=f"Chunk '{chunk_id}' not found in collection '{collection}'",
@@ -637,6 +688,14 @@ def create_app(
             object_storage=storage,
         )
 
+        _log_usage_best_effort(
+            request,
+            endpoint="chunk_detail",
+            collection_name=collection,
+            outcome="ok",
+            app_user_id=_app_user_id(auth_context),
+            detail={"chunk_id": chunk_id, "has_parent": row.parent is not None},
+        )
         return ChunkDetailResponse(
             chunk_id=row.chunk_id,
             chunk_level=row.chunk_level,
@@ -797,7 +856,7 @@ def create_app(
     async def supported_universities(request: Request) -> list[SupportedUniversity]:
         access_service: CollectionAccessService = request.app.state.access_service
         records = access_service.repository.list_supported_universities()
-        return [
+        response_items = [
             SupportedUniversity(
                 id=record.community_id,
                 display_name=record.display_name,
@@ -805,6 +864,14 @@ def create_app(
             )
             for record in records
         ]
+        _log_usage_best_effort(
+            request,
+            endpoint="supported_universities",
+            collection_name=UNKNOWN_COLLECTION_NAME,
+            outcome="ok",
+            detail={"row_count": len(response_items)},
+        )
+        return response_items
 
     @application.get(
         "/collections",
@@ -817,8 +884,15 @@ def create_app(
         try:
             listings = service.list_collections(request_identity=request_identity)
         except IdentityProvisioningError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="collections",
+                collection_name=UNKNOWN_COLLECTION_NAME,
+                outcome="forbidden",
+                detail={"status_code": 403},
+            )
             raise HTTPException(status_code=403, detail=str(exc)) from exc
-        return [
+        response_items = [
             CollectionListItem(
                 name=row.collection_name,
                 display_name=row.display_name,
@@ -842,6 +916,14 @@ def create_app(
             )
             for row in listings
         ]
+        _log_usage_best_effort(
+            request,
+            endpoint="collections",
+            collection_name=UNKNOWN_COLLECTION_NAME,
+            outcome="ok",
+            detail={"row_count": len(response_items)},
+        )
+        return response_items
 
     @application.get("/health")
     async def health() -> dict[str, str]:
@@ -981,7 +1063,12 @@ def _collection_name_from_request(request: Request) -> str:
 
 
 def _operation_endpoint(request: Request) -> str | None:
-    return OPERATIONS_ENDPOINTS.get(request.url.path)
+    path = request.url.path
+    if path in OPERATIONS_ENDPOINTS:
+        return OPERATIONS_ENDPOINTS[path]
+    if path.startswith("/collections/") and "/chunks/" in path:
+        return "chunk_detail"
+    return None
 
 
 def _rate_limit_key(request: Request) -> str:

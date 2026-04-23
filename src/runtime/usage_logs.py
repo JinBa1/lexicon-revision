@@ -7,7 +7,13 @@ from sqlalchemy import Engine, insert
 from src.db.schema import request_usage_logs
 from src.runtime.telemetry import ProviderCallTelemetry
 
-Endpoint = Literal["search", "study"]
+Endpoint = Literal[
+    "search",
+    "study",
+    "collections",
+    "supported_universities",
+    "chunk_detail",
+]
 
 
 @dataclass(frozen=True)

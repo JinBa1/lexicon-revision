@@ -70,3 +70,33 @@ async def test_get_supported_universities_empty_list_returns_empty_array() -> No
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.anyio
+async def test_get_supported_universities_logs_usage_on_success() -> None:
+    from src.main import create_app
+    from src.runtime.usage_logs import RequestUsageLogRecord
+
+    class _FakeUsageRepo:
+        def __init__(self) -> None:
+            self.records: list[RequestUsageLogRecord] = []
+
+        def insert(self, record: RequestUsageLogRecord) -> None:
+            self.records.append(record)
+
+    usage_repo = _FakeUsageRepo()
+    app = create_app(
+        search_service=object(),
+        access_service=_FakeAccessServiceWithRepo(FakeAccessRepoWithUniversities([])),
+        usage_log_repository=usage_repo,
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/supported-universities")
+
+    assert response.status_code == 200
+    assert len(usage_repo.records) == 1
+    record = usage_repo.records[0]
+    assert record.endpoint == "supported_universities"
+    assert record.outcome == "ok"
