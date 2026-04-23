@@ -257,6 +257,49 @@ def test_list_collections_for_stub_identity_uses_membership_without_affiliation(
     assert rows[0].lock_reason is None
 
 
+def test_list_collections_uses_bulk_membership_lookup_instead_of_per_row_checks(
+    monkeypatch,
+):
+    engine = _engine()
+    repository = PgCollectionAccessRepository(engine=engine)
+    cambridge_id = _seed_community(engine, name="Cambridge", slug="cambridge")
+    _seed_collection(engine, name="cam-private-a", community_id=cambridge_id)
+    _seed_collection(engine, name="cam-private-b", community_id=cambridge_id)
+    user_id = _seed_membership(
+        engine,
+        user_email="member@example.com",
+        community_id=cambridge_id,
+    )
+
+    def _unexpected_per_row_membership_check(
+        *,
+        user_id: str,
+        community_id: str,
+    ) -> bool:
+        del user_id, community_id
+        raise AssertionError(
+            "list_collections_with_access should not use per-row membership checks"
+        )
+
+    monkeypatch.setattr(
+        repository,
+        "has_active_membership",
+        _unexpected_per_row_membership_check,
+    )
+
+    rows = repository.list_collections_with_access(
+        request_identity=_stub_identity("member@example.com"),
+        resolved_user_id=user_id,
+        affiliation_community_id=None,
+    )
+
+    assert [row.collection_name for row in rows] == [
+        "cam-private-a",
+        "cam-private-b",
+    ]
+    assert all(row.access_state == "accessible" for row in rows)
+
+
 def test_list_collections_for_authed_user_with_wrong_affiliation_is_locked():
     engine = _engine()
     repository = PgCollectionAccessRepository(engine=engine)

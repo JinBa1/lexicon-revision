@@ -159,3 +159,37 @@ def test_list_collections_reraises_non_fallback_provisioning_errors() -> None:
     assert repo.received_identity is None
     assert repo.received_user_id is None
     assert repo.received_affiliation is None
+
+
+def test_list_collections_falls_back_by_error_code_not_message() -> None:
+    repo = _FakeAccessRepository(
+        listings=[_listing("locked", "locked_wrong_affiliation")]
+    )
+    service = CollectionAccessService(
+        repository=repo,
+        affiliation_resolver=None,
+    )
+    identity = RequestIdentity(
+        provider="clerk",
+        external_subject="sub-4",
+        email="user@example.com",
+        email_verified=True,
+    )
+
+    def _raise_typed_error(
+        request_identity: RequestIdentity,
+    ) -> tuple[object, object]:
+        del request_identity
+        raise IdentityProvisioningError(
+            "viewer is not eligible for automatic affiliation",
+            code="unsupported_email_domain",
+        )
+
+    service._resolve_identity_with_affiliation = _raise_typed_error  # type: ignore[method-assign]
+
+    result = service.list_collections(request_identity=identity)
+
+    assert [row.collection_name for row in result] == ["locked"]
+    assert repo.received_identity == identity
+    assert repo.received_user_id is None
+    assert repo.received_affiliation is None

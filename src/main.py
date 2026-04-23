@@ -853,7 +853,10 @@ def create_app(
         "/supported-universities",
         response_model=list[SupportedUniversity],
     )
-    async def supported_universities(request: Request) -> list[SupportedUniversity]:
+    async def supported_universities(
+        request: Request,
+        response: Response,
+    ) -> list[SupportedUniversity]:
         access_service: CollectionAccessService = request.app.state.access_service
         records = access_service.repository.list_supported_universities()
         response_items = [
@@ -864,6 +867,7 @@ def create_app(
             )
             for record in records
         ]
+        response.headers["Cache-Control"] = "public, max-age=3600"
         _log_usage_best_effort(
             request,
             endpoint="supported_universities",

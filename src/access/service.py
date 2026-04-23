@@ -74,7 +74,7 @@ class CollectionAccessService:
                 request_identity
             )
         except IdentityProvisioningError as exc:
-            if str(exc) not in {
+            if exc.code not in {
                 "unsupported_email_domain",
                 "ambiguous_email_domain",
             }:
@@ -141,7 +141,8 @@ class CollectionAccessService:
 
         if not decision.is_allowed:
             raise IdentityProvisioningError(
-                decision.deny_reason or "unsupported_authenticated_identity"
+                decision.deny_reason or "unsupported_authenticated_identity",
+                code=decision.deny_reason,
             )
         return decision
 

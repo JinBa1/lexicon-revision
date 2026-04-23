@@ -100,3 +100,20 @@ async def test_get_supported_universities_logs_usage_on_success() -> None:
     record = usage_repo.records[0]
     assert record.endpoint == "supported_universities"
     assert record.outcome == "ok"
+
+
+@pytest.mark.anyio
+async def test_get_supported_universities_sets_cache_control_header() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        search_service=object(),
+        access_service=_FakeAccessServiceWithRepo(FakeAccessRepoWithUniversities([])),
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/supported-universities")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=3600"

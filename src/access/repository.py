@@ -209,6 +209,14 @@ class PgCollectionAccessRepository:
             .order_by(collections.c.name)
         )
         with Session(self.engine) as session:
+            active_membership_community_ids = (
+                self._list_active_membership_community_ids(
+                    session,
+                    user_id=resolved_user_id,
+                )
+                if resolved_user_id is not None
+                else set()
+            )
             rows = session.execute(stmt).all()
 
         listings: list[CollectionAccessListing] = []
@@ -223,8 +231,8 @@ class PgCollectionAccessRepository:
                 request_identity=request_identity,
                 collection_community_id=community_id,
                 collection_community_name=community_name,
-                resolved_user_id=resolved_user_id,
                 affiliation_community_id=affiliation_community_id,
+                active_membership_community_ids=active_membership_community_ids,
             )
             listings.append(
                 CollectionAccessListing(
@@ -501,8 +509,8 @@ class PgCollectionAccessRepository:
         request_identity: RequestIdentity,
         collection_community_id: str | None,
         collection_community_name: str | None,
-        resolved_user_id: str | None,
         affiliation_community_id: str | None,
+        active_membership_community_ids: set[str],
     ) -> tuple[str, str | None]:
         if collection_community_id is None:
             return "accessible", None
@@ -519,16 +527,29 @@ class PgCollectionAccessRepository:
                 self._restricted_members_lock_reason(collection_community_name),
             )
 
-        if resolved_user_id is not None and self.has_active_membership(
-            user_id=resolved_user_id,
-            community_id=collection_community_id,
-        ):
+        if collection_community_id in active_membership_community_ids:
             return "accessible", None
 
         return (
             "locked_wrong_affiliation",
             self._restricted_members_lock_reason(collection_community_name),
         )
+
+    def _list_active_membership_community_ids(
+        self,
+        session: Session,
+        *,
+        user_id: str,
+    ) -> set[str]:
+        stmt = select(community_memberships.c.community_id).where(
+            community_memberships.c.user_id == user_id,
+            community_memberships.c.status == "active",
+        )
+        return {
+            str(community_id)
+            for community_id in session.execute(stmt).scalars()
+            if community_id is not None
+        }
 
     def _restricted_members_lock_reason(
         self, community_display_name: str | None

@@ -8,4 +8,6 @@ class CollectionAccessDeniedError(Exception):
 
 
 class IdentityProvisioningError(Exception):
-    pass
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        self.code = code
+        super().__init__(message)

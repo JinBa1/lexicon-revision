@@ -22,6 +22,8 @@ config/study.local.yaml
 reports/study/
 config/study-profiles/
 STACK_CHOICE.md
+frontend_refs/
+.superpowers/
 
 # Allow eval specs while keeping other docs ignored by default
 !docs/
