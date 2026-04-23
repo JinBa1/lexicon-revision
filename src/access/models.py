@@ -79,3 +79,24 @@ class ResolvedIdentity:
 class AuthorizationContext:
     collection: CollectionAccess
     identity: ResolvedIdentity
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionAccessListing:
+    collection_name: str
+    display_name: str
+    community_id: str | None
+    community_display_name: str | None
+    paper_count: int
+    year_start: int | None
+    year_end: int | None
+    access_state: str
+    lock_reason: str | None
+    metadata_schema: dict | None  # JSONB payload, null when not accessible
+
+
+@dataclass(frozen=True, slots=True)
+class SupportedUniversityRecord:
+    community_id: str
+    display_name: str
+    email_domains: tuple[str, ...]
