@@ -27,7 +27,12 @@ from src.access import (
     build_request_identity_resolver,
     load_access_auth_settings,
 )
-from src.access.models import SupportedUniversity
+from src.access.models import (
+    CollectionCommunitySummary,
+    CollectionListItem,
+    CollectionYearRange,
+    SupportedUniversity,
+)
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
 from src.runtime import (
@@ -725,6 +730,43 @@ def create_app(
                 email_domains=list(record.email_domains),
             )
             for record in records
+        ]
+
+    @application.get(
+        "/collections",
+        response_model=list[CollectionListItem],
+    )
+    async def list_collections(request: Request) -> list[CollectionListItem]:
+        service: CollectionAccessService = request.app.state.access_service
+        resolver: RequestIdentityResolver = request.app.state.auth_resolver
+        request_identity = resolver.resolve_request_identity(request)
+        try:
+            listings = service.list_collections(request_identity=request_identity)
+        except IdentityProvisioningError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return [
+            CollectionListItem(
+                name=row.collection_name,
+                display_name=row.display_name,
+                community=(
+                    CollectionCommunitySummary(
+                        id=row.community_id,
+                        display_name=row.community_display_name or row.community_id,
+                    )
+                    if row.community_id is not None
+                    else None
+                ),
+                paper_count=row.paper_count,
+                year_range=(
+                    CollectionYearRange(start=row.year_start, end=row.year_end)
+                    if row.year_start is not None and row.year_end is not None
+                    else None
+                ),
+                metadata_schema=row.metadata_schema,
+                access_state=row.access_state,
+                lock_reason=row.lock_reason,
+            )
+            for row in listings
         ]
 
     @application.get("/health")
