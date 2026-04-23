@@ -69,12 +69,25 @@ class PgSearchService:
             return None
         return self._reranker.model_id
 
+    @property
+    def search_repository(self) -> PgSearchRepository:
+        return self._repository
+
     def get_collection_schema(self, collection: str) -> CollectionMetadataSchema:
         if collection not in self._schema_cache:
             self._schema_cache[collection] = self._repository.get_collection_schema(
                 collection
             )
         return self._schema_cache[collection]
+
+    def get_media_refs(
+        self,
+        *,
+        collection: str,
+        chunk_id: str,
+    ) -> list[dict[str, Any]]:
+        media_map = self._load_media_map(collection)
+        return list(media_map.get(chunk_id, []))
 
     def search(
         self,

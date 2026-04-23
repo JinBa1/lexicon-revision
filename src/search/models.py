@@ -40,3 +40,24 @@ class SearchRequest(BaseModel):
     filters: list[FilterCondition] = Field(default_factory=list)
     limit: int = Field(default=10, ge=1, le=100)
     rerank: bool = True
+
+
+class ChunkParentContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    metadata: dict[str, Any]
+
+
+class ChunkDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_id: str
+    chunk_level: Literal["question", "sub_question"]
+    parent_chunk_id: str | None
+    sub_question_label: str | None
+    text: str
+    metadata: dict[str, Any]
+    media: list[MediaRefResponse]
+    collection: str
+    parent: ChunkParentContext | None

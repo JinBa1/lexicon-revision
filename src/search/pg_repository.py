@@ -44,6 +44,23 @@ class PgChunkRow:
     metadata: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ChunkParentRow:
+    text: str
+    metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ChunkDetailRow:
+    chunk_id: str
+    chunk_level: str
+    parent_chunk_id: str | None
+    sub_question_label: str | None
+    text: str
+    metadata: dict[str, Any]
+    parent: ChunkParentRow | None
+
+
 class PgIndexRepository:
     def __init__(
         self,
@@ -225,6 +242,75 @@ class PgSearchRepository:
             return _load_collection_schema(
                 collection_name=collection_name,
                 raw_payload=getattr(collection_row, "metadata_schema", None),
+            )
+
+    def get_chunk_by_id(
+        self,
+        *,
+        collection_name: str,
+        chunk_id: str,
+    ) -> ChunkDetailRow | None:
+        with Session(self.engine) as session:
+            collection_row = _load_collection_row(session, collection_name)
+            if collection_row is None:
+                raise CollectionNotFoundError(collection_name)
+
+            schema = _load_collection_schema(
+                collection_name=collection_name,
+                raw_payload=getattr(collection_row, "metadata_schema", None),
+            )
+            stmt = (
+                select(
+                    chunks_table.c.chunk_id,
+                    chunks_table.c.chunk_level,
+                    chunks_table.c.parent_chunk_id,
+                    chunks_table.c.sub_question_label,
+                    chunks_table.c.text,
+                    chunks_table.c.metadata,
+                )
+                .where(
+                    chunks_table.c.collection_id == collection_row.id,
+                    chunks_table.c.chunk_id == chunk_id,
+                )
+                .limit(1)
+            )
+            row = session.execute(stmt).first()
+            if row is None:
+                return None
+
+            parent: ChunkParentRow | None = None
+            if row.parent_chunk_id is not None:
+                parent_stmt = (
+                    select(chunks_table.c.text, chunks_table.c.metadata)
+                    .where(
+                        chunks_table.c.collection_id == collection_row.id,
+                        chunks_table.c.chunk_id == row.parent_chunk_id,
+                    )
+                    .limit(1)
+                )
+                parent_row = session.execute(parent_stmt).first()
+                if parent_row is not None:
+                    parent = ChunkParentRow(
+                        text=str(parent_row.text),
+                        metadata=_result_metadata_from_row(parent_row, schema),
+                    )
+
+            return ChunkDetailRow(
+                chunk_id=str(row.chunk_id),
+                chunk_level=str(row.chunk_level),
+                parent_chunk_id=(
+                    str(row.parent_chunk_id)
+                    if row.parent_chunk_id is not None
+                    else None
+                ),
+                sub_question_label=(
+                    str(row.sub_question_label)
+                    if row.sub_question_label is not None
+                    else None
+                ),
+                text=str(row.text),
+                metadata=_result_metadata_from_row(row, schema),
+                parent=parent,
             )
 
     def search(

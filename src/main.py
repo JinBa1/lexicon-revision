@@ -27,6 +27,12 @@ from src.access import (
     build_request_identity_resolver,
     load_access_auth_settings,
 )
+from src.access.models import (
+    CollectionCommunitySummary,
+    CollectionListItem,
+    CollectionYearRange,
+    SupportedUniversity,
+)
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
 from src.runtime import (
@@ -52,7 +58,13 @@ from src.search.errors import (
     InvalidMetadataFilterError,
 )
 from src.search.factory import create_search_service
-from src.search.models import SearchRequest, SearchResponse
+from src.search.media_sidecar import materialize_media_refs
+from src.search.models import (
+    ChunkDetailResponse,
+    ChunkParentContext,
+    SearchRequest,
+    SearchResponse,
+)
 from src.search.pg_service import SearchExecutionTelemetry
 from src.search.providers.config import (
     build_embedding_provider,
@@ -79,7 +91,12 @@ from src.study.service import StudyService
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 logger = logging.getLogger(__name__)
-OPERATIONS_ENDPOINTS = {"/search": "search", "/study": "study"}
+OPERATIONS_ENDPOINTS = {
+    "/search": "search",
+    "/study": "study",
+    "/collections": "collections",
+    "/supported-universities": "supported_universities",
+}
 UNKNOWN_COLLECTION_NAME = "<unknown>"
 
 
@@ -573,6 +590,128 @@ def create_app(
             )
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @application.get(
+        "/collections/{collection}/chunks/{chunk_id}",
+        response_model=ChunkDetailResponse,
+    )
+    async def chunk_detail(
+        request: Request,
+        collection: str,
+        chunk_id: str,
+    ) -> ChunkDetailResponse:
+        auth_context: AuthorizationContext | None = None
+        try:
+            auth_context = authorize_collection(request, collection_name=collection)
+        except CollectionAccessDeniedError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="forbidden",
+                detail={"status_code": 403, "chunk_id": chunk_id},
+            )
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except IdentityProvisioningError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="forbidden",
+                detail={"status_code": 403, "chunk_id": chunk_id},
+            )
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except CollectionNotFoundError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="not_found",
+                detail={"status_code": 404, "chunk_id": chunk_id},
+            )
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{exc.collection_name}' not found",
+            ) from exc
+
+        service = request.app.state.search_service
+        repo = getattr(service, "search_repository", None)
+        if repo is None:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="service_unavailable",
+                app_user_id=_app_user_id(auth_context),
+                detail={"status_code": 503, "chunk_id": chunk_id},
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Chunk detail service is not configured",
+            )
+        try:
+            row = repo.get_chunk_by_id(collection_name=collection, chunk_id=chunk_id)
+        except CollectionNotFoundError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="not_found",
+                app_user_id=_app_user_id(auth_context),
+                detail={"status_code": 404, "chunk_id": chunk_id},
+            )
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{exc.collection_name}' not found",
+            ) from exc
+
+        if row is None:
+            _log_usage_best_effort(
+                request,
+                endpoint="chunk_detail",
+                collection_name=collection,
+                outcome="not_found",
+                app_user_id=_app_user_id(auth_context),
+                detail={"status_code": 404, "chunk_id": chunk_id},
+            )
+            raise HTTPException(
+                status_code=404,
+                detail=f"Chunk '{chunk_id}' not found in collection '{collection}'",
+            )
+
+        media_refs_raw = []
+        get_media_refs = getattr(service, "get_media_refs", None)
+        if callable(get_media_refs):
+            media_refs_raw = get_media_refs(collection=collection, chunk_id=chunk_id)
+        storage = getattr(request.app.state, "object_storage", None)
+        media = materialize_media_refs(
+            refs=media_refs_raw,
+            object_storage=storage,
+        )
+
+        _log_usage_best_effort(
+            request,
+            endpoint="chunk_detail",
+            collection_name=collection,
+            outcome="ok",
+            app_user_id=_app_user_id(auth_context),
+            detail={"chunk_id": chunk_id, "has_parent": row.parent is not None},
+        )
+        return ChunkDetailResponse(
+            chunk_id=row.chunk_id,
+            chunk_level=row.chunk_level,
+            parent_chunk_id=row.parent_chunk_id,
+            sub_question_label=row.sub_question_label,
+            text=row.text,
+            metadata=row.metadata,
+            media=media,
+            collection=collection,
+            parent=(
+                ChunkParentContext(text=row.parent.text, metadata=row.parent.metadata)
+                if row.parent is not None
+                else None
+            ),
+        )
+
     @application.post("/study", response_model=StudyResponse)
     async def study(request: Request, payload: StudyRequest) -> StudyResponse:
         service: StudyService | None = getattr(request.app.state, "study_service", None)
@@ -709,6 +848,86 @@ def create_app(
     @application.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @application.get(
+        "/supported-universities",
+        response_model=list[SupportedUniversity],
+    )
+    async def supported_universities(
+        request: Request,
+        response: Response,
+    ) -> list[SupportedUniversity]:
+        access_service: CollectionAccessService = request.app.state.access_service
+        records = access_service.list_supported_universities()
+        response_items = [
+            SupportedUniversity(
+                id=record.community_id,
+                display_name=record.display_name,
+                email_domains=list(record.email_domains),
+            )
+            for record in records
+        ]
+        response.headers["Cache-Control"] = "public, max-age=3600"
+        _log_usage_best_effort(
+            request,
+            endpoint="supported_universities",
+            collection_name=UNKNOWN_COLLECTION_NAME,
+            outcome="ok",
+            detail={"row_count": len(response_items)},
+        )
+        return response_items
+
+    @application.get(
+        "/collections",
+        response_model=list[CollectionListItem],
+    )
+    async def list_collections(request: Request) -> list[CollectionListItem]:
+        service: CollectionAccessService = request.app.state.access_service
+        resolver: RequestIdentityResolver = request.app.state.auth_resolver
+        request_identity = resolver.resolve_request_identity(request)
+        try:
+            listings = service.list_collections(request_identity=request_identity)
+        except IdentityProvisioningError as exc:
+            _log_usage_best_effort(
+                request,
+                endpoint="collections",
+                collection_name=UNKNOWN_COLLECTION_NAME,
+                outcome="forbidden",
+                detail={"status_code": 403},
+            )
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        response_items = [
+            CollectionListItem(
+                name=row.collection_name,
+                display_name=row.display_name,
+                community=(
+                    CollectionCommunitySummary(
+                        id=row.community_id,
+                        display_name=row.community_display_name or row.community_id,
+                    )
+                    if row.community_id is not None
+                    else None
+                ),
+                paper_count=row.paper_count,
+                year_range=(
+                    CollectionYearRange(start=row.year_start, end=row.year_end)
+                    if row.year_start is not None and row.year_end is not None
+                    else None
+                ),
+                metadata_schema=row.metadata_schema,
+                access_state=row.access_state,
+                lock_reason=row.lock_reason,
+            )
+            for row in listings
+        ]
+        _log_usage_best_effort(
+            request,
+            endpoint="collections",
+            collection_name=UNKNOWN_COLLECTION_NAME,
+            outcome="ok",
+            detail={"row_count": len(response_items)},
+        )
+        return response_items
 
     @application.get("/health")
     async def health() -> dict[str, str]:
@@ -848,7 +1067,12 @@ def _collection_name_from_request(request: Request) -> str:
 
 
 def _operation_endpoint(request: Request) -> str | None:
-    return OPERATIONS_ENDPOINTS.get(request.url.path)
+    path = request.url.path
+    if path in OPERATIONS_ENDPOINTS:
+        return OPERATIONS_ENDPOINTS[path]
+    if path.startswith("/collections/") and "/chunks/" in path:
+        return "chunk_detail"
+    return None
 
 
 def _rate_limit_key(request: Request) -> str:
