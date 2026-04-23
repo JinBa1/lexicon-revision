@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,3 +103,45 @@ class SupportedUniversityRecord:
     community_id: str
     display_name: str
     email_domains: tuple[str, ...]
+
+
+CollectionAccessState = Literal[
+    "accessible",
+    "locked_requires_signin",
+    "locked_wrong_affiliation",
+]
+
+
+class CollectionCommunitySummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+
+
+class CollectionYearRange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: int
+    end: int
+
+
+class CollectionListItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    community: CollectionCommunitySummary | None
+    paper_count: int = Field(ge=0)
+    year_range: CollectionYearRange | None
+    metadata_schema: dict | None
+    access_state: CollectionAccessState
+    lock_reason: str | None
+
+
+class SupportedUniversity(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    email_domains: list[str] = Field(min_length=1)
