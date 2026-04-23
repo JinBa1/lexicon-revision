@@ -49,8 +49,11 @@ def test_collection_list_item_json_roundtrip():
         lock_reason=None,
     )
     payload = item.model_dump(mode="json")
+    restored = CollectionListItem.model_validate(payload)
+
     assert payload["access_state"] == "accessible"
     assert payload["year_range"] == {"start": 2018, "end": 2025}
+    assert restored == item
 
 
 def test_collection_list_item_rejects_unknown_fields():

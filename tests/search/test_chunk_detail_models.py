@@ -1,6 +1,7 @@
 from src.search.models import (
     ChunkDetailResponse,
     ChunkParentContext,
+    MediaRefResponse,
 )
 
 
@@ -12,7 +13,15 @@ def test_chunk_detail_response_json_shape():
         sub_question_label="(b)",
         text="Give an amortized analysis…",
         metadata={"year": 2022},
-        media=[],
+        media=[
+            MediaRefResponse(
+                media_id="m-1",
+                kind="image",
+                object_key="collections/cam/media/m-1.png",
+                access_url="https://example.test/media/m-1",
+                relation="direct",
+            )
+        ],
         collection="cam-cs-tripos",
         parent=ChunkParentContext(
             text="Consider a dynamic array…",
@@ -21,6 +30,7 @@ def test_chunk_detail_response_json_shape():
     )
     payload = response.model_dump(mode="json")
     assert payload["collection"] == "cam-cs-tripos"
+    assert payload["media"][0]["media_id"] == "m-1"
     assert payload["parent"]["text"].startswith("Consider")
 
 
