@@ -78,6 +78,10 @@ class CollectionAccessService:
             return None
         if request_identity.provider == STUB_EMAIL_IDENTITY_PROVIDER:
             return None
+        if not request_identity.email_verified or not request_identity.email:
+            raise IdentityProvisioningError(
+                "verified email is required for external identity provisioning"
+            )
         if self.affiliation_resolver is None:
             raise IdentityProvisioningError(
                 "affiliation_resolver is required for authenticated external identities"
@@ -85,7 +89,7 @@ class CollectionAccessService:
 
         try:
             decision = self.affiliation_resolver.resolve_verified_email(
-                request_identity.email or ""
+                request_identity.email
             )
         except ValueError as exc:
             raise IdentityProvisioningError(str(exc)) from exc

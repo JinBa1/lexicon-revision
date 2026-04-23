@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Engine, bindparam, select, text
+from sqlalchemy import Engine, bindparam, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from src.access.affiliation import CommunityDomainMatch, ManualAccessOverride
@@ -36,7 +36,7 @@ class PgCollectionAccessRepository:
                 manual_access_overrides.c.is_active.is_(True),
                 (
                     manual_access_overrides.c.expires_at.is_(None)
-                    | (manual_access_overrides.c.expires_at > text("now()"))
+                    | (manual_access_overrides.c.expires_at > func.now())
                 ),
             )
             .limit(1)

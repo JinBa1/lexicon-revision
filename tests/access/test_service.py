@@ -277,6 +277,42 @@ def test_collection_access_service_denies_unsupported_authenticated_identity_bef
     ]
 
 
+def test_service_rejects_unverified_clerk_identity_before_affiliation_lookup() -> None:
+    repository = FakeCollectionAccessRepository(
+        collections={
+            "public": CollectionAccess(
+                collection_id="collection-public",
+                collection_name="public",
+                community_id=None,
+            )
+        }
+    )
+    resolver = FakeAffiliationResolver(AffiliationDecision(community_id="community-1"))
+    service = CollectionAccessService(
+        repository=repository,
+        affiliation_resolver=resolver,
+    )
+
+    def _raise_for_identity(identity: RequestIdentity) -> AuthenticatedUser:
+        del identity
+        raise ValueError("verified email is required")
+
+    repository.get_or_create_user_for_identity = _raise_for_identity  # type: ignore[method-assign]
+
+    with pytest.raises(IdentityProvisioningError, match="verified email is required"):
+        service.resolve_identity(
+            RequestIdentity(
+                provider="clerk",
+                external_subject="user_123",
+                email="member@example.com",
+                email_verified=False,
+            )
+        )
+
+    assert resolver.calls == []
+    assert repository.calls == []
+
+
 def test_collection_access_service_denies_wrong_user_for_private_collection() -> None:
     repository = FakeCollectionAccessRepository(
         collections={
