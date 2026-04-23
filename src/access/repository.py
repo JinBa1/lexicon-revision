@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Engine, bindparam, func, select, text
+from sqlalchemy import Engine, Integer, bindparam, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from src.access.affiliation import CommunityDomainMatch, ManualAccessOverride
@@ -11,15 +11,18 @@ from src.access.email import email_domain, require_normalized_email
 from src.access.models import (
     AuthenticatedUser,
     CollectionAccess,
+    CollectionAccessListing,
     RequestIdentity,
     SupportedUniversityRecord,
 )
 from src.db.schema import (
+    chunks,
     collections,
     communities,
     community_email_domains,
     community_memberships,
     manual_access_overrides,
+    papers,
     user_external_identities,
     users,
 )
@@ -149,6 +152,109 @@ class PgCollectionAccessRepository:
                 str(row.community_id) if row.community_id is not None else None
             ),
         )
+
+    def list_collections_with_access(
+        self,
+        *,
+        request_identity: RequestIdentity,
+        resolved_user_id: str | None,
+        affiliation_community_id: str | None,
+    ) -> list[CollectionAccessListing]:
+        paper_count_sq = (
+            select(
+                papers.c.collection_id.label("collection_id"),
+                func.count(papers.c.id).label("paper_count"),
+            )
+            .group_by(papers.c.collection_id)
+            .subquery()
+        )
+        year_range_sq = (
+            select(
+                chunks.c.collection_id.label("collection_id"),
+                func.min(func.cast(chunks.c.metadata["year"].astext, Integer)).label(
+                    "year_start"
+                ),
+                func.max(func.cast(chunks.c.metadata["year"].astext, Integer)).label(
+                    "year_end"
+                ),
+            )
+            .where(chunks.c.metadata.has_key("year"))  # noqa: W601
+            .group_by(chunks.c.collection_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                collections.c.name,
+                collections.c.community_id,
+                collections.c.metadata_schema,
+                communities.c.name.label("community_name"),
+                paper_count_sq.c.paper_count,
+                year_range_sq.c.year_start,
+                year_range_sq.c.year_end,
+            )
+            .select_from(
+                collections.outerjoin(
+                    communities,
+                    communities.c.id == collections.c.community_id,
+                )
+                .outerjoin(
+                    paper_count_sq,
+                    paper_count_sq.c.collection_id == collections.c.id,
+                )
+                .outerjoin(
+                    year_range_sq,
+                    year_range_sq.c.collection_id == collections.c.id,
+                )
+            )
+            .order_by(collections.c.name)
+        )
+        with Session(self.engine) as session:
+            rows = session.execute(stmt).all()
+
+        listings: list[CollectionAccessListing] = []
+        for row in rows:
+            community_id = (
+                str(row.community_id) if row.community_id is not None else None
+            )
+            community_name = (
+                str(row.community_name) if row.community_name is not None else None
+            )
+            access_state, lock_reason = self._compute_access_state(
+                request_identity=request_identity,
+                collection_community_id=community_id,
+                collection_community_name=community_name,
+                resolved_user_id=resolved_user_id,
+                affiliation_community_id=affiliation_community_id,
+            )
+            listings.append(
+                CollectionAccessListing(
+                    collection_name=str(row.name),
+                    display_name=self._derive_collection_display_name(str(row.name)),
+                    community_id=community_id,
+                    community_display_name=community_name,
+                    paper_count=int(row.paper_count or 0),
+                    year_start=(
+                        int(row.year_start) if row.year_start is not None else None
+                    ),
+                    year_end=int(row.year_end) if row.year_end is not None else None,
+                    access_state=access_state,
+                    lock_reason=lock_reason,
+                    metadata_schema=(
+                        dict(row.metadata_schema)
+                        if row.metadata_schema is not None
+                        and access_state == "accessible"
+                        else None
+                    ),
+                )
+            )
+
+        listings.sort(
+            key=lambda row: (
+                0 if row.access_state == "accessible" else 1,
+                row.collection_name,
+            )
+        )
+        return listings
 
     def get_or_create_user_for_identity(
         self,
@@ -388,3 +494,54 @@ class PgCollectionAccessRepository:
         with Session(self.engine) as session:
             row = session.execute(stmt).first()
         return row is not None
+
+    def _compute_access_state(
+        self,
+        *,
+        request_identity: RequestIdentity,
+        collection_community_id: str | None,
+        collection_community_name: str | None,
+        resolved_user_id: str | None,
+        affiliation_community_id: str | None,
+    ) -> tuple[str, str | None]:
+        if collection_community_id is None:
+            return "accessible", None
+
+        if request_identity.is_anonymous:
+            return "locked_requires_signin", "Sign in to access this collection"
+
+        if (
+            affiliation_community_id is not None
+            and affiliation_community_id != collection_community_id
+        ):
+            return (
+                "locked_wrong_affiliation",
+                self._restricted_members_lock_reason(collection_community_name),
+            )
+
+        if resolved_user_id is not None and self.has_active_membership(
+            user_id=resolved_user_id,
+            community_id=collection_community_id,
+        ):
+            return "accessible", None
+
+        return (
+            "locked_wrong_affiliation",
+            self._restricted_members_lock_reason(collection_community_name),
+        )
+
+    def _restricted_members_lock_reason(
+        self, community_display_name: str | None
+    ) -> str:
+        if community_display_name:
+            return f"This collection is restricted to {community_display_name} members"
+        return "This collection is restricted to members of this community"
+
+    def _derive_collection_display_name(self, collection_name: str) -> str:
+        parts = collection_name.replace("-", " ").replace("_", " ").split()
+        if not parts:
+            return collection_name
+        return " ".join(
+            part if part.isupper() else part[:1].upper() + part[1:].lower()
+            for part in parts
+        )
