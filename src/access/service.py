@@ -9,6 +9,7 @@ from src.access.models import (
     AuthenticatedUser,
     AuthorizationContext,
     CollectionAccess,
+    CollectionAccessListing,
     RequestIdentity,
     ResolvedIdentity,
 )
@@ -16,6 +17,14 @@ from src.search.errors import CollectionNotFoundError
 
 
 class CollectionAccessRepository(Protocol):
+    def list_collections_with_access(
+        self,
+        *,
+        request_identity: RequestIdentity,
+        resolved_user_id: str | None,
+        affiliation_community_id: str | None,
+    ) -> list[CollectionAccessListing]: ...
+
     def get_collection_access(
         self,
         collection_name: str,
@@ -48,6 +57,42 @@ class CollectionAccessService:
     def resolve_identity(self, request_identity: RequestIdentity) -> ResolvedIdentity:
         identity, _ = self._resolve_identity_with_affiliation(request_identity)
         return identity
+
+    def list_collections(
+        self,
+        *,
+        request_identity: RequestIdentity,
+    ) -> list[CollectionAccessListing]:
+        if request_identity.is_anonymous:
+            return self.repository.list_collections_with_access(
+                request_identity=request_identity,
+                resolved_user_id=None,
+                affiliation_community_id=None,
+            )
+        try:
+            identity, affiliation = self._resolve_identity_with_affiliation(
+                request_identity
+            )
+        except IdentityProvisioningError as exc:
+            if str(exc) not in {
+                "unsupported_email_domain",
+                "ambiguous_email_domain",
+            }:
+                raise
+            return self.repository.list_collections_with_access(
+                request_identity=request_identity,
+                resolved_user_id=None,
+                affiliation_community_id=None,
+            )
+        resolved_user_id = identity.user.user_id if identity.user is not None else None
+        affiliation_community_id = (
+            affiliation.community_id if affiliation is not None else None
+        )
+        return self.repository.list_collections_with_access(
+            request_identity=request_identity,
+            resolved_user_id=resolved_user_id,
+            affiliation_community_id=affiliation_community_id,
+        )
 
     def _resolve_identity_with_affiliation(
         self,
