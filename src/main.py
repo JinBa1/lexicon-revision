@@ -58,6 +58,7 @@ from src.search.errors import (
     InvalidMetadataFilterError,
 )
 from src.search.factory import create_search_service
+from src.search.media_sidecar import materialize_media_refs
 from src.search.models import (
     ChunkDetailResponse,
     ChunkParentContext,
@@ -626,6 +627,16 @@ def create_app(
                 detail=f"Chunk '{chunk_id}' not found in collection '{collection}'",
             )
 
+        media_refs_raw = []
+        get_media_refs = getattr(service, "get_media_refs", None)
+        if callable(get_media_refs):
+            media_refs_raw = get_media_refs(collection=collection, chunk_id=chunk_id)
+        storage = getattr(request.app.state, "object_storage", None)
+        media = materialize_media_refs(
+            refs=media_refs_raw,
+            object_storage=storage,
+        )
+
         return ChunkDetailResponse(
             chunk_id=row.chunk_id,
             chunk_level=row.chunk_level,
@@ -633,7 +644,7 @@ def create_app(
             sub_question_label=row.sub_question_label,
             text=row.text,
             metadata=row.metadata,
-            media=[],
+            media=media,
             collection=collection,
             parent=(
                 ChunkParentContext(text=row.parent.text, metadata=row.parent.metadata)

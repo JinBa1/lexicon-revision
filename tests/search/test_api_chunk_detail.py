@@ -69,6 +69,15 @@ class _FakeIdentityResolver:
         return RequestIdentity.anonymous()
 
 
+class _FakeSearchServiceWithMedia:
+    def __init__(self, *, repo, media_map: dict[str, list[dict]]) -> None:
+        self.search_repository = repo
+        self._media_map = media_map
+
+    def get_media_refs(self, *, collection: str, chunk_id: str) -> list[dict]:
+        return list(self._media_map.get(chunk_id, []))
+
+
 def _row() -> ChunkDetailRow:
     return ChunkDetailRow(
         chunk_id="q-1",
@@ -142,6 +151,62 @@ async def test_get_chunk_detail_returns_parent_context_for_sub_question() -> Non
     assert payload["parent"]["text"] == "parent"
     assert payload["parent_chunk_id"] == "q-1"
     assert payload["sub_question_label"] == "(a)"
+
+
+@pytest.mark.anyio
+async def test_get_chunk_detail_returns_media_refs_with_presigned_urls() -> None:
+    from src.main import create_app
+
+    row = ChunkDetailRow(
+        chunk_id="q-1",
+        chunk_level="question",
+        parent_chunk_id=None,
+        sub_question_label=None,
+        text="t",
+        metadata={},
+        parent=None,
+    )
+    repo = _FakeChunkRepo(chunks={("demo", "q-1"): row})
+    service = _FakeSearchServiceWithMedia(
+        repo=repo,
+        media_map={
+            "q-1": [
+                {
+                    "media_id": "fig1",
+                    "kind": "image",
+                    "object_key": "artifacts/demo/fig1.png",
+                    "relation": "direct",
+                }
+            ]
+        },
+    )
+
+    class _FakeStorage:
+        def presign_get(self, key, *, expires_in_seconds):
+            class _P:
+                url = f"https://signed/{key}?exp={expires_in_seconds}"
+
+            return _P()
+
+    app = create_app(
+        search_service=service,
+        access_service=_FakeAccessServiceWithAuthorize(allowed=True),
+        auth_resolver=_FakeIdentityResolver(),
+        object_storage=_FakeStorage(),
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/collections/demo/chunks/q-1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["media"]) == 1
+    media = payload["media"][0]
+    assert media["media_id"] == "fig1"
+    assert media["kind"] == "image"
+    assert media["object_key"] == "artifacts/demo/fig1.png"
+    assert media["access_url"].startswith("https://signed/")
 
 
 @pytest.mark.anyio

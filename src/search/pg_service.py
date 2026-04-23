@@ -80,6 +80,15 @@ class PgSearchService:
             )
         return self._schema_cache[collection]
 
+    def get_media_refs(
+        self,
+        *,
+        collection: str,
+        chunk_id: str,
+    ) -> list[dict[str, Any]]:
+        media_map = self._load_media_map(collection)
+        return list(media_map.get(chunk_id, []))
+
     def search(
         self,
         query: str,
