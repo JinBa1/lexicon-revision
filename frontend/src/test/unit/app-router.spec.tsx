@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "@/App";
+import { cambridgeAccessible } from "../fixtures/collections";
 
 const { mockedEnv, mockUseCollections } = vi.hoisted(() => ({
   mockedEnv: {
@@ -54,6 +55,22 @@ describe("App router", () => {
     renderAppAt("/c/cam-cs-tripos/questions");
 
     expect(screen.getByText("questions")).toBeInTheDocument();
+  });
+
+  test("renders collection home routes from dynamic paths", () => {
+    mockUseCollections.mockReturnValue({
+      data: [cambridgeAccessible],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderAppAt("/c/cam-cs-tripos");
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Cambridge CS Tripos" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
   });
 
   test("renders not found content instead of redirecting unknown routes", () => {
