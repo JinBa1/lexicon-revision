@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "@/App";
 
-const { mockedEnv } = vi.hoisted(() => ({
+const { mockedEnv, mockUseCollections } = vi.hoisted(() => ({
   mockedEnv: {
     apiBaseUrl: "http://api.test",
     authMode: "stub_header" as const,
@@ -11,10 +11,15 @@ const { mockedEnv } = vi.hoisted(() => ({
     clerkPublishableKey: "pk_test_fixture",
     buildSha: "abcdef1234567890",
   },
+  mockUseCollections: vi.fn(),
 }));
 
 vi.mock("@/env", () => ({
   env: mockedEnv,
+}));
+
+vi.mock("@/lib/hooks/useCollections", () => ({
+  useCollections: mockUseCollections,
 }));
 
 function renderAppAt(path: string) {
@@ -25,6 +30,12 @@ function renderAppAt(path: string) {
 describe("App router", () => {
   beforeEach(() => {
     mockedEnv.stubAuthEmail = null;
+    mockUseCollections.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     window.sessionStorage.clear();
   });
 
@@ -34,8 +45,9 @@ describe("App router", () => {
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "The Tripos Archive" })).toBeInTheDocument();
-    expect(screen.getByText("landing")).toBeInTheDocument();
-    expect(screen.getByText("Read the question. Then ask yours.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }),
+    ).toBeInTheDocument();
   });
 
   test("renders collection routes from dynamic paths", () => {
