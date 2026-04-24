@@ -42,3 +42,14 @@ tests/data/mineru_fixtures/**/*_middle.json
 tests/data/mineru_fixtures/**/*_model.json
 tests/data/mineru_fixtures/**/*_content_list_v2.json
 .omx/
+
+# Frontend artifacts (safe before frontend/ exists)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.wrangler/
+frontend/playwright-report/
+frontend/test-results/
+frontend/coverage/
+frontend/.env.local
+frontend/.env.*.local
