@@ -25,8 +25,25 @@ export function UserButton() {
   return <button type="button">User</button>;
 }
 
-export function SignIn(props: { fallbackRedirectUrl?: string }) {
-  return <div data-testid="clerk-sign-in">{props.fallbackRedirectUrl ?? "/"}</div>;
+export function SignIn(props: {
+  routing?: string;
+  path?: string;
+  signUpUrl?: string;
+  fallbackRedirectUrl?: string;
+  signUpFallbackRedirectUrl?: string;
+}) {
+  return (
+    <div
+      data-testid="clerk-sign-in"
+      data-routing={props.routing}
+      data-path={props.path}
+      data-sign-up-url={props.signUpUrl}
+      data-fallback-redirect-url={props.fallbackRedirectUrl}
+      data-sign-up-fallback-redirect-url={props.signUpFallbackRedirectUrl}
+    >
+      {props.fallbackRedirectUrl ?? "/"}
+    </div>
+  );
 }
 
 export function SignUp(props: { fallbackRedirectUrl?: string; forceRedirectUrl?: string }) {
