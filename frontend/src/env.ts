@@ -16,8 +16,7 @@ function required(name: string, value: string | undefined): string {
 export const env: Env = {
   apiBaseUrl: required("VITE_API_BASE_URL", import.meta.env.VITE_API_BASE_URL),
   authMode:
-    (import.meta.env.VITE_AUTH_MODE as "stub_header" | "clerk" | undefined) ??
-    "stub_header",
+    (import.meta.env.VITE_AUTH_MODE as "stub_header" | "clerk" | undefined) ?? "stub_header",
   stubAuthEmail:
     typeof import.meta.env.VITE_STUB_AUTH_EMAIL === "string" &&
     import.meta.env.VITE_STUB_AUTH_EMAIL.trim() !== ""

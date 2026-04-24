@@ -14,11 +14,7 @@ export type ValidationErrorDetail = {
 
 export type ApiErrorObjectDetail = Record<string, unknown>;
 
-export type ApiErrorDetail =
-  | string
-  | ValidationErrorDetail[]
-  | ApiErrorObjectDetail
-  | null;
+export type ApiErrorDetail = string | ValidationErrorDetail[] | ApiErrorObjectDetail | null;
 
 export class ApiError extends Error {
   readonly status: number;

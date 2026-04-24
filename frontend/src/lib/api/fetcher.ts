@@ -203,10 +203,7 @@ function normalizeFetchFailure(error: unknown): ApiError {
 
 function isAbortError(error: unknown): error is { name: string; message?: string } {
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    error.name === "AbortError"
+    typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
   );
 }
 

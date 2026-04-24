@@ -20,10 +20,7 @@ export function buildAnswerHref(opts: PageHrefOptions): string {
   return buildPageHref("answer", opts);
 }
 
-function buildPageHref(
-  page: "questions" | "answer",
-  opts: PageHrefOptions,
-): string {
+function buildPageHref(page: "questions" | "answer", opts: PageHrefOptions): string {
   const base = `/c/${encodeURIComponent(opts.collection)}/${page}`;
   const filterParams = serializeFiltersToSearchParams(opts.filters);
   const searchParams = new URLSearchParams();
@@ -41,9 +38,7 @@ function buildPageHref(
 }
 
 export function buildSourceHref(collection: string, chunkId: string): string {
-  return `/c/${encodeURIComponent(collection)}/source/${encodeURIComponent(
-    chunkId,
-  )}`;
+  return `/c/${encodeURIComponent(collection)}/source/${encodeURIComponent(chunkId)}`;
 }
 
 export function buildUnlockHref(collection: string, returnTo?: string): string {

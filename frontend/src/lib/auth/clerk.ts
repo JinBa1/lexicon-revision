@@ -29,8 +29,5 @@ export function useClerkApiClient(): ApiClient {
     navigate(`/sign-in?returnTo=${encodeURIComponent(current)}`);
   }, [navigate]);
 
-  return useMemo(
-    () => ({ getAuthHeaders, onUnauthorized }),
-    [getAuthHeaders, onUnauthorized],
-  );
+  return useMemo(() => ({ getAuthHeaders, onUnauthorized }), [getAuthHeaders, onUnauthorized]);
 }

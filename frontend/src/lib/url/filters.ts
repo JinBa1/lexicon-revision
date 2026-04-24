@@ -28,10 +28,7 @@ export function serializeFiltersToSearchParams(
 
   for (const condition of conditions) {
     const encodedValue = encodeURIComponent(stringifyValue(condition.value));
-    searchParams.append(
-      "filter",
-      `${condition.field}:${condition.op}:${encodedValue}`,
-    );
+    searchParams.append("filter", `${condition.field}:${condition.op}:${encodedValue}`);
   }
 
   return searchParams;
@@ -119,10 +116,7 @@ function stringifyValue(value: FilterCondition["value"]): string {
   return String(value);
 }
 
-function coerceValue(
-  raw: string,
-  type: MetadataFieldType,
-): FilterCondition["value"] | undefined {
+function coerceValue(raw: string, type: MetadataFieldType): FilterCondition["value"] | undefined {
   if (type === "integer") {
     if (!/^-?\d+$/.test(raw)) {
       return undefined;

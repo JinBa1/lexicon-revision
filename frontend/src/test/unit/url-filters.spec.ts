@@ -1,13 +1,7 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  parseFiltersFromSearchParams,
-  serializeFiltersToSearchParams,
-} from "@/lib/url/filters";
-import type {
-  CollectionMetadataSchema,
-  FilterCondition,
-} from "@/lib/api/types";
+import { parseFiltersFromSearchParams, serializeFiltersToSearchParams } from "@/lib/url/filters";
+import type { CollectionMetadataSchema, FilterCondition } from "@/lib/api/types";
 
 const schema: CollectionMetadataSchema = {
   version: 1,
@@ -48,10 +42,7 @@ describe("filter URL serialization", () => {
 
     const sp = serializeFiltersToSearchParams(conditions);
 
-    expect(sp.getAll("filter")).toEqual([
-      "year:eq:2022",
-      "section:eq:data-structures",
-    ]);
+    expect(sp.getAll("filter")).toEqual(["year:eq:2022", "section:eq:data-structures"]);
 
     const parsed = parseFiltersFromSearchParams(sp, schema);
 
@@ -75,9 +66,7 @@ describe("filter URL serialization", () => {
   });
 
   test("encodes reserved characters in values", () => {
-    const conditions: FilterCondition[] = [
-      { field: "section", op: "eq", value: "a:b;c,d&e=f" },
-    ];
+    const conditions: FilterCondition[] = [{ field: "section", op: "eq", value: "a:b;c,d&e=f" }];
 
     const sp = serializeFiltersToSearchParams(conditions);
     const raw = sp.getAll("filter")[0];
@@ -90,9 +79,7 @@ describe("filter URL serialization", () => {
   });
 
   test("encodes unicode values", () => {
-    const conditions: FilterCondition[] = [
-      { field: "section", op: "eq", value: "概率论" },
-    ];
+    const conditions: FilterCondition[] = [{ field: "section", op: "eq", value: "概率论" }];
 
     const sp = serializeFiltersToSearchParams(conditions);
     const parsed = parseFiltersFromSearchParams(sp, schema);
@@ -108,10 +95,7 @@ describe("filter URL serialization", () => {
 
     const sp = serializeFiltersToSearchParams(conditions);
 
-    expect(sp.getAll("filter")).toEqual([
-      "has_figure:eq:true",
-      "has_figure:eq:false",
-    ]);
+    expect(sp.getAll("filter")).toEqual(["has_figure:eq:true", "has_figure:eq:false"]);
 
     const parsed = parseFiltersFromSearchParams(sp, schema);
 

@@ -94,9 +94,7 @@ describe("apiFetch", () => {
     });
 
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("POST");
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
-      JSON.stringify({ query: "binary search" }),
-    );
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ query: "binary search" }));
   });
 
   test("rejects an explicit GET request body before calling fetch", async () => {
@@ -126,9 +124,7 @@ describe("apiFetch", () => {
       }),
     );
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 403,
       detail: "nope",
     });
@@ -143,9 +139,7 @@ describe("apiFetch", () => {
       }),
     );
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 403,
       code: "forbidden",
       detail: "Forbidden by policy",
@@ -161,9 +155,7 @@ describe("apiFetch", () => {
       }),
     );
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 503,
       code: "service_unavailable",
       detail: "backend offline",
@@ -174,9 +166,7 @@ describe("apiFetch", () => {
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 0,
       code: "network_error",
       detail: "Failed to fetch",
@@ -187,9 +177,7 @@ describe("apiFetch", () => {
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockRejectedValue(new DOMException("The operation was aborted.", "AbortError"));
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 0,
       code: "request_aborted",
       detail: "The operation was aborted.",
@@ -202,9 +190,7 @@ describe("apiFetch", () => {
     abortError.name = "AbortError";
     fetchMock.mockRejectedValue(abortError);
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 0,
       code: "request_aborted",
       detail: "The operation was aborted.",
@@ -244,9 +230,7 @@ describe("apiFetch", () => {
       ),
     );
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 422,
       code: "invalid_request",
       detail: [{ loc: ["body", "query"], msg: "Field required", type: "missing" }],
@@ -311,9 +295,7 @@ describe("apiFetch", () => {
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(new Response("", { status: 200 }));
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 200,
       code: "invalid_response",
     });
@@ -328,9 +310,7 @@ describe("apiFetch", () => {
       }),
     );
 
-    await expect(
-      apiFetch({ path: "/x", getAuthHeaders: async () => ({}) }),
-    ).rejects.toMatchObject({
+    await expect(apiFetch({ path: "/x", getAuthHeaders: async () => ({}) })).rejects.toMatchObject({
       status: 200,
       code: "invalid_response",
     });
