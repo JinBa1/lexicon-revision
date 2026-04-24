@@ -1,1 +1,15 @@
-/* Task 5 will define the project font/theme tokens here. */
+/*
+ * Source Serif Pro is loaded via Google Fonts. Inter for UI labels.
+ * If we self-host later, swap @import for @font-face.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  font-family: "Source Serif Pro", Georgia, serif;
+  color: #0C0A08;
+  background: #F1E8D5;
+}
