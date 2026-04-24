@@ -46,9 +46,22 @@ export function SignIn(props: {
   );
 }
 
-export function SignUp(props: { fallbackRedirectUrl?: string; forceRedirectUrl?: string }) {
+export function SignUp(props: {
+  routing?: string;
+  path?: string;
+  signInUrl?: string;
+  fallbackRedirectUrl?: string;
+  forceRedirectUrl?: string;
+}) {
   return (
-    <div data-testid="clerk-sign-up">
+    <div
+      data-testid="clerk-sign-up"
+      data-routing={props.routing}
+      data-path={props.path}
+      data-sign-in-url={props.signInUrl}
+      data-fallback-redirect-url={props.fallbackRedirectUrl}
+      data-force-redirect-url={props.forceRedirectUrl}
+    >
       {props.forceRedirectUrl ?? props.fallbackRedirectUrl ?? "/"}
     </div>
   );
