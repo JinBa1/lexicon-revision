@@ -26,15 +26,10 @@ export function UserButton() {
 }
 
 export function SignIn(props: { fallbackRedirectUrl?: string }) {
-  return (
-    <div data-testid="clerk-sign-in">{props.fallbackRedirectUrl ?? "/"}</div>
-  );
+  return <div data-testid="clerk-sign-in">{props.fallbackRedirectUrl ?? "/"}</div>;
 }
 
-export function SignUp(props: {
-  fallbackRedirectUrl?: string;
-  forceRedirectUrl?: string;
-}) {
+export function SignUp(props: { fallbackRedirectUrl?: string; forceRedirectUrl?: string }) {
   return (
     <div data-testid="clerk-sign-up">
       {props.forceRedirectUrl ?? props.fallbackRedirectUrl ?? "/"}

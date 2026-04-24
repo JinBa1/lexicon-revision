@@ -8,8 +8,9 @@
   color-scheme: light;
 }
 
-html, body {
+html,
+body {
   font-family: "Source Serif Pro", Georgia, serif;
-  color: #0C0A08;
-  background: #F1E8D5;
+  color: #0c0a08;
+  background: #f1e8d5;
 }
