@@ -54,7 +54,7 @@ describe("App router", () => {
   test("renders collection routes from dynamic paths", () => {
     renderAppAt("/c/cam-cs-tripos/questions");
 
-    expect(screen.getByText("questions")).toBeInTheDocument();
+    expect(screen.getByText("Search for a question pattern")).toBeInTheDocument();
   });
 
   test("renders collection home routes from dynamic paths", () => {
