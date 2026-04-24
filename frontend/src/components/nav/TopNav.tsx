@@ -14,7 +14,7 @@ export function TopNav() {
         >
           The Tripos Archive
         </Link>
-        <nav className="flex items-center gap-5">
+        <nav aria-label="Primary" className="flex items-center gap-5">
           <Link
             to="/sign-up"
             className="hidden font-ui text-[11px] uppercase tracking-wider text-ink-muted md:inline"
