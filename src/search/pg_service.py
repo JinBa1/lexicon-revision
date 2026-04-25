@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,8 @@ class PgSearchService:
         reranker: RerankProvider | None = None,
         media_dir: str = DEFAULT_MEDIA_DIR,
         object_storage: ObjectStorage | None = None,
+        retrieval_vector_min_score: float | None = None,
+        retrieval_rerank_min_score: float | None = None,
     ) -> None:
         self._repository = repository
         self._embedding_model = embedding_model
@@ -50,6 +53,14 @@ class PgSearchService:
         self._reranker = reranker
         self._media_dir = media_dir
         self._object_storage = object_storage
+        self._retrieval_vector_min_score = _validate_optional_min_score(
+            retrieval_vector_min_score,
+            name="retrieval_vector_min_score",
+        )
+        self._retrieval_rerank_min_score = _validate_optional_min_score(
+            retrieval_rerank_min_score,
+            name="retrieval_rerank_min_score",
+        )
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
         self._schema_cache: dict[str, CollectionMetadataSchema] = {}
         self._last_execution_telemetry_var: ContextVar[
@@ -167,6 +178,34 @@ class PgSearchService:
             rows = [pair[0] for pair in ranked]
             scores = [pair[1] for pair in ranked]
 
+        min_score = (
+            self._retrieval_rerank_min_score
+            if rerank_telemetry is not None
+            else self._retrieval_vector_min_score
+        )
+        if min_score is not None:
+            scored_rows = [
+                (row, score)
+                for row, score in zip(rows, scores, strict=True)
+                if score >= min_score
+            ]
+            rows = [row for row, _score in scored_rows]
+            scores = [score for _row, score in scored_rows]
+
+        if not rows:
+            self._last_execution_telemetry_var.set(
+                SearchExecutionTelemetry(
+                    embedding=embedding_telemetry,
+                    rerank=rerank_telemetry,
+                )
+            )
+            return SearchResponse(
+                query=query,
+                collection=collection,
+                results=[],
+                total=0,
+            )
+
         media_map = self._load_media_map(collection)
         results = []
         for row, score in zip(rows, scores, strict=True):
@@ -248,3 +287,11 @@ class PgSearchService:
 
 def _is_valid_chunk_level(value: Any) -> bool:
     return value in {"question", "sub_question"}
+
+
+def _validate_optional_min_score(value: float | None, *, name: str) -> float | None:
+    if value is None:
+        return None
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+    return value

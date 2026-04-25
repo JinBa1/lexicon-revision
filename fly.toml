@@ -3,6 +3,10 @@ primary_region = "lhr"
 
 [env]
   APP_ENV = "prod"
+  RERANK_ENABLED = "true"
+  RERANK_PROVIDER = "voyage"
+  RERANK_MODEL = "rerank-2.5-lite"
+  RETRIEVAL_RERANK_MIN_SCORE = "0.498"
 
 [build]
   build-target = "prod"

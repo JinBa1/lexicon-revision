@@ -272,6 +272,119 @@ def test_pg_search_service_applies_rerank_order() -> None:
     assert response.results[0].score == 2.0
 
 
+def test_pg_search_service_filters_vector_results_below_min_score() -> None:
+    service = PgSearchService(
+        repository=_TwoRowRepo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+        retrieval_vector_min_score=0.15,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=2,
+        rerank=False,
+    )
+
+    assert [result.chunk_id for result in response.results] == ["cam-2"]
+    assert response.total == 1
+
+
+def test_pg_search_service_returns_empty_when_all_vector_results_are_weak() -> None:
+    service = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+        retrieval_vector_min_score=0.95,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=3,
+        rerank=False,
+    )
+
+    assert response.results == []
+    assert response.total == 0
+    telemetry = service.pop_last_execution_telemetry()
+    assert telemetry is not None
+    assert telemetry.rerank is None
+
+
+def test_pg_search_service_keeps_scores_equal_to_vector_min_score() -> None:
+    service = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+        retrieval_vector_min_score=0.9,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=3,
+        rerank=False,
+    )
+
+    assert [result.chunk_id for result in response.results] == ["cam-1"]
+    assert response.total == 1
+
+
+def test_pg_search_service_filters_after_rerank_using_rerank_min_score() -> None:
+    service = PgSearchService(
+        repository=_TwoRowRepo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=_Reranker(),
+        retrieval_vector_min_score=0.95,
+        retrieval_rerank_min_score=1.5,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=2,
+        rerank=True,
+    )
+
+    assert [result.chunk_id for result in response.results] == ["cam-1"]
+    assert response.results[0].score == 2.0
+    telemetry = service.pop_last_execution_telemetry()
+    assert telemetry is not None
+    assert telemetry.rerank is not None
+
+
+def test_pg_search_service_uses_vector_threshold_when_reranker_is_unavailable() -> None:
+    service = PgSearchService(
+        repository=_Repo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+        retrieval_vector_min_score=0.95,
+        retrieval_rerank_min_score=0.0,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=3,
+        rerank=True,
+    )
+
+    assert response.results == []
+    assert response.total == 0
+
+
 class _MissingCollectionRepo:
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         raise CollectionNotFoundError(collection_name)

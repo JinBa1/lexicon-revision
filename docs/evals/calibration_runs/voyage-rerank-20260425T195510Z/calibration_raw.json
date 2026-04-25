@@ -1,0 +1,2305 @@
+{
+  "analysis": {
+    "has_clean_gap": false,
+    "matched_positive_scores": [
+      -3.5669596195220947,
+      -10.007866859436035,
+      -1.4398159980773926,
+      4.0998125076293945,
+      3.126638174057007,
+      2.6817266941070557,
+      -5.362954616546631,
+      -4.995433807373047,
+      -8.110925674438477,
+      -0.6643046140670776,
+      -1.5705831050872803,
+      -5.377989768981934
+    ],
+    "negative_top_scores": [
+      -11.073233604431152,
+      -11.183167457580566,
+      -11.28923511505127,
+      -10.487615585327148,
+      -9.723335266113281,
+      -11.265877723693848,
+      -10.424229621887207,
+      -11.317279815673828,
+      -11.133467674255371,
+      -9.815755844116211,
+      -10.972975730895996,
+      -11.335233688354492,
+      -9.238204956054688,
+      -11.034272193908691,
+      -9.539606094360352,
+      -11.129561424255371,
+      -9.316347122192383,
+      -10.957475662231445,
+      -10.94053840637207,
+      -10.775030136108398
+    ],
+    "strongest_negative_score": -9.238204956054688,
+    "suggested_rerank_min_score": null,
+    "weakest_positive_score": -10.007866859436035
+  },
+  "collection": "cam-cs-tripos-fixture",
+  "effective_limit": 10,
+  "limit": 5,
+  "name": "cambridge_fixture_v1_threshold_calibration",
+  "negative": {
+    "case_count": 20,
+    "cases": [
+      {
+        "filters": [],
+        "query": "renaissance oil painting glazing techniques",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p3-q3",
+            "preview": "(a) Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in p...",
+            "rank": 1,
+            "score": -11.073233604431152,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-e",
+            "preview": "The object of the ExImage class stores RGB values that are shown on a display with non-standard primaries r(λ), g(λ),...",
+            "rank": 2,
+            "score": -11.178014755249023,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3",
+            "preview": "(a) The Phong reflection model is expressed as $$ I = I _ {\\mathrm {a}} k _ {\\mathrm {a}} + \\sum_ {i} I _ {i} k _ {\\m...",
+            "rank": 3,
+            "score": -11.263580322265625,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q4-b",
+            "preview": "The tracking sensors provide the position of the estimated centre of the left eye, $e _ { \\mathrm { L } }$ , in the u...",
+            "rank": 4,
+            "score": -11.276569366455078,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q4-a",
+            "preview": "Answer the following questions about geometric transformations. (i ) Given a cylinder defined at the origin with radi...",
+            "rank": 5,
+            "score": -11.281394958496094,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4",
+            "preview": "You are asked to implement a Java class for storing images with arbitrary pixel order and an arbitrary number of colo...",
+            "rank": 6,
+            "score": -11.290468215942383,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-c",
+            "preview": "You design a colour management system for a new display with atypical primary colours. You measured the spectra of it...",
+            "rank": 7,
+            "score": -11.293420791625977,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-a",
+            "preview": "Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in paint...",
+            "rank": 8,
+            "score": -11.30397891998291,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3-b",
+            "preview": "You came up with an idea to render shadows in rasterization. You first render the depth map of the scene from the poi...",
+            "rank": 9,
+            "score": -11.315059661865234,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3-a",
+            "preview": "The Phong reflection model is expressed as $$ I = I _ {\\mathrm {a}} k _ {\\mathrm {a}} + \\sum_ {i} I _ {i} k _ {\\mathr...",
+            "rank": 10,
+            "score": -11.321125984191895,
+            "topic": "Introduction to Graphics"
+          }
+        ],
+        "top_score": -11.073233604431152
+      },
+      {
+        "filters": [],
+        "query": "Italian personal income tax filing deadline",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q5-a",
+            "preview": "High level languages",
+            "rank": 1,
+            "score": -11.183167457580566,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-b",
+            "preview": "What is the probability that the waiting time is less than 5?",
+            "rank": 2,
+            "score": -11.189525604248047,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-d",
+            "preview": "Software as a service",
+            "rank": 3,
+            "score": -11.208318710327148,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-c",
+            "preview": "Open-source software",
+            "rank": 4,
+            "score": -11.216827392578125,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-a",
+            "preview": "Binomial Distribution,",
+            "rank": 5,
+            "score": -11.230738639831543,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-b",
+            "preview": "Poisson Distribution,",
+            "rank": 6,
+            "score": -11.250068664550781,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 7,
+            "score": -11.26020622253418,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q7-b",
+            "preview": "Calculate all relevant probabilities for features age, L1 and experience, for your classifier defined in a), using th...",
+            "rank": 8,
+            "score": -11.27132511138916,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q8-c",
+            "preview": "We are in June, and your friends predict that July and August will be dry, followed by rain in September and snow in...",
+            "rank": 9,
+            "score": -11.294130325317383,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q6-c",
+            "preview": "The lyrics for your upcoming album are very politically sensitive, and listeners (both existing fans and new arrivals...",
+            "rank": 10,
+            "score": -11.311993598937988,
+            "topic": "Software and Security Engineering"
+          }
+        ],
+        "top_score": -11.183167457580566
+      },
+      {
+        "filters": [],
+        "query": "heart valve replacement recovery timeline",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q8-b",
+            "preview": "Given an unsorted singly-linked list of n integers, each of which painted in one of the seven colours of the rainbow,...",
+            "rank": 1,
+            "score": -11.28923511505127,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q3-b",
+            "preview": "A single-CPU system has five CPU-bound processes arrive simultaneously. Each has total CPU demand 10 ms, 20 ms, 30 ms...",
+            "rank": 2,
+            "score": -11.290504455566406,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-f",
+            "preview": "Using Chebyshev’s inequality, find a solution for w.",
+            "rank": 3,
+            "score": -11.301401138305664,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q8-c",
+            "preview": "We are in June, and your friends predict that July and August will be dry, followed by rain in September and snow in...",
+            "rank": 4,
+            "score": -11.339221000671387,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q3-b",
+            "preview": "A system has paged memory with memory access time of 80 ns, and a page-fault service time of 8 ms assuming a free fra...",
+            "rank": 5,
+            "score": -11.341775894165039,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q1-d",
+            "preview": "State the principle disadvantage of eventual consistency? Provide a simple example.",
+            "rank": 6,
+            "score": -11.343993186950684,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-b",
+            "preview": "What is the probability that the waiting time is less than 5?",
+            "rank": 7,
+            "score": -11.344945907592773,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q2-c",
+            "preview": "A D type flip-flop is used as a synchroniser to reduce problems owing to metastability in a synchronous FSM. $P _ { f...",
+            "rank": 8,
+            "score": -11.345094680786133,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q10-b",
+            "preview": "Two programmers are worried about the difficulty of implementing a Fibonacci heap because the root list and every par...",
+            "rank": 9,
+            "score": -11.345876693725586,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q4-b",
+            "preview": "The following three processes arrive simultaneously and are to be scheduled on a single CPU for the specified burst l...",
+            "rank": 10,
+            "score": -11.35455322265625,
+            "topic": "Operating Systems"
+          }
+        ],
+        "top_score": -11.28923511505127
+      },
+      {
+        "filters": [],
+        "query": "Shakespeare sonnet meter analysis",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q1",
+            "preview": "The chief examiner of a Tripos course would like to do some statistical analysis of the results of an exam. There are...",
+            "rank": 1,
+            "score": -10.487615585327148,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-a",
+            "preview": "Write the OCaml value that corresponds to the expression (1+4)*(10+2).",
+            "rank": 2,
+            "score": -10.984872817993164,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-a",
+            "preview": "Binomial Distribution,",
+            "rank": 3,
+            "score": -11.030928611755371,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q1-b",
+            "preview": "The examiner evaluates performance by taking a marks value, filtering out the zeros, and then calculating mean and st...",
+            "rank": 4,
+            "score": -11.138654708862305,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-g",
+            "preview": "Analyse the Mean-Squared Error of your estimator in (e).",
+            "rank": 5,
+            "score": -11.139421463012695,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-b",
+            "preview": "Poisson Distribution,",
+            "rank": 6,
+            "score": -11.2066650390625,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q8-d",
+            "preview": "Consider strings over a set of 16 symbols. A trivial encoding, with no attempt at compression, will use codewords of...",
+            "rank": 7,
+            "score": -11.207136154174805,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q5-c",
+            "preview": "Let a random variable Z be the number of strong teams which play home at the first game. (i ) Determine the distribut...",
+            "rank": 8,
+            "score": -11.234068870544434,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q6-c",
+            "preview": "Consider the weight difference $D : = M - F$ . What is the distribution of D? Also state the expectation and variance...",
+            "rank": 9,
+            "score": -11.247648239135742,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q3-b",
+            "preview": "Assuming a Phong shading model and no recursion for computing indirect illumination or shadows, what is the time comp...",
+            "rank": 10,
+            "score": -11.261054992675781,
+            "topic": "Introduction to Graphics"
+          }
+        ],
+        "top_score": -10.487615585327148
+      },
+      {
+        "filters": [],
+        "query": "NBA playoff bracket seeding rules",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p1-q5",
+            "preview": "We consider the round of the last eight in the UEFA football playoffs, which involves a pairing of eight teams into f...",
+            "rank": 1,
+            "score": -9.723335266113281,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-a",
+            "preview": "Binomial Distribution,",
+            "rank": 2,
+            "score": -11.03898811340332,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q5-c",
+            "preview": "Let a random variable Z be the number of strong teams which play home at the first game. (i ) Determine the distribut...",
+            "rank": 3,
+            "score": -11.057790756225586,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q5-d",
+            "preview": "Consider one match, and let random variable $S \\in \\{ 0 , 1 , 2 \\}$ be the number of strong teams in that match, and...",
+            "rank": 4,
+            "score": -11.102699279785156,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q5-b",
+            "preview": "What is the probability that all four matches are between a strong and a weak team? Each match consists of a home gam...",
+            "rank": 5,
+            "score": -11.14101791381836,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q8-d",
+            "preview": "Consider strings over a set of 16 symbols. A trivial encoding, with no attempt at compression, will use codewords of...",
+            "rank": 6,
+            "score": -11.141067504882812,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-a",
+            "preview": "Discuss the following statement and prove that it is incorrect. This problem exhibits optimal substructure, meaning t...",
+            "rank": 7,
+            "score": -11.151872634887695,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q8-a",
+            "preview": "Draw a diagram showing the final state of the data structure after inserting the following hash keys (in order) into...",
+            "rank": 8,
+            "score": -11.195013046264648,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q8-b",
+            "preview": "Given an unsorted singly-linked list of n integers, each of which painted in one of the seven colours of the rainbow,...",
+            "rank": 9,
+            "score": -11.203060150146484,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-c",
+            "preview": "Suppose that we know that the waiting time is at least 2. Conditional on this, what is the probability that the waiti...",
+            "rank": 10,
+            "score": -11.21767807006836,
+            "topic": "Introduction to Probability"
+          }
+        ],
+        "top_score": -9.723335266113281
+      },
+      {
+        "filters": [],
+        "query": "sourdough starter hydration troubleshooting",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p3-q7-c",
+            "preview": "New annotated data is discovered, which stems from two other annotators. Annotatator D only participated in annotatio...",
+            "rank": 1,
+            "score": -11.265877723693848,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 2,
+            "score": -11.28449821472168,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q8",
+            "preview": "You are interested in predicting snowfall in order to plan for a winter trip with friends. You know that for snowfall...",
+            "rank": 3,
+            "score": -11.305755615234375,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q1-d",
+            "preview": "State the principle disadvantage of eventual consistency? Provide a simple example.",
+            "rank": 4,
+            "score": -11.334232330322266,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q9-b",
+            "preview": "There is a suspicion that the model you estimated is biased. If a model is biased, it treats certain groups of the po...",
+            "rank": 5,
+            "score": -11.334716796875,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q6",
+            "preview": "Anxiety and depression are among the leading mental health issues in the world. One of the ways to reduce stress and...",
+            "rank": 6,
+            "score": -11.347643852233887,
+            "topic": "Interaction Design"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q6-d",
+            "preview": "Propose one product-specific design principle that this mindfulness app design should follow and motivate your propos...",
+            "rank": 7,
+            "score": -11.358455657958984,
+            "topic": "Interaction Design"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q8-c",
+            "preview": "We are in June, and your friends predict that July and August will be dry, followed by rain in September and snow in...",
+            "rank": 8,
+            "score": -11.358710289001465,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-e",
+            "preview": "Using Markov’s inequality, find a solution for w.",
+            "rank": 9,
+            "score": -11.359618186950684,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-b",
+            "preview": "Prove that the following statement is also incorrect. Any optimal solution for s[:k] must start with an optimal solut...",
+            "rank": 10,
+            "score": -11.377180099487305,
+            "topic": "Algorithms 1"
+          }
+        ],
+        "top_score": -11.265877723693848
+      },
+      {
+        "filters": [],
+        "query": "quantum chromodynamics Feynman diagrams",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p3-q4-e",
+            "preview": "The object of the ExImage class stores RGB values that are shown on a display with non-standard primaries r(λ), g(λ),...",
+            "rank": 1,
+            "score": -10.424229621887207,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q8-b",
+            "preview": "Draw a diagram showing the final state of the data structure after inserting the same keys (in order) into a table of...",
+            "rank": 2,
+            "score": -10.482172012329102,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3",
+            "preview": "(a) The Phong reflection model is expressed as $$ I = I _ {\\mathrm {a}} k _ {\\mathrm {a}} + \\sum_ {i} I _ {i} k _ {\\m...",
+            "rank": 3,
+            "score": -10.486030578613281,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-c",
+            "preview": "You design a colour management system for a new display with atypical primary colours. You measured the spectra of it...",
+            "rank": 4,
+            "score": -10.605226516723633,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3",
+            "preview": "(a) Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in p...",
+            "rank": 5,
+            "score": -10.628217697143555,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3-a",
+            "preview": "The Phong reflection model is expressed as $$ I = I _ {\\mathrm {a}} k _ {\\mathrm {a}} + \\sum_ {i} I _ {i} k _ {\\mathr...",
+            "rank": 6,
+            "score": -11.047212600708008,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-b",
+            "preview": "The diagram below shows a projection of the colour gamut and the primaries of two popular RGB colour spaces. (i ) BT....",
+            "rank": 7,
+            "score": -11.065213203430176,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q3",
+            "preview": "(a) Explain what a pinhole camera model is (you may draw a diagram if needed), and what the camera origin in ray trac...",
+            "rank": 8,
+            "score": -11.08039665222168,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q8",
+            "preview": "Consider the following undirected graph: (a) Define the following measures, and compute their values for nodes A, C,...",
+            "rank": 9,
+            "score": -11.100028991699219,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q8-b",
+            "preview": "Build the Huffman code for the following set of symbols and frequencies, drawing the corresponding tree. When combini...",
+            "rank": 10,
+            "score": -11.117500305175781,
+            "topic": "Algorithms 1"
+          }
+        ],
+        "top_score": -10.424229621887207
+      },
+      {
+        "filters": [],
+        "query": "CRISPR Cas9 off target gene editing",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 1,
+            "score": -11.317279815673828,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q5-e",
+            "preview": "Using the outcome of the CW you have conducted, provide one suggestion for re-designing your app.",
+            "rank": 2,
+            "score": -11.33768081665039,
+            "topic": "Interaction Design"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q9",
+            "preview": "You are a football academy manager and you want to design a classifier for deciding which players to recruit to your...",
+            "rank": 3,
+            "score": -11.408546447753906,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q9-a",
+            "preview": "Explain how to implement artskjid(g,t) efficiently. What is the worst-case asymptotic running time of artskjid?",
+            "rank": 4,
+            "score": -11.409688949584961,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9-f",
+            "preview": "How could you improve the model so that unseen combinations of letters do not make a previously unseen word totally i...",
+            "rank": 5,
+            "score": -11.42411994934082,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q9-a",
+            "preview": "Define and estimate the components of an appropriate HMM for this application, without smoothing. Assume that all hid...",
+            "rank": 6,
+            "score": -11.426705360412598,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q9-d",
+            "preview": "You are given more data from an earlier time period, pre-2020. How would you incorporate it in your experimental setu...",
+            "rank": 7,
+            "score": -11.428265571594238,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9-a",
+            "preview": "Provide the full transition matrix A for this HMM based on the training data shown (ignoring the end states).",
+            "rank": 8,
+            "score": -11.428372383117676,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q9-b",
+            "preview": "There is a suspicion that the model you estimated is biased. If a model is biased, it treats certain groups of the po...",
+            "rank": 9,
+            "score": -11.43010139465332,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-e",
+            "preview": "Write a function reduce_all that reduces an argument of type t list until it cannot be simplified any further, and re...",
+            "rank": 10,
+            "score": -11.435126304626465,
+            "topic": "Foundations of Computer Science"
+          }
+        ],
+        "top_score": -11.317279815673828
+      },
+      {
+        "filters": [],
+        "query": "lithium ion battery cathode degradation",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 1,
+            "score": -11.133467674255371,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q6",
+            "preview": "You have joined a startup which plans to use a new solid state battery and a new electric motor to offer an improved...",
+            "rank": 2,
+            "score": -11.259317398071289,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-a",
+            "preview": "Discuss the following statement and prove that it is incorrect. This problem exhibits optimal substructure, meaning t...",
+            "rank": 3,
+            "score": -11.284303665161133,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q4-a",
+            "preview": "Explain how you could improve the quality of rendering given the following hardware limitations. Keep your answers sh...",
+            "rank": 4,
+            "score": -11.305196762084961,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q2-c",
+            "preview": "A D type flip-flop is used as a synchroniser to reduce problems owing to metastability in a synchronous FSM. $P _ { f...",
+            "rank": 5,
+            "score": -11.315186500549316,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q8-c",
+            "preview": "Suppose we need to support efficient deletion from a hash table of length T.length that uses open addressing and the...",
+            "rank": 6,
+            "score": -11.32214641571045,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q4-c",
+            "preview": "FIFO can exhibit B´el´ady’s anomaly. State B´el´ady’s anomaly, and explain why neither OPT nor LRU can exhibit it, bu...",
+            "rank": 7,
+            "score": -11.325859069824219,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-e",
+            "preview": "Give clear pseudocode to solve the problem using the approach in Part (d), using recursive memoized top-down dynamic...",
+            "rank": 8,
+            "score": -11.329366683959961,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q10",
+            "preview": "Consider a hash table implemented with open addressing. This question is concerned with how its underlying storage ar...",
+            "rank": 9,
+            "score": -11.329960823059082,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5-b",
+            "preview": "Describe two attacks on this protocol that can be used to commit fraud. In each case describe the protocol flaw or sy...",
+            "rank": 10,
+            "score": -11.332527160644531,
+            "topic": "Software and Security Engineering"
+          }
+        ],
+        "top_score": -11.133467674255371
+      },
+      {
+        "filters": [],
+        "query": "finite element mesh refinement for bridges",
+        "returned": [
+          {
+            "chunk_id": "cam-2025-p1-q9",
+            "preview": "(a) A connected, weighted, undirected graph G = (V, E) is stored using an adjacency matrix to represent the edge set,...",
+            "rank": 1,
+            "score": -9.815755844116211,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q10",
+            "preview": "(a) True or false? Using the standard operations of a mergable priority queue, it is possible to construct a Fibonacc...",
+            "rank": 2,
+            "score": -11.169580459594727,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 3,
+            "score": -11.291577339172363,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q8-b",
+            "preview": "Given an unsorted singly-linked list of n integers, each of which painted in one of the seven colours of the rainbow,...",
+            "rank": 4,
+            "score": -11.307790756225586,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q9-a",
+            "preview": "A connected, weighted, undirected graph G = (V, E) is stored using an adjacency matrix to represent the edge set, E....",
+            "rank": 5,
+            "score": -11.351829528808594,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q8-d",
+            "preview": "What is the diameter of the network depicted at the beginning of this question?",
+            "rank": 6,
+            "score": -11.365310668945312,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q8-c",
+            "preview": "Which measure would you use to find connectors in a social network.",
+            "rank": 7,
+            "score": -11.374290466308594,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q8-e",
+            "preview": "Suppose that we delete the edge D-H and add an edge C-E to the network. How would this affect the Betweenness Central...",
+            "rank": 8,
+            "score": -11.386900901794434,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q5-e",
+            "preview": "Using the outcome of the CW you have conducted, provide one suggestion for re-designing your app.",
+            "rank": 9,
+            "score": -11.38772201538086,
+            "topic": "Interaction Design"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q3-b",
+            "preview": "PriorityQueue does not offer a method to change priorities. Instead, an object with a changed priority must be remove...",
+            "rank": 10,
+            "score": -11.39152717590332,
+            "topic": "Object-Oriented Programming"
+          }
+        ],
+        "top_score": -9.815755844116211
+      },
+      {
+        "filters": [],
+        "query": "Kubernetes ingress controller TLS termination",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q5-c",
+            "preview": "Open-source software",
+            "rank": 1,
+            "score": -10.972975730895996,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-d",
+            "preview": "Software as a service",
+            "rank": 2,
+            "score": -11.014459609985352,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-a",
+            "preview": "High level languages",
+            "rank": 3,
+            "score": -11.199180603027344,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5",
+            "preview": "The basic Europay-MasterCard-VISA transaction flow is $$ \\begin{array}{l} C \\longrightarrow T: P A N, d _ {1}, \\opera...",
+            "rank": 4,
+            "score": -11.208902359008789,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 5,
+            "score": -11.2748384475708,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q6-b",
+            "preview": "Devise a safety policy and a security policy, and suggest a test strategy.",
+            "rank": 6,
+            "score": -11.283324241638184,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5-b",
+            "preview": "Describe two attacks on this protocol that can be used to commit fraud. In each case describe the protocol flaw or sy...",
+            "rank": 7,
+            "score": -11.297229766845703,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q6-a",
+            "preview": "What would be your threat model for such a system?",
+            "rank": 8,
+            "score": -11.305713653564453,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q6-b",
+            "preview": "What would be involved in protecting the communications?",
+            "rank": 9,
+            "score": -11.30871295928955,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-b",
+            "preview": "Prove that the following statement is also incorrect. Any optimal solution for s[:k] must start with an optimal solut...",
+            "rank": 10,
+            "score": -11.33534049987793,
+            "topic": "Algorithms 1"
+          }
+        ],
+        "top_score": -10.972975730895996
+      },
+      {
+        "filters": [],
+        "query": "Rust borrow checker lifetime elision",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p1-q4-a",
+            "preview": "Explain the concept of type erasure in Java.",
+            "rank": 1,
+            "score": -11.335233688354492,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q2-b",
+            "preview": "Write a function has_point to efficiently search a quadtree for a point: val has_point : point -> qt -> bool",
+            "rank": 2,
+            "score": -11.368773460388184,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q4",
+            "preview": "(a) Explain the concept of type erasure in Java. (b) What do these types erase to? (i) List<List<Integer>> (ii) List<...",
+            "rank": 3,
+            "score": -11.39345932006836,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q3-a",
+            "preview": "Explain the effect of the access modifiers public, protected, private, or default (no modifier) in Java.",
+            "rank": 4,
+            "score": -11.400869369506836,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-b",
+            "preview": "Write a function that will evaluate the numerical result of an expr argument. What is the OCaml type of your function?",
+            "rank": 5,
+            "score": -11.403138160705566,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-a",
+            "preview": "Write the missing piece of code in the constructor for setting the strides sx, sy and sc of the ExImage object.",
+            "rank": 6,
+            "score": -11.405441284179688,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-e",
+            "preview": "Write a function reduce_all that reduces an argument of type t list until it cannot be simplified any further, and re...",
+            "rank": 7,
+            "score": -11.414880752563477,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q1-a",
+            "preview": "Define a rev function which can reverse an input list in O(n) time complexity.",
+            "rank": 8,
+            "score": -11.415176391601562,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q4-d",
+            "preview": "(i ) Explain the meaning of the Liskov-Substitution principle. (ii) Explain the meaning of the Single Responsibility...",
+            "rank": 9,
+            "score": -11.418134689331055,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q4-c",
+            "preview": "FIFO can exhibit B´el´ady’s anomaly. State B´el´ady’s anomaly, and explain why neither OPT nor LRU can exhibit it, bu...",
+            "rank": 10,
+            "score": -11.418586730957031,
+            "topic": "Operating Systems"
+          }
+        ],
+        "top_score": -11.335233688354492
+      },
+      {
+        "filters": [],
+        "query": "compiler register allocation graph coloring",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q8",
+            "preview": "(a) An object has a method gulp(x), which accepts a 64-bit floating point number. On its n-th invocation since the cr...",
+            "rank": 1,
+            "score": -9.238204956054688,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q8-b",
+            "preview": "Given an unsorted singly-linked list of n integers, each of which painted in one of the seven colours of the rainbow,...",
+            "rank": 2,
+            "score": -10.005180358886719,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q4",
+            "preview": "(a) Address binding refers to the process of resolving memory references in a program to physical addresses when that...",
+            "rank": 3,
+            "score": -10.129274368286133,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q7",
+            "preview": "A DLL (doubly-linked list) may be trivially implemented as a chain of records, each record r having a pointer r.p to...",
+            "rank": 4,
+            "score": -10.1844482421875,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q9-b",
+            "preview": "Let G = (V, E) be a weighted, undirected graph in which every edge weight is different. Let d(u, v) be the edge weigh...",
+            "rank": 5,
+            "score": -10.357894897460938,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-c",
+            "preview": "You design a colour management system for a new display with atypical primary colours. You measured the spectra of it...",
+            "rank": 6,
+            "score": -10.40636920928955,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3",
+            "preview": "(a) Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in p...",
+            "rank": 7,
+            "score": -10.513840675354004,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-e",
+            "preview": "The object of the ExImage class stores RGB values that are shown on a display with non-standard primaries r(λ), g(λ),...",
+            "rank": 8,
+            "score": -10.702547073364258,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q10-c",
+            "preview": "It is suggested that we can work out whether a directed graph G is acyclic by running Dijkstra’s algorithm with a Fib...",
+            "rank": 9,
+            "score": -11.006647109985352,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q9-c",
+            "preview": "Give an algorithm for computing all opportunities in a graph g. Your algorithm should have $O ( E + V \\log V )$ runni...",
+            "rank": 10,
+            "score": -11.031126022338867,
+            "topic": "Algorithms 2"
+          }
+        ],
+        "top_score": -9.238204956054688
+      },
+      {
+        "filters": [],
+        "query": "distributed consensus Byzantine fault tolerance",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p3-q1-c",
+            "preview": "A distributed database may use eventual consistency. Explain what this is. Give two advantages.",
+            "rank": 1,
+            "score": -11.034272193908691,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q7",
+            "preview": "In an annotation task with 4 classes (I, II, III and IV), three annotators (A, B, C) are making decisions, as in Figu...",
+            "rank": 2,
+            "score": -11.2446928024292,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q10",
+            "preview": "(a) True or false? Using the standard operations of a mergable priority queue, it is possible to construct a Fibonacc...",
+            "rank": 3,
+            "score": -11.259284973144531,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 4,
+            "score": -11.277827262878418,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q3-c",
+            "preview": "An innovative engineer wishes to ensure there is always at least one free frame available when a page fault occurs. T...",
+            "rank": 5,
+            "score": -11.343977928161621,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q1-d",
+            "preview": "State the principle disadvantage of eventual consistency? Provide a simple example.",
+            "rank": 6,
+            "score": -11.381053924560547,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-d",
+            "preview": "Write a function reduce that performs one step of reduction. Give an example of applying reduce to the sample input a...",
+            "rank": 7,
+            "score": -11.388370513916016,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q5-a",
+            "preview": "Explain some possible strategies for testing the server software for this social network.",
+            "rank": 8,
+            "score": -11.388936996459961,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q1-e",
+            "preview": "Explain why a graph database typically holds just one graph?",
+            "rank": 9,
+            "score": -11.393280029296875,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q9-c",
+            "preview": "Your friend gives the following argument for correctness: “Since dijkstra visits vertices in order of increasing dist...",
+            "rank": 10,
+            "score": -11.406601905822754,
+            "topic": "Algorithms 2"
+          }
+        ],
+        "top_score": -11.034272193908691
+      },
+      {
+        "filters": [],
+        "query": "GPU shader texture sampling anisotropy",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p3-q3",
+            "preview": "(a) Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in p...",
+            "rank": 1,
+            "score": -9.539606094360352,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-c",
+            "preview": "You design a colour management system for a new display with atypical primary colours. You measured the spectra of it...",
+            "rank": 2,
+            "score": -9.609071731567383,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3",
+            "preview": "(a) The Phong reflection model is expressed as $$ I = I _ {\\mathrm {a}} k _ {\\mathrm {a}} + \\sum_ {i} I _ {i} k _ {\\m...",
+            "rank": 3,
+            "score": -10.61367416381836,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4",
+            "preview": "You are asked to implement a Java class for storing images with arbitrary pixel order and an arbitrary number of colo...",
+            "rank": 4,
+            "score": -10.729978561401367,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-a",
+            "preview": "Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in paint...",
+            "rank": 5,
+            "score": -11.019460678100586,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-e",
+            "preview": "The object of the ExImage class stores RGB values that are shown on a display with non-standard primaries r(λ), g(λ),...",
+            "rank": 6,
+            "score": -11.202774047851562,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3-b",
+            "preview": "You came up with an idea to render shadows in rasterization. You first render the depth map of the scene from the poi...",
+            "rank": 7,
+            "score": -11.336517333984375,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-b",
+            "preview": "Implement get_index, get_pixel, and set_pixel methods.",
+            "rank": 8,
+            "score": -11.35006332397461,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q7",
+            "preview": "In an annotation task with 4 classes (I, II, III and IV), three annotators (A, B, C) are making decisions, as in Figu...",
+            "rank": 9,
+            "score": -11.367713928222656,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q3-a",
+            "preview": "The Phong reflection model is expressed as $$ I = I _ {\\mathrm {a}} k _ {\\mathrm {a}} + \\sum_ {i} I _ {i} k _ {\\mathr...",
+            "rank": 10,
+            "score": -11.38085651397705,
+            "topic": "Introduction to Graphics"
+          }
+        ],
+        "top_score": -9.539606094360352
+      },
+      {
+        "filters": [],
+        "query": "cryptocurrency proof of stake slashing",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q5-d",
+            "preview": "Software as a service",
+            "rank": 1,
+            "score": -11.129561424255371,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q7-c",
+            "preview": "Say whether the following statement is true or false, and respectively provide a proof or a counterexample justifying...",
+            "rank": 2,
+            "score": -11.135287284851074,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-a",
+            "preview": "High level languages",
+            "rank": 3,
+            "score": -11.222711563110352,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q5-b",
+            "preview": "Poisson Distribution,",
+            "rank": 4,
+            "score": -11.276348114013672,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q1-d",
+            "preview": "State the principle disadvantage of eventual consistency? Provide a simple example.",
+            "rank": 5,
+            "score": -11.351202011108398,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q10-c",
+            "preview": "It is suggested that we can work out whether a directed graph G is acyclic by running Dijkstra’s algorithm with a Fib...",
+            "rank": 6,
+            "score": -11.352493286132812,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5-b",
+            "preview": "Describe two attacks on this protocol that can be used to commit fraud. In each case describe the protocol flaw or sy...",
+            "rank": 7,
+            "score": -11.379725456237793,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q7-b",
+            "preview": "Either prove or disprove the following statements. (i ) For all prime numbers p and integers $n ,$ , $$ n ^ {2} \\equi...",
+            "rank": 8,
+            "score": -11.38286018371582,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5-c",
+            "preview": "You are a security engineer working for a payment network owned by a country’s banks. Which of the two attacks would...",
+            "rank": 9,
+            "score": -11.401939392089844,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5",
+            "preview": "The basic Europay-MasterCard-VISA transaction flow is $$ \\begin{array}{l} C \\longrightarrow T: P A N, d _ {1}, \\opera...",
+            "rank": 10,
+            "score": -11.418438911437988,
+            "topic": "Software and Security Engineering"
+          }
+        ],
+        "top_score": -11.129561424255371
+      },
+      {
+        "filters": [],
+        "query": "large language model RLHF reward hacking",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q5-a",
+            "preview": "High level languages",
+            "rank": 1,
+            "score": -9.316347122192383,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9",
+            "preview": "Hidden Markov Models (HMMs) can be used for modelling the consonant-vowel sequences in words, using the letters of th...",
+            "rank": 2,
+            "score": -9.851724624633789,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q7",
+            "preview": "A language school for English receives students from different countries and with different skill levels. Before ente...",
+            "rank": 3,
+            "score": -10.707868576049805,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q9",
+            "preview": "You are a member of a thinktank advising the government on financial policy issues. You are asked to develop a model...",
+            "rank": 4,
+            "score": -10.963244438171387,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q7-b",
+            "preview": "Calculate all relevant probabilities for features age, L1 and experience, for your classifier defined in a), using th...",
+            "rank": 5,
+            "score": -11.04313850402832,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q8-c",
+            "preview": "Which measure would you use to find connectors in a social network.",
+            "rank": 6,
+            "score": -11.39992618560791,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q9-b",
+            "preview": "There is a suspicion that the model you estimated is biased. If a model is biased, it treats certain groups of the po...",
+            "rank": 7,
+            "score": -11.408440589904785,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q7",
+            "preview": "You are tasked with developing a detector of offensive messages using a text classification method. For this purpose...",
+            "rank": 8,
+            "score": -11.423174858093262,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q9-c",
+            "preview": "Explain which property of the classifier you developed in part (b) enables you to make this judgement based on the pa...",
+            "rank": 9,
+            "score": -11.425793647766113,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q7-a",
+            "preview": "Professor M is unhappy with this process and the test’s ability to predict student level. She suggests that the schoo...",
+            "rank": 10,
+            "score": -11.428349494934082,
+            "topic": "Machine Learning and Real-world Data"
+          }
+        ],
+        "top_score": -9.316347122192383
+      },
+      {
+        "filters": [],
+        "query": "homomorphic encryption bootstrapping circuits",
+        "returned": [
+          {
+            "chunk_id": "cam-2025-p2-q1",
+            "preview": "(a) Show algebraically that the following functions can be implemented using either a 2-input exclusive OR gate or it...",
+            "rank": 1,
+            "score": -10.957475662231445,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q8",
+            "preview": "(a) Prove that, given any alphabet Σ, no lossless compression function c : Σ∗ → Σ∗ has the property that $$ \\forall s...",
+            "rank": 2,
+            "score": -11.081742286682129,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-d",
+            "preview": "Software as a service",
+            "rank": 3,
+            "score": -11.091269493103027,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-c",
+            "preview": "Open-source software",
+            "rank": 4,
+            "score": -11.168353080749512,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-a",
+            "preview": "High level languages",
+            "rank": 5,
+            "score": -11.260764122009277,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q1-c",
+            "preview": "Briefly explain the operation of the following circuit and determine the Boolean function that relates the input vari...",
+            "rank": 6,
+            "score": -11.315526008605957,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-b",
+            "preview": "Regression testing tools",
+            "rank": 7,
+            "score": -11.323460578918457,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q1-b",
+            "preview": "(i) Show how the following function may be implemented using an AND gate, an OR gate and an XOR gate, all having two...",
+            "rank": 8,
+            "score": -11.363372802734375,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q8-d",
+            "preview": "Consider strings over a set of 16 symbols. A trivial encoding, with no attempt at compression, will use codewords of...",
+            "rank": 9,
+            "score": -11.364133834838867,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9-c",
+            "preview": "Suppose the system is in hidden state a, what is the most likely V, or C, for the next letter, and what are their pro...",
+            "rank": 10,
+            "score": -11.368922233581543,
+            "topic": "Machine Learning and Real-world Data"
+          }
+        ],
+        "top_score": -10.957475662231445
+      },
+      {
+        "filters": [],
+        "query": "florbnicate zargle tensor marmalade",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q8",
+            "preview": "(a) An object has a method gulp(x), which accepts a 64-bit floating point number. On its n-th invocation since the cr...",
+            "rank": 1,
+            "score": -10.94053840637207,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-a",
+            "preview": "Write the OCaml value that corresponds to the expression (1+4)*(10+2).",
+            "rank": 2,
+            "score": -11.405116081237793,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q4-b",
+            "preview": "What do these types erase to? (i) List<List<Integer>> (ii) List<String>[] (iii) Map<String, List<Map<String, Integer>>>",
+            "rank": 3,
+            "score": -11.410043716430664,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q8-d",
+            "preview": "What is the diameter of the network depicted at the beginning of this question?",
+            "rank": 4,
+            "score": -11.417278289794922,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9-e",
+            "preview": "What would be the probability of the following sequence of hidden states? b e a t",
+            "rank": 5,
+            "score": -11.418291091918945,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9-f",
+            "preview": "How could you improve the model so that unseen combinations of letters do not make a previously unseen word totally i...",
+            "rank": 6,
+            "score": -11.418376922607422,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-b",
+            "preview": "Write a function that will evaluate the numerical result of an expr argument. What is the OCaml type of your function?",
+            "rank": 7,
+            "score": -11.424755096435547,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q2-e",
+            "preview": "Write a function reduce_all that reduces an argument of type t list until it cannot be simplified any further, and re...",
+            "rank": 8,
+            "score": -11.435124397277832,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q9-c",
+            "preview": "Suppose the system is in hidden state a, what is the most likely V, or C, for the next letter, and what are their pro...",
+            "rank": 9,
+            "score": -11.43565559387207,
+            "topic": "Machine Learning and Real-world Data"
+          },
+          {
+            "chunk_id": "cam-2023-p1-q1-c",
+            "preview": "Define rle encode that converts a sorted list of elements into an RLE encoded version, and rle decode that converts t...",
+            "rank": 10,
+            "score": -11.439998626708984,
+            "topic": "Foundations of Computer Science"
+          }
+        ],
+        "top_score": -10.94053840637207
+      },
+      {
+        "filters": [],
+        "query": "ZXQ-17 blue banana protocol",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p2-q5-b",
+            "preview": "Describe two attacks on this protocol that can be used to commit fraud. In each case describe the protocol flaw or sy...",
+            "rank": 1,
+            "score": -10.775030136108398,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4",
+            "preview": "You are asked to implement a Java class for storing images with arbitrary pixel order and an arbitrary number of colo...",
+            "rank": 2,
+            "score": -11.00401782989502,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3-c",
+            "preview": "You design a colour management system for a new display with atypical primary colours. You measured the spectra of it...",
+            "rank": 3,
+            "score": -11.104825019836426,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q5",
+            "preview": "General comment: For any of the answers below, unless stated otherwise, you do not need to give specific numerical va...",
+            "rank": 4,
+            "score": -11.14436149597168,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q5",
+            "preview": "The basic Europay-MasterCard-VISA transaction flow is $$ \\begin{array}{l} C \\longrightarrow T: P A N, d _ {1}, \\opera...",
+            "rank": 5,
+            "score": -11.157320976257324,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q1-d",
+            "preview": "(i) Show how the following Boolean function may be implemented using an 8:1 multiplexer. Use variable X as the most s...",
+            "rank": 6,
+            "score": -11.160345077514648,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q3",
+            "preview": "(a) Select the most suitable colour space for the following applications. Justify your choice. (i ) Color picker in p...",
+            "rank": 7,
+            "score": -11.179795265197754,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-e",
+            "preview": "The object of the ExImage class stores RGB values that are shown on a display with non-standard primaries r(λ), g(λ),...",
+            "rank": 8,
+            "score": -11.215049743652344,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q5-c",
+            "preview": "Open-source software",
+            "rank": 9,
+            "score": -11.220586776733398,
+            "topic": "Software and Security Engineering"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q7",
+            "preview": "You may use any standard results provided that you state them clearly. (a) For a positive integer ` and an integer k,...",
+            "rank": 10,
+            "score": -11.294313430786133,
+            "topic": "Discrete Mathematics"
+          }
+        ],
+        "top_score": -10.775030136108398
+      }
+    ]
+  },
+  "positive": {
+    "case_count": 12,
+    "cases": [
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2024-p1-q7-e",
+            "cam-2024-p1-q7-a",
+            "cam-2024-p1-q7-d"
+          ],
+          "any_topics": [
+            "Algorithms 1",
+            "Algorithms 2"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "broad-dynamic-programming",
+        "matched_rank": 1,
+        "notes": "Broad Algorithms recall grounded in dynamic programming and graph algorithm chunks.\n",
+        "passed": true,
+        "query": "past questions on dynamic programming and greedy algorithms",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q7-a",
+            "preview": "Discuss the following statement and prove that it is incorrect. This problem exhibits optimal substructure, meaning t...",
+            "rank": 1,
+            "score": -3.5669596195220947,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-d",
+            "preview": "Clearly explain how to solve the problem through the alternative approach of reducing it to one of the well-known dyn...",
+            "rank": 2,
+            "score": -3.58754563331604,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7",
+            "preview": "Given a sequence s of items from a domain U with a total order <, we derive a subsequence of s by dropping zero or mo...",
+            "rank": 3,
+            "score": -3.9088263511657715,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q9-b",
+            "preview": "Let G = (V, E) be a weighted, undirected graph in which every edge weight is different. Let d(u, v) be the edge weigh...",
+            "rank": 4,
+            "score": -5.021762847900391,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-e",
+            "preview": "Give clear pseudocode to solve the problem using the approach in Part (d), using recursive memoized top-down dynamic...",
+            "rank": 5,
+            "score": -5.733933925628662,
+            "topic": "Algorithms 1"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2025-p2-q8-b",
+            "cam-2025-p2-q7-a",
+            "cam-2025-p2-q7"
+          ],
+          "any_topics": [
+            "Discrete Mathematics"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "broad-discrete-math",
+        "matched_rank": 2,
+        "notes": "Broad topic recall over Paper 2 Discrete Mathematics fixture chunks.\n",
+        "passed": true,
+        "query": "discrete mathematics practice questions",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p3-q2-b",
+            "preview": "What is one significant difference between a reflexive relation in discrete maths and a database relation between a d...",
+            "rank": 1,
+            "score": -2.4733328819274902,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q9",
+            "preview": "(a) Say whether the each of the following statements is true or false, and respectively provide a proof or a countere...",
+            "rank": 2,
+            "score": -10.007866859436035,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q8",
+            "preview": "(a) Let $R \\subseteq A \\times B$ be a relation from a set A to a set B. For a subset $X \\subseteq A$ , define the sub...",
+            "rank": 3,
+            "score": -10.671741485595703,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q7",
+            "preview": "(a) (i ) Say whether the statement below holds or not. For all sets A and B, relations $R \\subseteq A \\times B$ , and...",
+            "rank": 4,
+            "score": -10.851920127868652,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q8",
+            "preview": "(a) (i ) Prove that for all positive integers m and integers n, $$ \\operatorname * {g c d} (n, m) = m \\iff n \\equiv 0...",
+            "rank": 5,
+            "score": -11.00490665435791,
+            "topic": "Discrete Mathematics"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2025-p2-q4",
+            "cam-2023-p2-q3-b",
+            "cam-2024-p2-q4-b"
+          ],
+          "any_topics": [
+            "Operating Systems"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "concept-virtual-memory",
+        "matched_rank": 1,
+        "notes": "Grounded in Operating Systems chunks about page faults, page replacement, virtual addressing, page tables, and TLBs.\n",
+        "passed": true,
+        "query": "memory management and virtual memory paging",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p2-q3-b",
+            "preview": "A system has paged memory with memory access time of 80 ns, and a page-fault service time of 8 ms assuming a free fra...",
+            "rank": 1,
+            "score": -1.4398159980773926,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q4",
+            "preview": "Consider a 64 bit machine architecture providing 57 bit virtual addressing using linear-address translation with a fi...",
+            "rank": 2,
+            "score": -4.384698390960693,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q3",
+            "preview": "(a) Interrupts are a mechanism to decouple CPU requests from device responses. Traps are a mechanism for a user-space...",
+            "rank": 3,
+            "score": -5.203901290893555,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q4",
+            "preview": "(a) Address binding refers to the process of resolving memory references in a program to physical addresses when that...",
+            "rank": 4,
+            "score": -6.855767726898193,
+            "topic": "Operating Systems"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q4-c",
+            "preview": "Assume that a memory access takes 40 ns, and the machine provides a Translation Lookaside Buffer (TLB) with a hit rat...",
+            "rank": 5,
+            "score": -7.560751914978027,
+            "topic": "Operating Systems"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2024-p3-q1",
+            "cam-2024-p3-q1-a",
+            "cam-2023-p3-q2"
+          ],
+          "any_topics": [
+            "Databases"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "concept-relational-algebra",
+        "matched_rank": 1,
+        "notes": "Substituted for relational normalisation because normalisation was not visibly present in inspected fixture text; relational algebra, joins, and schemas are present.\n",
+        "passed": true,
+        "query": "relational algebra joins and database schemas",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p3-q1",
+            "preview": "(a) A relational algebra is defined over sets of tuples. Explain whether the relational union of two sets (relations)...",
+            "rank": 1,
+            "score": 4.0998125076293945,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q1-a",
+            "preview": "A relational algebra is defined over sets of tuples. Explain whether the relational union of two sets (relations) req...",
+            "rank": 2,
+            "score": 0.9080612659454346,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q1-c",
+            "preview": "A relational database of textbooks holds a small amount of information about each chapter of each book. Two relations...",
+            "rank": 3,
+            "score": 0.8643381595611572,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2024-p3-q1-b",
+            "preview": "In the same relational algebra, sets with P and Q records (table lengths) are joined by a binary operator. What is th...",
+            "rank": 4,
+            "score": 0.09081839770078659,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q2",
+            "preview": "(a) Is the relational database join operator associative? Describe an example where different associations might resu...",
+            "rank": 5,
+            "score": -0.7851684093475342,
+            "topic": "Databases"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2025-p1-q6-c",
+            "cam-2025-p1-q6-d"
+          ],
+          "any_topics": [
+            "Introduction to Probability"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "concept-conditional-probability",
+        "matched_rank": 1,
+        "notes": "Grounded in the bus waiting-time question asking for a conditional probability after waiting at least two minutes.\n",
+        "passed": true,
+        "query": "conditional probability for geometric waiting times",
+        "returned": [
+          {
+            "chunk_id": "cam-2025-p1-q6-c",
+            "preview": "Suppose that we know that the waiting time is at least 2. Conditional on this, what is the probability that the waiti...",
+            "rank": 1,
+            "score": 3.126638174057007,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-d",
+            "preview": "What is the distribution of buses that arrive in minutes $0 , 1 , \\ldots , 1 0$ , conditional on that a bus arrives a...",
+            "rank": 2,
+            "score": 2.8573834896087646,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6",
+            "preview": "Suppose that buses arrive at a bus stop randomly, so that at each minute at most one bus arrives. For example: <table...",
+            "rank": 3,
+            "score": 2.4022786617279053,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-b",
+            "preview": "What is the probability that the waiting time is less than 5?",
+            "rank": 4,
+            "score": -1.1661306619644165,
+            "topic": "Introduction to Probability"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q6-e",
+            "preview": "Given you have n samples $X _ { 1 } , X _ { 2 } , . . . , X _ { n }$ of waiting times, construct an unbiased estimato...",
+            "rank": 5,
+            "score": -3.7330470085144043,
+            "topic": "Introduction to Probability"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2024-p2-q8-b",
+            "cam-2023-p2-q9-b",
+            "cam-2023-p2-q8-b"
+          ],
+          "any_topics": [
+            "Discrete Mathematics",
+            "Foundations of Computer Science",
+            "Algorithms 1"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "technique-induction-proofs",
+        "matched_rank": 1,
+        "notes": "Cross-topic technique case grounded in chunks with explicit strong, structural, or rule induction prompts.\n",
+        "passed": true,
+        "query": "proof by induction",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p2-q8-b",
+            "preview": "Let A∗ be the set of strings over an alphabet A. Consider the subset W of A∗ inductively defined by the following axi...",
+            "rank": 1,
+            "score": 2.6817266941070557,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q8-b",
+            "preview": "Prove that, for all natural numbers n, $2 4 \\mid ( 2 \\cdot 7 ^ { n } - 3 \\cdot 5 ^ { n } + 1 )$ . [Hint : Note that $...",
+            "rank": 2,
+            "score": 2.5786209106445312,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q8",
+            "preview": "(a) Let $R \\subseteq A \\times B$ be a relation from a set A to a set B. For a subset $X \\subseteq A$ , define the sub...",
+            "rank": 3,
+            "score": -1.2422947883605957,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2023-p2-q8",
+            "preview": "(a) (i ) Show that (x − 1) divides $( x ^ { n } - 1 )$ for all positive integers x and n. (ii ) A positive integer n...",
+            "rank": 4,
+            "score": -3.712190628051758,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q8-b",
+            "preview": "Prove that the sum of the cubes of any three consecutive natural numbers is divisible by 9.",
+            "rank": 5,
+            "score": -7.271538257598877,
+            "topic": "Discrete Mathematics"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2025-p1-q1"
+          ],
+          "any_topics": [
+            "Foundations of Computer Science",
+            "Object-Oriented Programming"
+          ],
+          "top_k": 5
+        },
+        "filters": [],
+        "id": "technique-recursion-pattern-matching",
+        "matched_rank": 3,
+        "notes": "Grounded in OCaml recursive functions, algebraic data types, and pattern-matching-style code.\n",
+        "passed": true,
+        "query": "recursive functions and pattern matching",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q7-c",
+            "preview": "Give a correct recursive description and formula for the optimal solution in terms of optimal solutions to subproblem...",
+            "rank": 1,
+            "score": -4.1838603019714355,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7",
+            "preview": "Given a sequence s of items from a domain U with a total order <, we derive a subsequence of s by dropping zero or mo...",
+            "rank": 2,
+            "score": -4.751339912414551,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q2-b",
+            "preview": "In functional programming, fold functions are higher order functions that process data structure elements in order an...",
+            "rank": 3,
+            "score": -5.362954616546631,
+            "topic": "Foundations of Computer Science"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-e",
+            "preview": "Give clear pseudocode to solve the problem using the approach in Part (d), using recursive memoized top-down dynamic...",
+            "rank": 4,
+            "score": -5.471524238586426,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q7-d",
+            "preview": "Clearly explain how to solve the problem through the alternative approach of reducing it to one of the well-known dyn...",
+            "rank": 5,
+            "score": -7.0518951416015625,
+            "topic": "Algorithms 1"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2024-p1-q7-e",
+            "cam-2024-p1-q10-b",
+            "cam-2024-p1-q9-a"
+          ],
+          "any_topics": [
+            "Algorithms 1",
+            "Algorithms 2"
+          ],
+          "top_k": 5
+        },
+        "filters": [
+          {
+            "field": "year",
+            "op": "eq",
+            "value": 2024
+          }
+        ],
+        "id": "scoped-algorithms-2024",
+        "matched_rank": 1,
+        "notes": "Tests year filter wiring against the four 2024 Algorithms question slots.\n",
+        "passed": true,
+        "query": "algorithms revision questions",
+        "returned": [
+          {
+            "chunk_id": "cam-2024-p1-q7",
+            "preview": "Given a sequence s of items from a domain U with a total order <, we derive a subsequence of s by dropping zero or mo...",
+            "rank": 1,
+            "score": -4.995433807373047,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q8",
+            "preview": "(a) An object has a method gulp(x), which accepts a 64-bit floating point number. On its n-th invocation since the cr...",
+            "rank": 2,
+            "score": -7.352468013763428,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q10",
+            "preview": "Consider a hash table implemented with open addressing. This question is concerned with how its underlying storage ar...",
+            "rank": 3,
+            "score": -7.897303581237793,
+            "topic": "Algorithms 2"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q8-b",
+            "preview": "Given an unsorted singly-linked list of n integers, each of which painted in one of the seven colours of the rainbow,...",
+            "rank": 4,
+            "score": -8.064496040344238,
+            "topic": "Algorithms 1"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q1",
+            "preview": "The chief examiner of a Tripos course would like to do some statistical analysis of the results of an exam. There are...",
+            "rank": 5,
+            "score": -8.146146774291992,
+            "topic": "Foundations of Computer Science"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2023-p2-q10-f",
+            "cam-2024-p2-q8-b",
+            "cam-2025-p2-q10-b"
+          ],
+          "any_topics": [
+            "Discrete Mathematics"
+          ],
+          "top_k": 5
+        },
+        "filters": [
+          {
+            "field": "paper",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "id": "scoped-paper2-discrete-math",
+        "matched_rank": 1,
+        "notes": "Tests paper filter wiring against Paper 2 Discrete Mathematics chunks.\n",
+        "passed": true,
+        "query": "counting and combinatorics",
+        "returned": [
+          {
+            "chunk_id": "cam-2025-p2-q9-b",
+            "preview": "Prove that any subset of a countable set is countable.",
+            "rank": 1,
+            "score": -8.110925674438477,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q9",
+            "preview": "(a) Say whether the each of the following statements is true or false, and respectively provide a proof or a countere...",
+            "rank": 2,
+            "score": -9.407586097717285,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2024-p2-q2",
+            "preview": "(a) A synchronous 3-bit binary counter has a mode selection input X. If X = 1, the counter output sequence is 0, 1, 2...",
+            "rank": 3,
+            "score": -9.7837495803833,
+            "topic": "Digital Electronics"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q10",
+            "preview": "(a) Let A be a set and let $R \\subseteq A \\times A$ be a binary relation on A. We define the equivalence closure of R...",
+            "rank": 4,
+            "score": -10.986743927001953,
+            "topic": "Discrete Mathematics"
+          },
+          {
+            "chunk_id": "cam-2025-p2-q8-b",
+            "preview": "Prove that the sum of the cubes of any three consecutive natural numbers is divisible by 9.",
+            "rank": 5,
+            "score": -11.042276382446289,
+            "topic": "Discrete Mathematics"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2025-p3-q1-c",
+            "cam-2025-p3-q1"
+          ],
+          "any_topics": [],
+          "top_k": 3
+        },
+        "filters": [
+          {
+            "field": "year",
+            "op": "eq",
+            "value": 2025
+          },
+          {
+            "field": "paper",
+            "op": "eq",
+            "value": 3
+          }
+        ],
+        "id": "pinpoint-databases-2025-p3",
+        "matched_rank": 1,
+        "notes": "Pinpoints the 2025 Paper 3 Databases question on SQL, sets/lists as relations, and outer join definitions.\n",
+        "passed": true,
+        "query": "2025 paper 3 database outer join and relational algebra",
+        "returned": [
+          {
+            "chunk_id": "cam-2025-p3-q1-c",
+            "preview": "(i) For three-valued logic, give a real-world example where a non-commutative outer join (ie. left or right-outer joi...",
+            "rank": 1,
+            "score": -0.6643046140670776,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q1",
+            "preview": "(a) X, Y and Z are sets stored as relations. A user wishes to compute X ∩ (Y ∪ Z) and writes the following query: sel...",
+            "rank": 2,
+            "score": -3.3169937133789062,
+            "topic": "Databases"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q1-a",
+            "preview": "X, Y and Z are sets stored as relations. A user wishes to compute X ∩ (Y ∪ Z) and writes the following query: select...",
+            "rank": 3,
+            "score": -11.081661224365234,
+            "topic": "Databases"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2025-p3-q4-b",
+            "cam-2025-p3-q4"
+          ],
+          "any_topics": [],
+          "top_k": 3
+        },
+        "filters": [
+          {
+            "field": "year",
+            "op": "eq",
+            "value": 2025
+          },
+          {
+            "field": "paper",
+            "op": "eq",
+            "value": 3
+          },
+          {
+            "field": "question_number",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "id": "pinpoint-graphics",
+        "matched_rank": 1,
+        "notes": "Pinpoints the 2025 Paper 3 Graphics question on transformations, Z-buffering, vertex attributes, uniforms, and barycentric coordinates.\n",
+        "passed": true,
+        "query": "2025 paper 3 graphics z-buffer barycentric coordinates",
+        "returned": [
+          {
+            "chunk_id": "cam-2025-p3-q4-b",
+            "preview": "Answer the following questions about the graphics pipeline. (i ) In rasterization, what information does the Z-buffer...",
+            "rank": 1,
+            "score": -1.5705831050872803,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q4",
+            "preview": "(a) Answer the following questions about geometric transformations. (i ) Given a cylinder defined at the origin with...",
+            "rank": 2,
+            "score": -7.565230369567871,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2025-p3-q4-a",
+            "preview": "Answer the following questions about geometric transformations. (i ) Given a cylinder defined at the origin with radi...",
+            "rank": 3,
+            "score": -11.47160530090332,
+            "topic": "Introduction to Graphics"
+          }
+        ]
+      },
+      {
+        "expected": {
+          "any_chunk_ids": [
+            "cam-2024-p1-q4",
+            "cam-2024-p1-q4-b",
+            "cam-2025-p1-q4"
+          ],
+          "any_topics": [
+            "Object-Oriented Programming"
+          ],
+          "top_k": 5
+        },
+        "filters": [
+          {
+            "field": "has_code",
+            "op": "eq",
+            "value": true
+          }
+        ],
+        "id": "surface-code-oop",
+        "matched_rank": 3,
+        "notes": "Included because inspected OOP question-level chunks have has_code=true and visible Java code-like text.\n",
+        "passed": true,
+        "query": "class hierarchy code example",
+        "returned": [
+          {
+            "chunk_id": "cam-2023-p3-q4",
+            "preview": "You are asked to implement a Java class for storing images with arbitrary pixel order and an arbitrary number of colo...",
+            "rank": 1,
+            "score": -3.3055853843688965,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2023-p3-q4-c",
+            "preview": "You want to add a region-of-interest functionality to the class. Write the code for a constructor with the signature...",
+            "rank": 2,
+            "score": -3.84668231010437,
+            "topic": "Introduction to Graphics"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q4",
+            "preview": "A university manages its students using a program that has a class Student with subclasses FirstYear, SecondYear, and...",
+            "rank": 3,
+            "score": -5.377989768981934,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2025-p1-q3",
+            "preview": "The Java Collections framework contains PriorityQueue<E>, which represents a priority queue based on a priority heap...",
+            "rank": 4,
+            "score": -6.016259670257568,
+            "topic": "Object-Oriented Programming"
+          },
+          {
+            "chunk_id": "cam-2024-p1-q4-c",
+            "preview": "At the end of each year, the third year students graduate and must be removed. This is done by passing the list to th...",
+            "rank": 5,
+            "score": -8.474676132202148,
+            "topic": "Object-Oriented Programming"
+          }
+        ]
+      }
+    ],
+    "collection": "cam-cs-tripos-fixture",
+    "effective_limit": 10,
+    "failed_count": 0,
+    "limit": 5,
+    "metrics": {
+      "hit_at_1": 9,
+      "hit_at_10": 12,
+      "hit_at_3": 12,
+      "hit_at_5": 12
+    },
+    "name": "cambridge_fixture_v1",
+    "passed_count": 12,
+    "providers": {
+      "embedding_model_id": "voyage-4-lite",
+      "rerank_model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    },
+    "rerank": true
+  },
+  "providers": {
+    "embedding_model_id": "voyage-4-lite",
+    "rerank_model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  },
+  "rerank": true
+}

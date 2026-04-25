@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 from scripts.inspect_search import (
     build_search_payload,
+    create_real_search_service,
     main,
     parse_args,
     render_json,
@@ -16,6 +18,11 @@ from scripts.inspect_search import (
 from src.metadata_schema.models import FilterCondition
 from src.search.errors import CollectionNotFoundError
 from src.search.models import SearchResponse, SearchResult
+from src.search.providers.config import (
+    EmbeddingProviderSettings,
+    RerankProviderSettings,
+    RetrievalProviderSettings,
+)
 
 MEDIA_OBJECT_KEY = "artifacts/mineru/run-y2025p1q1/images/fig-1.png"
 
@@ -253,6 +260,59 @@ def test_parse_args_rejects_legacy_fixed_filter_flags(
 
     with pytest.raises(SystemExit):
         parse_args()
+
+
+def test_create_real_search_service_passes_runtime_thresholds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    provider_settings = RetrievalProviderSettings(
+        embedding=EmbeddingProviderSettings(provider="local", model="embed"),
+        rerank=RerankProviderSettings(provider="local", model="rerank"),
+        rerank_enabled=False,
+        voyage_api_key=None,
+    )
+    runtime_settings = SimpleNamespace(
+        retrieval_vector_min_score=0.71,
+        retrieval_rerank_min_score=0.22,
+    )
+
+    monkeypatch.setattr(
+        "scripts.inspect_search.load_retrieval_provider_settings",
+        lambda: provider_settings,
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_search.load_app_runtime_settings",
+        lambda: runtime_settings,
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_search.build_embedding_provider",
+        lambda settings: "embedder",
+    )
+    monkeypatch.setattr(
+        "scripts.inspect_search.build_rerank_provider",
+        lambda settings, device=None: "reranker",
+    )
+    monkeypatch.setattr("scripts.inspect_search.load_database_settings", lambda: "db")
+
+    def fake_create_search_service(**kwargs):
+        captured.update(kwargs)
+        return "service"
+
+    monkeypatch.setattr(
+        "scripts.inspect_search.create_search_service",
+        fake_create_search_service,
+    )
+
+    service = create_real_search_service("media", rerank=True)
+
+    assert service == "service"
+    assert captured["database_settings"] == "db"
+    assert captured["embedding_model"] == "embedder"
+    assert captured["reranker"] == "reranker"
+    assert captured["media_dir"] == "media"
+    assert captured["retrieval_vector_min_score"] == 0.71
+    assert captured["retrieval_rerank_min_score"] == 0.22
 
 
 def test_main_forwards_repeatable_filter_conditions(
