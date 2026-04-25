@@ -117,6 +117,8 @@ def test_create_real_search_service_disables_collection_thresholds(
     assert captured["reranker"] == "reranker"
     assert captured["media_dir"] == "media"
     assert captured["apply_collection_thresholds"] is False
+    assert "retrieval_vector_min_score" not in captured
+    assert "retrieval_rerank_min_score" not in captured
 
 
 def test_run_calibration_summarizes_positive_and_negative_score_gap() -> None:
