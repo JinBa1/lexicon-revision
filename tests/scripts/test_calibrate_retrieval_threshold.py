@@ -5,12 +5,18 @@ from pathlib import Path
 
 from scripts.calibrate_retrieval_threshold import (
     assert_expected_models,
+    create_real_search_service,
     render_markdown,
     run_calibration,
     write_outputs,
 )
 from scripts.search_tooling import EvalCase
 from src.search.models import SearchResponse, SearchResult
+from src.search.providers.config import (
+    EmbeddingProviderSettings,
+    RerankProviderSettings,
+    RetrievalProviderSettings,
+)
 
 
 class FakeCalibrationSearchService:
@@ -61,6 +67,56 @@ def _response(query: str, results: list[SearchResult]) -> SearchResponse:
         results=results,
         total=len(results),
     )
+
+
+def test_create_real_search_service_disables_collection_thresholds(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+    provider_settings = RetrievalProviderSettings(
+        embedding=EmbeddingProviderSettings(provider="local", model="embed"),
+        rerank=RerankProviderSettings(provider="local", model="rerank"),
+        rerank_enabled=False,
+        voyage_api_key=None,
+    )
+
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.load_retrieval_provider_settings",
+        lambda: provider_settings,
+    )
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.build_embedding_provider",
+        lambda settings: "embedder",
+    )
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.build_rerank_provider",
+        lambda settings: "reranker",
+    )
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.load_database_settings",
+        lambda: "db",
+    )
+
+    def fake_create_search_service(**kwargs):
+        captured.update(kwargs)
+        return "service"
+
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.create_search_service",
+        fake_create_search_service,
+    )
+
+    service = create_real_search_service(
+        media_dir="media",
+        rerank=True,
+    )
+
+    assert service == "service"
+    assert captured["database_settings"] == "db"
+    assert captured["embedding_model"] == "embedder"
+    assert captured["reranker"] == "reranker"
+    assert captured["media_dir"] == "media"
+    assert captured["apply_collection_thresholds"] is False
 
 
 def test_run_calibration_summarizes_positive_and_negative_score_gap() -> None:
