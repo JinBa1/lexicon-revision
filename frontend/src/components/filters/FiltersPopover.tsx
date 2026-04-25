@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 import { Button } from "@/components/shared/Button";
 import type { CollectionMetadataSchema, FilterCondition } from "@/lib/api/types";
@@ -12,25 +12,32 @@ export function FiltersPopover({
   value,
   onChange,
   onClose,
+  closeBoundaryRef,
 }: {
   schema: CollectionMetadataSchema | null;
   value: FilterCondition[];
   onChange: (next: FilterCondition[]) => void;
   onClose: () => void;
+  closeBoundaryRef?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const exposedFields = schema?.fields.filter((field) => field.exposed) ?? [];
 
   useEffect(() => {
     function onDoc(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (closeBoundaryRef?.current?.contains(target)) {
+        return;
+      }
+
+      if (ref.current && !ref.current.contains(target)) {
         onClose();
       }
     }
 
     document.addEventListener("click", onDoc);
     return () => document.removeEventListener("click", onDoc);
-  }, [onClose]);
+  }, [closeBoundaryRef, onClose]);
 
   if (exposedFields.length === 0) {
     return (

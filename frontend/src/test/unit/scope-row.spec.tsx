@@ -31,6 +31,21 @@ const collection = {
 const filters = [{ field: "year", op: "gte", value: 2020 }] satisfies FilterCondition[];
 
 describe("ScopeRow", () => {
+  test("hides filter controls until a collection is selected", () => {
+    render(
+      <ScopeRow
+        activeCollection={null}
+        filters={[]}
+        onFiltersChange={() => {}}
+        onOpenScope={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Pick a collection ▾" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\+ Filters/ })).not.toBeInTheDocument();
+  });
+
   test("renders the scope label, active collection, filters, and actions", () => {
     render(
       <ScopeRow

@@ -115,6 +115,40 @@ describe("QuestionsRoute", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("paper");
   });
 
+  test("keeps header filter edits draft-only until Find questions is submitted", async () => {
+    renderQuestions("/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3");
+    const initialSearchCalls = mockUseSearch.mock.calls.length;
+
+    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.type(screen.getByLabelText("Year from"), "2021");
+
+    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3",
+    );
+    expect(mockUseSearch).toHaveBeenCalledTimes(initialSearchCalls);
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByRole("button", { name: "+ Filters" })).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3",
+    );
+    expect(mockUseSearch).toHaveBeenCalledTimes(initialSearchCalls);
+
+    await userEvent.type(screen.getByLabelText("Year from"), "2021");
+    await userEvent.click(screen.getByRole("button", { name: "Find questions" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2021",
+    );
+    expect(screen.getByTestId("location")).not.toHaveTextContent("focus=");
+    expect(mockUseSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filters: [{ field: "year", op: "gte", value: 2021 }],
+      }),
+    );
+  });
+
   test("loading results shows row skeletons", () => {
     setSearchState({ data: undefined, isLoading: true });
 

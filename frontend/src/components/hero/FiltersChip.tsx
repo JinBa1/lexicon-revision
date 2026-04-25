@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { FiltersPopover } from "@/components/filters/FiltersPopover";
 import { Chip } from "@/components/shared/Chip";
@@ -14,10 +14,11 @@ export function FiltersChip({
   onChange: (next: FilterCondition[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const count = value.length;
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <Chip
         variant="ghost"
         onClick={() => setOpen((prev) => !prev)}
@@ -32,6 +33,7 @@ export function FiltersChip({
           value={value}
           onChange={onChange}
           onClose={() => setOpen(false)}
+          closeBoundaryRef={rootRef}
         />
       ) : null}
     </div>
