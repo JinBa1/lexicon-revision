@@ -358,8 +358,12 @@ def render_markdown(report: dict[str, Any]) -> str:
     ]
     if analysis["has_clean_gap"]:
         lines.append(
-            "- Suggested `RETRIEVAL_RERANK_MIN_SCORE`: "
+            "- Suggested collection `retrieval_rerank_min_score`: "
             f"`{analysis['suggested_rerank_min_score']}`"
+        )
+        lines.append(
+            "- Apply it to the calibrated collection row before relying on "
+            "abstention behavior."
         )
     else:
         lines.append("- No clean positive/negative score gap was found.")

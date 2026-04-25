@@ -205,9 +205,13 @@ def test_write_outputs_logs_raw_json_and_markdown(tmp_path: Path) -> None:
 
     raw_payload = json.loads(paths["raw_json"].read_text(encoding="utf-8"))
     assert raw_payload["analysis"]["suggested_rerank_min_score"] == 0.53
-    assert "Suggested `RETRIEVAL_RERANK_MIN_SCORE`: `0.53`" in paths[
-        "summary"
-    ].read_text(encoding="utf-8")
+    summary = paths["summary"].read_text(encoding="utf-8")
+    assert "Suggested collection `retrieval_rerank_min_score`: `0.53`" in summary
+    assert (
+        "Apply it to the calibrated collection row before relying on abstention "
+        "behavior."
+    ) in summary
+    assert "RETRIEVAL_RERANK_MIN_SCORE" not in summary
 
 
 def test_render_markdown_reports_no_clean_gap() -> None:
