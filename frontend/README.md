@@ -48,6 +48,9 @@ corepack pnpm test:e2e
 
 The frontend is intended for Cloudflare Pages as a static SPA with no Pages
 Functions or SSR. Do not hardcode the eventual production frontend origin yet.
+Cloudflare Pages provides SPA fallback when there is no top-level `404.html`;
+do not add a catch-all `_redirects` rule, because Pages redirect rules also
+match existing assets.
 
 Configure the frontend build with the chosen backend origin and Clerk mode:
 
