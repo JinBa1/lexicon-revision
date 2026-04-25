@@ -27,6 +27,8 @@ export function serializeFiltersToSearchParams(
   const searchParams = new URLSearchParams();
 
   for (const condition of conditions) {
+    // URLSearchParams decodes one layer when parsing the page URL; keep the
+    // condition value encoded so delimiters and literal percent signs survive.
     const encodedValue = encodeURIComponent(stringifyValue(condition.value));
     searchParams.append("filter", `${condition.field}:${condition.op}:${encodedValue}`);
   }

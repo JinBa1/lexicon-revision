@@ -78,6 +78,25 @@ describe("filter URL serialization", () => {
     expect(parsed.ok && parsed.conditions[0]?.value).toBe("a:b;c,d&e=f");
   });
 
+  test("round-trips after page-level URLSearchParams encoding", () => {
+    const conditions: FilterCondition[] = [
+      { field: "section", op: "eq", value: "a:b;c,d&e=f?x#y%z" },
+    ];
+    const filterParams = serializeFiltersToSearchParams(conditions);
+    const pageParams = new URLSearchParams();
+
+    for (const filter of filterParams.getAll("filter")) {
+      pageParams.append("filter", filter);
+    }
+
+    expect(pageParams.toString()).toContain("a%253Ab");
+    expect(pageParams.toString()).toContain("%2525z");
+
+    const parsed = parseFiltersFromSearchParams(new URLSearchParams(pageParams.toString()), schema);
+
+    expect(parsed.ok && parsed.conditions).toEqual(conditions);
+  });
+
   test("encodes unicode values", () => {
     const conditions: FilterCondition[] = [{ field: "section", op: "eq", value: "概率论" }];
 
