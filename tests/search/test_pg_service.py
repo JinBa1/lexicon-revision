@@ -432,6 +432,35 @@ def test_pg_search_service_thresholds_are_collection_scoped() -> None:
     ]
 
 
+class _ThresholdFailingTwoRowRepo(_TwoRowRepo):
+    def get_collection_retrieval_thresholds(
+        self,
+        collection_name: str,
+    ) -> CollectionRetrievalThresholds:
+        raise AssertionError("threshold lookup should be disabled")
+
+
+def test_pg_search_service_can_disable_collection_thresholds() -> None:
+    service = PgSearchService(
+        repository=_ThresholdFailingTwoRowRepo(),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+        apply_collection_thresholds=False,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=2,
+        rerank=False,
+    )
+
+    assert [result.chunk_id for result in response.results] == ["cam-1", "cam-2"]
+    assert response.total == 2
+
+
 class _MissingCollectionRepo:
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         raise CollectionNotFoundError(collection_name)

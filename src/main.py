@@ -144,8 +144,6 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
             reranker=reranker,
             engine=engine,
             object_storage=object_storage,
-            retrieval_vector_min_score=runtime_settings.retrieval_vector_min_score,
-            retrieval_rerank_min_score=runtime_settings.retrieval_rerank_min_score,
         )
         repository = PgCollectionAccessRepository(engine=engine)
         app.state.access_service = CollectionAccessService(

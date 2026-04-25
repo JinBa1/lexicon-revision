@@ -19,8 +19,7 @@ def create_search_service(
     media_dir: str = DEFAULT_MEDIA_DIR,
     engine: Engine | None = None,
     object_storage: ObjectStorage | None = None,
-    retrieval_vector_min_score: float | None = None,
-    retrieval_rerank_min_score: float | None = None,
+    apply_collection_thresholds: bool = True,
 ) -> SearchBackend:
     storage = (
         object_storage
@@ -36,6 +35,5 @@ def create_search_service(
         reranker=reranker,
         media_dir=media_dir,
         object_storage=storage,
-        retrieval_vector_min_score=retrieval_vector_min_score,
-        retrieval_rerank_min_score=retrieval_rerank_min_score,
+        apply_collection_thresholds=apply_collection_thresholds,
     )

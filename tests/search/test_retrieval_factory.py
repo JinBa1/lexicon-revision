@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from unittest.mock import Mock
 
 import pytest
@@ -77,7 +78,17 @@ def test_factory_preserves_falsey_injected_storage_for_postgres(
     assert service._object_storage is storage  # type: ignore[attr-defined]
 
 
-def test_factory_passes_retrieval_thresholds_to_postgres_service(tmp_path) -> None:
+def test_factory_exposes_collection_threshold_toggle() -> None:
+    signature = inspect.signature(create_search_service)
+
+    assert "retrieval_vector_min_score" not in signature.parameters
+    assert "retrieval_rerank_min_score" not in signature.parameters
+    assert signature.parameters["apply_collection_thresholds"].default is True
+
+
+def test_factory_passes_collection_threshold_toggle_to_postgres_service(
+    tmp_path,
+) -> None:
     service = create_search_service(
         database_settings=_settings(),
         media_dir=str(tmp_path),
@@ -85,10 +96,8 @@ def test_factory_passes_retrieval_thresholds_to_postgres_service(tmp_path) -> No
         reranker=None,
         engine=Mock(),
         object_storage=Mock(),
-        retrieval_vector_min_score=0.7,
-        retrieval_rerank_min_score=0.2,
+        apply_collection_thresholds=False,
     )
 
     assert isinstance(service, PgSearchService)
-    assert service._retrieval_vector_min_score == 0.7  # type: ignore[attr-defined]
-    assert service._retrieval_rerank_min_score == 0.2  # type: ignore[attr-defined]
+    assert service._apply_collection_thresholds is False  # type: ignore[attr-defined]

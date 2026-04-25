@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from types import SimpleNamespace
 
 import pytest
 from scripts.inspect_search import (
@@ -262,7 +261,7 @@ def test_parse_args_rejects_legacy_fixed_filter_flags(
         parse_args()
 
 
-def test_create_real_search_service_passes_runtime_thresholds(
+def test_create_real_search_service_enables_collection_thresholds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -272,18 +271,10 @@ def test_create_real_search_service_passes_runtime_thresholds(
         rerank_enabled=False,
         voyage_api_key=None,
     )
-    runtime_settings = SimpleNamespace(
-        retrieval_vector_min_score=0.71,
-        retrieval_rerank_min_score=0.22,
-    )
 
     monkeypatch.setattr(
         "scripts.inspect_search.load_retrieval_provider_settings",
         lambda: provider_settings,
-    )
-    monkeypatch.setattr(
-        "scripts.inspect_search.load_app_runtime_settings",
-        lambda: runtime_settings,
     )
     monkeypatch.setattr(
         "scripts.inspect_search.build_embedding_provider",
@@ -311,8 +302,9 @@ def test_create_real_search_service_passes_runtime_thresholds(
     assert captured["embedding_model"] == "embedder"
     assert captured["reranker"] == "reranker"
     assert captured["media_dir"] == "media"
-    assert captured["retrieval_vector_min_score"] == 0.71
-    assert captured["retrieval_rerank_min_score"] == 0.22
+    assert captured["apply_collection_thresholds"] is True
+    assert "retrieval_vector_min_score" not in captured
+    assert "retrieval_rerank_min_score" not in captured
 
 
 def test_main_forwards_repeatable_filter_conditions(
