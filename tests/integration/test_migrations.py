@@ -675,3 +675,42 @@ def test_alembic_upgrade_from_0006_adds_auth_domain_gating_tables() -> None:
     finally:
         command.upgrade(config, "head")
         engine.dispose()
+
+
+def test_alembic_0008_adds_collection_retrieval_thresholds() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260422_0007")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            columns_before = {
+                column["name"] for column in inspector.get_columns("collections")
+            }
+
+        assert "retrieval_vector_min_score" not in columns_before
+        assert "retrieval_rerank_min_score" not in columns_before
+
+        command.upgrade(config, "head")
+
+        with engine.connect() as conn:
+            inspector = inspect(conn)
+            columns = {
+                column["name"]: column
+                for column in inspector.get_columns("collections")
+            }
+
+        assert columns["retrieval_vector_min_score"]["nullable"] is True
+        assert columns["retrieval_rerank_min_score"]["nullable"] is True
+    finally:
+        engine.dispose()

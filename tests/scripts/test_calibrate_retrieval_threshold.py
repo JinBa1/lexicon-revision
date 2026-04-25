@@ -5,12 +5,18 @@ from pathlib import Path
 
 from scripts.calibrate_retrieval_threshold import (
     assert_expected_models,
+    create_real_search_service,
     render_markdown,
     run_calibration,
     write_outputs,
 )
 from scripts.search_tooling import EvalCase
 from src.search.models import SearchResponse, SearchResult
+from src.search.providers.config import (
+    EmbeddingProviderSettings,
+    RerankProviderSettings,
+    RetrievalProviderSettings,
+)
 
 
 class FakeCalibrationSearchService:
@@ -61,6 +67,58 @@ def _response(query: str, results: list[SearchResult]) -> SearchResponse:
         results=results,
         total=len(results),
     )
+
+
+def test_create_real_search_service_disables_collection_thresholds(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+    provider_settings = RetrievalProviderSettings(
+        embedding=EmbeddingProviderSettings(provider="local", model="embed"),
+        rerank=RerankProviderSettings(provider="local", model="rerank"),
+        rerank_enabled=False,
+        voyage_api_key=None,
+    )
+
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.load_retrieval_provider_settings",
+        lambda: provider_settings,
+    )
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.build_embedding_provider",
+        lambda settings: "embedder",
+    )
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.build_rerank_provider",
+        lambda settings: "reranker",
+    )
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.load_database_settings",
+        lambda: "db",
+    )
+
+    def fake_create_search_service(**kwargs):
+        captured.update(kwargs)
+        return "service"
+
+    monkeypatch.setattr(
+        "scripts.calibrate_retrieval_threshold.create_search_service",
+        fake_create_search_service,
+    )
+
+    service = create_real_search_service(
+        media_dir="media",
+        rerank=True,
+    )
+
+    assert service == "service"
+    assert captured["database_settings"] == "db"
+    assert captured["embedding_model"] == "embedder"
+    assert captured["reranker"] == "reranker"
+    assert captured["media_dir"] == "media"
+    assert captured["apply_collection_thresholds"] is False
+    assert "retrieval_vector_min_score" not in captured
+    assert "retrieval_rerank_min_score" not in captured
 
 
 def test_run_calibration_summarizes_positive_and_negative_score_gap() -> None:
@@ -147,9 +205,13 @@ def test_write_outputs_logs_raw_json_and_markdown(tmp_path: Path) -> None:
 
     raw_payload = json.loads(paths["raw_json"].read_text(encoding="utf-8"))
     assert raw_payload["analysis"]["suggested_rerank_min_score"] == 0.53
-    assert "Suggested `RETRIEVAL_RERANK_MIN_SCORE`: `0.53`" in paths[
-        "summary"
-    ].read_text(encoding="utf-8")
+    summary = paths["summary"].read_text(encoding="utf-8")
+    assert "Suggested collection `retrieval_rerank_min_score`: `0.53`" in summary
+    assert (
+        "Apply it to the calibrated collection row before relying on abstention "
+        "behavior."
+    ) in summary
+    assert "RETRIEVAL_RERANK_MIN_SCORE" not in summary
 
 
 def test_render_markdown_reports_no_clean_gap() -> None:

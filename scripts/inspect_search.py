@@ -20,7 +20,6 @@ from scripts.search_tooling import (  # noqa: E402
 )
 from src.db.config import load_database_settings  # noqa: E402
 from src.metadata_schema.models import FilterCondition  # noqa: E402
-from src.runtime.config import load_app_runtime_settings  # noqa: E402
 from src.search.base import SearchBackend  # noqa: E402
 from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
@@ -132,14 +131,12 @@ def create_real_search_service(
     device = None if reranker_device in (None, "auto") else reranker_device
     reranker = build_rerank_provider(provider_settings, device=device)
     db_settings = load_database_settings()
-    runtime_settings = load_app_runtime_settings()
     return create_search_service(
         database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
         media_dir=media_dir,
-        retrieval_vector_min_score=runtime_settings.retrieval_vector_min_score,
-        retrieval_rerank_min_score=runtime_settings.retrieval_rerank_min_score,
+        apply_collection_thresholds=True,
     )
 
 

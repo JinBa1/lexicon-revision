@@ -19,7 +19,7 @@ def test_fly_toml_uses_prod_build_target_key() -> None:
     assert "target" not in build
 
 
-def test_fly_toml_uses_calibrated_voyage_rerank_threshold() -> None:
+def test_fly_toml_uses_voyage_rerank_without_global_thresholds() -> None:
     config = _load_fly_toml()
     env = config.get("env")
 
@@ -27,4 +27,5 @@ def test_fly_toml_uses_calibrated_voyage_rerank_threshold() -> None:
     assert env.get("RERANK_ENABLED") == "true"
     assert env.get("RERANK_PROVIDER") == "voyage"
     assert env.get("RERANK_MODEL") == "rerank-2.5-lite"
-    assert env.get("RETRIEVAL_RERANK_MIN_SCORE") == "0.498"
+    assert "RETRIEVAL_RERANK_MIN_SCORE" not in env
+    assert "RETRIEVAL_VECTOR_MIN_SCORE" not in env

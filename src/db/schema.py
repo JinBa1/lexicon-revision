@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -214,6 +215,8 @@ collections = Table(
         JSONB,
         nullable=False,
     ),
+    Column("retrieval_vector_min_score", Float, nullable=True),
+    Column("retrieval_rerank_min_score", Float, nullable=True),
     Column(
         "created_at",
         DateTime(timezone=True),

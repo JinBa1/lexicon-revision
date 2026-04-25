@@ -45,6 +45,12 @@ class PgChunkRow:
 
 
 @dataclass(frozen=True)
+class CollectionRetrievalThresholds:
+    vector_min_score: float | None
+    rerank_min_score: float | None
+
+
+@dataclass(frozen=True)
 class ChunkParentRow:
     text: str
     metadata: dict[str, Any]
@@ -311,6 +317,32 @@ class PgSearchRepository:
                 text=str(row.text),
                 metadata=_result_metadata_from_row(row, schema),
                 parent=parent,
+            )
+
+    def get_collection_retrieval_thresholds(
+        self,
+        collection_name: str,
+    ) -> CollectionRetrievalThresholds:
+        with Session(self.engine) as session:
+            row = session.execute(
+                select(
+                    collections.c.retrieval_vector_min_score,
+                    collections.c.retrieval_rerank_min_score,
+                ).where(collections.c.name == collection_name)
+            ).first()
+            if row is None:
+                raise CollectionNotFoundError(collection_name)
+            return CollectionRetrievalThresholds(
+                vector_min_score=(
+                    None
+                    if row.retrieval_vector_min_score is None
+                    else float(row.retrieval_vector_min_score)
+                ),
+                rerank_min_score=(
+                    None
+                    if row.retrieval_rerank_min_score is None
+                    else float(row.retrieval_rerank_min_score)
+                ),
             )
 
     def search(

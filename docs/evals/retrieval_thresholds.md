@@ -2,16 +2,18 @@
 
 ## Current MVP Policy
 
-The MVP uses a simple final-score threshold to avoid returning the least-bad
-top-k result when a query is outside the collection.
+The MVP uses collection-scoped final-score thresholds to avoid returning the
+least-bad top-k result when a query is outside the collection.
 
-For the Fly deployment, the calibrated value is:
+For the Cambridge fixture, the calibrated value is collection DB state:
 
 ```text
+collection=cam-cs-tripos-fixture
 RERANK_ENABLED=true
 RERANK_PROVIDER=voyage
 RERANK_MODEL=rerank-2.5-lite
-RETRIEVAL_RERANK_MIN_SCORE=0.498
+collections.retrieval_rerank_min_score=0.498
+collections.retrieval_vector_min_score=NULL
 ```
 
 This value was calibrated against
@@ -28,10 +30,12 @@ This value was calibrated against
 requested and a reranker is configured, it reranks those candidates and treats
 the reranker score as the final score.
 
-The service then applies one threshold:
+The service then applies the collection threshold for the score source that was
+actually used:
 
-- `RETRIEVAL_RERANK_MIN_SCORE` when rerank actually ran
-- `RETRIEVAL_VECTOR_MIN_SCORE` when rerank did not run
+- `collections.retrieval_rerank_min_score` when rerank actually ran
+- `collections.retrieval_vector_min_score` when rerank did not run
+- no threshold when the relevant collection column is `NULL`
 
 Results are kept only when:
 
@@ -39,9 +43,10 @@ Results are kept only when:
 score >= configured_min_score
 ```
 
-If all results are removed, `/search` returns an empty result list. `/study`
-uses the same search service, so thresholded empty retrieval follows the
-existing `insufficient_evidence` path.
+When the relevant collection column is `NULL`, all retrieved results are kept.
+If a configured threshold removes all results, `/search` returns an empty
+result list. `/study` uses the same search service, so thresholded empty
+retrieval follows the existing `insufficient_evidence` path.
 
 ## Limitations
 
@@ -66,12 +71,13 @@ thresholding cannot recover it.
 ## New Collections
 
 Do not require full calibration before every new collection. The operational
-default is:
+default for a new collection is no abstention threshold: leave both
+`collections.retrieval_vector_min_score` and
+`collections.retrieval_rerank_min_score` as `NULL` until that collection has
+been calibrated. After calibration, update only that collection row.
 
-1. Use the global Voyage rerank threshold `0.498`.
-2. Do a quick smoke check for important curated collections.
-3. Recalibrate only if the default clearly suppresses useful results or allows
-   obviously unrelated results through.
+Do a quick smoke check for important curated collections before enabling a
+threshold.
 
 A quick smoke check should include:
 
@@ -109,9 +115,13 @@ python scripts/calibrate_retrieval_threshold.py \
 
 The runner writes:
 
-- `calibration_raw.json` for full score data
+- `calibration_raw.json` for full score data; this file is ignored and not
+  tracked
 - `summary.md` for the positive/negative score gap and suggested threshold
 - `run.log` when invoked with `tee` as shown above
+
+After choosing a threshold, apply it to the calibrated collection row. Do not
+move it into global runtime environment.
 
 ## Post-MVP Direction
 

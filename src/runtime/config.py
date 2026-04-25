@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import os
 from dataclasses import dataclass
 from typing import Literal
@@ -33,8 +32,6 @@ class AppRuntimeSettings:
     study_wall_clock_timeout_seconds: float
     rate_limit_window_seconds: int
     rate_limit_max_requests: int
-    retrieval_vector_min_score: float | None = None
-    retrieval_rerank_min_score: float | None = None
 
 
 def load_app_runtime_settings() -> AppRuntimeSettings:
@@ -62,14 +59,6 @@ def load_app_runtime_settings() -> AppRuntimeSettings:
             os.environ.get("SEARCH_LIMIT_MAX"),
             default=50,
             env_var="SEARCH_LIMIT_MAX",
-        ),
-        retrieval_vector_min_score=_parse_optional_float(
-            os.environ.get("RETRIEVAL_VECTOR_MIN_SCORE"),
-            env_var="RETRIEVAL_VECTOR_MIN_SCORE",
-        ),
-        retrieval_rerank_min_score=_parse_optional_float(
-            os.environ.get("RETRIEVAL_RERANK_MIN_SCORE"),
-            env_var="RETRIEVAL_RERANK_MIN_SCORE",
         ),
         study_top_k_max=_parse_int(
             os.environ.get("STUDY_TOP_K_MAX"),
@@ -177,16 +166,4 @@ def _parse_float(value: str | None, *, default: float, env_var: str) -> float:
         raise ValueError(f"{env_var} must be a number") from exc
     if parsed <= 0:
         raise ValueError(f"{env_var} must be positive")
-    return parsed
-
-
-def _parse_optional_float(value: str | None, *, env_var: str) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        parsed = float(value)
-    except ValueError as exc:
-        raise ValueError(f"{env_var} must be a finite number") from exc
-    if not math.isfinite(parsed):
-        raise ValueError(f"{env_var} must be a finite number")
     return parsed

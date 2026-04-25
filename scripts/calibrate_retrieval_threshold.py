@@ -140,7 +140,7 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
-def create_calibration_search_service(
+def create_real_search_service(
     *,
     media_dir: str,
     rerank: bool,
@@ -160,9 +160,11 @@ def create_calibration_search_service(
         embedding_model=embedding_model,
         reranker=reranker,
         media_dir=media_dir,
-        retrieval_vector_min_score=None,
-        retrieval_rerank_min_score=None,
+        apply_collection_thresholds=False,
     )
+
+
+create_calibration_search_service = create_real_search_service
 
 
 def run_calibration(
@@ -356,8 +358,12 @@ def render_markdown(report: dict[str, Any]) -> str:
     ]
     if analysis["has_clean_gap"]:
         lines.append(
-            "- Suggested `RETRIEVAL_RERANK_MIN_SCORE`: "
+            "- Suggested collection `retrieval_rerank_min_score`: "
             f"`{analysis['suggested_rerank_min_score']}`"
+        )
+        lines.append(
+            "- Apply it to the calibrated collection row before relying on "
+            "abstention behavior."
         )
     else:
         lines.append("- No clean positive/negative score gap was found.")
@@ -416,7 +422,7 @@ def main() -> None:
     if collection is None:
         raise SystemExit("Eval file does not declare a collection; pass --collection")
     limit = args.limit or spec.default_top_k
-    service = create_calibration_search_service(
+    service = create_real_search_service(
         media_dir=args.media_dir,
         rerank=args.rerank,
     )
