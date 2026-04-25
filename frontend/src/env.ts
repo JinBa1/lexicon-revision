@@ -13,22 +13,38 @@ function required(name: string, value: string | undefined): string {
   return value;
 }
 
+function optional(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
+function parseAuthMode(value: string | undefined): Env["authMode"] {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
+    return "stub_header";
+  }
+
+  if (normalizedValue === "stub_header" || normalizedValue === "clerk") {
+    return normalizedValue;
+  }
+
+  throw new Error("VITE_AUTH_MODE must be one of: stub_header, clerk");
+}
+
+const authMode = parseAuthMode(import.meta.env.VITE_AUTH_MODE);
+const clerkPublishableKey = optional(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+
+if (authMode === "clerk" && clerkPublishableKey === "") {
+  throw new Error("VITE_CLERK_PUBLISHABLE_KEY is required when VITE_AUTH_MODE=clerk");
+}
+
 export const env: Env = {
   apiBaseUrl: required("VITE_API_BASE_URL", import.meta.env.VITE_API_BASE_URL),
-  authMode:
-    (import.meta.env.VITE_AUTH_MODE as "stub_header" | "clerk" | undefined) ?? "stub_header",
+  authMode,
   stubAuthEmail:
     typeof import.meta.env.VITE_STUB_AUTH_EMAIL === "string" &&
     import.meta.env.VITE_STUB_AUTH_EMAIL.trim() !== ""
       ? import.meta.env.VITE_STUB_AUTH_EMAIL.trim()
       : null,
-  clerkPublishableKey: required(
-    "VITE_CLERK_PUBLISHABLE_KEY",
-    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-  ),
+  clerkPublishableKey,
   buildSha: import.meta.env.VITE_BUILD_SHA ?? "dev",
 };
-
-if (env.authMode === "clerk" && env.clerkPublishableKey.trim() === "") {
-  throw new Error("VITE_CLERK_PUBLISHABLE_KEY is required when VITE_AUTH_MODE=clerk");
-}
