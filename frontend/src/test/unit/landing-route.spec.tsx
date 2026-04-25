@@ -108,18 +108,36 @@ describe("LandingRoute", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos");
   });
 
-  test("preserves requested answer route when scope picker selects an accessible collection", async () => {
+  test("preserves typed query when selecting an accessible collection", async () => {
+    setCollectionsState({ data: [cambridgeAccessible] });
+
+    renderLanding();
+    await userEvent.type(screen.getByLabelText("Query"), "graph traversal");
+    await userEvent.click(screen.getByRole("button", { name: /Cambridge CS Tripos/ }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos?q=graph+traversal");
+  });
+
+  test("omits q when selecting an accessible collection with whitespace query", async () => {
+    setCollectionsState({ data: [cambridgeAccessible] });
+
+    renderLanding();
+    await userEvent.type(screen.getByLabelText("Query"), "   ");
+    await userEvent.click(screen.getByRole("button", { name: /Cambridge CS Tripos/ }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos");
+  });
+
+  test("scope picker selects an accessible collection scope and preserves q", async () => {
     setCollectionsState({ data: [cambridgeAccessible] });
 
     renderLanding("/?scopePicker=1&page=answer&q=graph traversal");
     await userEvent.click(screen.getByRole("button", { name: /Cambridge CS Tripos/ }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/c/cam-cs-tripos/answer?q=graph+traversal",
-    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos?q=graph+traversal");
   });
 
-  test("uses edited query state when scope picker selects an accessible collection", async () => {
+  test("uses edited query state when scope picker selects an accessible collection scope", async () => {
     setCollectionsState({ data: [cambridgeAccessible] });
 
     renderLanding("/?scopePicker=1&page=answer&q=old query");
@@ -129,7 +147,7 @@ describe("LandingRoute", () => {
     await userEvent.click(screen.getByRole("button", { name: /Cambridge CS Tripos/ }));
 
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/c/cam-cs-tripos/answer?q=edited+answer+query",
+      "/c/cam-cs-tripos?q=edited+answer+query",
     );
   });
 
@@ -142,7 +160,7 @@ describe("LandingRoute", () => {
     const location = screen.getByTestId("location").textContent ?? "";
     expect(location).toContain("/unlock/cam-cs-tripos?");
     expect(new URLSearchParams(location.split("?")[1]).get("returnTo")).toBe(
-      "/c/cam-cs-tripos/questions?q=binary+search",
+      "/c/cam-cs-tripos?q=binary+search",
     );
   });
 
@@ -158,7 +176,7 @@ describe("LandingRoute", () => {
     const location = screen.getByTestId("location").textContent ?? "";
     expect(location).toContain("/unlock/cam-cs-tripos?");
     expect(new URLSearchParams(location.split("?")[1]).get("returnTo")).toBe(
-      "/c/cam-cs-tripos/questions?q=edited+locked+topic",
+      "/c/cam-cs-tripos?q=edited+locked+topic",
     );
   });
 

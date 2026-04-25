@@ -162,7 +162,9 @@ async function stubFrontendContract(page: Page, onSearch?: (request: SearchReque
   });
 }
 
-test("switching accessible collections preserves query and clears filters", async ({ page }) => {
+test("switching accessible collections preserves query on home and clears filters", async ({
+  page,
+}) => {
   const searchRequests: SearchRequest[] = [];
   await stubFrontendContract(page, (request) => searchRequests.push(request));
 
@@ -177,20 +179,20 @@ test("switching accessible collections preserves query and clears filters", asyn
       filters: [{ field: "year", op: "eq", value: 2022 }],
     }),
   );
+  const requestCountBeforeScopeSelection = searchRequests.length;
 
   await page.getByRole("button", { name: "Public Demo ▾" }).click();
   await expect(page).toHaveURL("/?scopePicker=1&page=questions&q=x");
 
   await page.getByRole("button", { name: "Open Archive" }).click();
 
-  await expect(page).toHaveURL(/\/c\/open-archive\/questions\?q=x$/);
+  await expect(page).toHaveURL(/\/c\/open-archive\?q=x$/);
   await expect(page).not.toHaveURL(/filter=/);
-  await expect(page.getByText("1 question matches")).toBeVisible();
-  expect(searchRequests.at(-1)).toMatchObject({
-    query: "x",
-    collection: "open-archive",
-    filters: [],
-  });
+  await expect(page.getByRole("heading", { level: 1, name: "Open Archive" })).toBeVisible();
+  expect(searchRequests).toHaveLength(requestCountBeforeScopeSelection);
+  expect(searchRequests).not.toContainEqual(
+    expect.objectContaining({ collection: "open-archive" }),
+  );
 });
 
 test("switching to a sign-in locked collection routes anonymous users to unlock with return target", async ({
@@ -210,7 +212,5 @@ test("switching to a sign-in locked collection routes anonymous users to unlock 
     })
     .click();
 
-  await expect(page).toHaveURL(
-    "/unlock/locked-demo?returnTo=%2Fc%2Flocked-demo%2Fquestions%3Fq%3Dx",
-  );
+  await expect(page).toHaveURL("/unlock/locked-demo?returnTo=%2Fc%2Flocked-demo%3Fq%3Dx");
 });

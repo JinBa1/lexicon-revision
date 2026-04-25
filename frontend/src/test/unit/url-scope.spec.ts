@@ -16,6 +16,13 @@ describe("url scope helpers", () => {
     expect(buildCollectionHref("with space")).toBe("/c/with%20space");
   });
 
+  test("buildCollectionHref preserves non-empty q and trims blanks", () => {
+    expect(buildCollectionHref("cam-cs-tripos", { query: "graph traversal" })).toBe(
+      "/c/cam-cs-tripos?q=graph+traversal",
+    );
+    expect(buildCollectionHref("cam-cs-tripos", { query: "   " })).toBe("/c/cam-cs-tripos");
+  });
+
   test("buildQuestionsHref assembles q and filter params", () => {
     expect(
       buildQuestionsHref({
