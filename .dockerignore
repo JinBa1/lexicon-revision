@@ -5,8 +5,16 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+
+# Backend container builds do not deploy frontend, docs, tests, or local data.
+# The production Dockerfile also copies its runtime surface explicitly.
+frontend/
+docs/
+tests/
 data/
 chroma_data/
 reports/
-docs/superpowers/plans/
-docs/superpowers/specs/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/

@@ -1,12 +1,21 @@
 FROM python:3.12-slim AS prod-base
 WORKDIR /app
-ENV PIP_DEFAULT_TIMEOUT=200
+ENV PIP_DEFAULT_TIMEOUT=200 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 FROM prod-base AS prod
 ENV APP_ENV=prod
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
+
+# Production copies the backend runtime surface explicitly. The dev target below
+# intentionally stays broad because docker-compose bind-mounts the repo.
+COPY alembic.ini .
+COPY src ./src
+COPY prompts ./prompts
+COPY config/study.yaml ./config/study.yaml
+
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 FROM python:3.12-slim AS dev-base
