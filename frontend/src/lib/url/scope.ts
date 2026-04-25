@@ -2,8 +2,20 @@ import type { FilterCondition } from "@/lib/api/types";
 
 import { serializeFiltersToSearchParams } from "./filters";
 
-export function buildCollectionHref(collection: string): string {
-  return `/c/${encodeURIComponent(collection)}`;
+type CollectionHrefOptions = {
+  query?: string;
+};
+
+export function buildCollectionHref(collection: string, opts: CollectionHrefOptions = {}): string {
+  const base = `/c/${encodeURIComponent(collection)}`;
+  const query = opts.query?.trim() ?? "";
+
+  if (query === "") {
+    return base;
+  }
+
+  const searchParams = new URLSearchParams({ q: query });
+  return `${base}?${searchParams.toString()}`;
 }
 
 type PageHrefOptions = {

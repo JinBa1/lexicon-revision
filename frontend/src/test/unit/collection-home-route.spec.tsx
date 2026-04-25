@@ -27,11 +27,22 @@ vi.mock("@/lib/hooks/useCollections", () => ({
 function renderCollectionHome(initialEntry = "/c/cam-cs-tripos") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
+      <CurrentLocationProbe />
       <Routes>
         <Route path="/c/:collection" element={<CollectionHomeRoute />} />
         <Route path="*" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
+  );
+}
+
+function CurrentLocationProbe() {
+  const location = useLocation();
+  return (
+    <div data-testid="current-location">
+      {location.pathname}
+      {location.search}
+    </div>
   );
 }
 
@@ -141,7 +152,7 @@ describe("CollectionHomeRoute", () => {
     );
   });
 
-  test("scope switching preserves query and clears filters", async () => {
+  test("scope switching preserves query and clears filters on collection home", async () => {
     setCollectionsState({ data: [cambridgeAccessible, publicCollection] });
     renderCollectionHome("/c/cam-cs-tripos?page=questions&q=tree rotations");
 
@@ -151,9 +162,21 @@ describe("CollectionHomeRoute", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /MIT 6\.006/ }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/c/public-demo/questions?q=tree+rotations",
+    expect(screen.getByTestId("current-location")).toHaveTextContent(
+      "/c/public-demo?q=tree+rotations",
     );
+  });
+
+  test("scope switching uses edited query state and omits blank q", async () => {
+    setCollectionsState({ data: [cambridgeAccessible, publicCollection] });
+    renderCollectionHome("/c/cam-cs-tripos?q=old topic");
+
+    const input = screen.getByLabelText("Query");
+    await userEvent.clear(input);
+    await userEvent.type(input, "   ");
+    await userEvent.click(screen.getByRole("button", { name: /MIT 6\.006/ }));
+
+    expect(screen.getByTestId("current-location")).toHaveTextContent("/c/public-demo");
   });
 
   test("redirects collection URLs that require sign-in to unlock", () => {
@@ -164,7 +187,7 @@ describe("CollectionHomeRoute", () => {
     const location = screen.getByTestId("location").textContent ?? "";
     expect(location).toContain("/unlock/cam-cs-tripos?");
     expect(new URLSearchParams(location.split("?")[1]).get("returnTo")).toBe(
-      "/c/cam-cs-tripos/answer?q=sorting",
+      "/c/cam-cs-tripos?q=sorting",
     );
   });
 
@@ -187,7 +210,7 @@ describe("CollectionHomeRoute", () => {
     const location = screen.getByTestId("location").textContent ?? "";
     expect(location).toContain("/unlock/cam-cs-tripos?");
     expect(new URLSearchParams(location.split("?")[1]).get("returnTo")).toBe(
-      "/c/cam-cs-tripos/questions?q=binary+search",
+      "/c/cam-cs-tripos?q=binary+search",
     );
   });
 

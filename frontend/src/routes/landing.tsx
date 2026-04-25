@@ -12,12 +12,7 @@ import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { useAppAuth } from "@/lib/auth/runtime";
 import type { CollectionListItem, FilterCondition } from "@/lib/api/types";
 import { useCollections } from "@/lib/hooks/useCollections";
-import {
-  buildAnswerHref,
-  buildCollectionHref,
-  buildQuestionsHref,
-  buildUnlockHref,
-} from "@/lib/url/scope";
+import { buildCollectionHref, buildUnlockHref } from "@/lib/url/scope";
 
 export function LandingRoute() {
   const [searchParams] = useSearchParams();
@@ -39,40 +34,16 @@ export function LandingRoute() {
 
   const onPickAccessible = useCallback(
     (collection: CollectionListItem) => {
-      const requestedPage = searchParams.get("page");
       const requestedQuery = query.trim();
-
-      if (searchParams.get("scopePicker") === "1" && requestedPage === "questions") {
-        navigate(
-          buildQuestionsHref({ collection: collection.name, query: requestedQuery, filters: [] }),
-          { replace: true },
-        );
-        return;
-      }
-
-      if (searchParams.get("scopePicker") === "1" && requestedPage === "answer") {
-        navigate(
-          buildAnswerHref({ collection: collection.name, query: requestedQuery, filters: [] }),
-          { replace: true },
-        );
-        return;
-      }
-
-      navigate(buildCollectionHref(collection.name), { replace: true });
+      navigate(buildCollectionHref(collection.name, { query: requestedQuery }), { replace: true });
     },
-    [navigate, query, searchParams],
+    [navigate, query],
   );
 
   const onPickLocked = useCallback(
     (collection: CollectionListItem) => {
-      const requestedPage = searchParams.get("page");
       const requestedQuery = query.trim();
-      const returnTo =
-        requestedPage === "questions"
-          ? buildQuestionsHref({ collection: collection.name, query: requestedQuery, filters: [] })
-          : requestedPage === "answer"
-            ? buildAnswerHref({ collection: collection.name, query: requestedQuery, filters: [] })
-            : buildCollectionHref(collection.name);
+      const returnTo = buildCollectionHref(collection.name, { query: requestedQuery });
 
       if (collection.access_state === "locked_requires_signin") {
         navigate(buildUnlockHref(collection.name, returnTo));
@@ -81,7 +52,7 @@ export function LandingRoute() {
 
       setWrongAffiliationCollection(collection);
     },
-    [navigate, query, searchParams],
+    [navigate, query],
   );
 
   const onScopeMissing = useCallback(() => {

@@ -37,25 +37,10 @@ export function CollectionHomeRoute() {
 
   const buildScopeTarget = useCallback(
     (nextCollectionName: string) => {
-      const requestedPage = searchParams.get("page");
       const nextQuery = query.trim();
-      if (requestedPage === "answer") {
-        return buildAnswerHref({
-          collection: nextCollectionName,
-          query: nextQuery,
-          filters: [],
-        });
-      }
-      if (requestedPage === "questions" || nextQuery.length > 0) {
-        return buildQuestionsHref({
-          collection: nextCollectionName,
-          query: nextQuery,
-          filters: [],
-        });
-      }
-      return buildCollectionHref(nextCollectionName);
+      return buildCollectionHref(nextCollectionName, { query: nextQuery });
     },
-    [query, searchParams],
+    [query],
   );
 
   const onPickAccessible = useCallback(
