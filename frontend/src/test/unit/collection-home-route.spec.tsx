@@ -117,11 +117,20 @@ describe("CollectionHomeRoute", () => {
   });
 
   test("submits to questions with query and filters", async () => {
-    renderCollectionHome("/c/cam-cs-tripos?q=graph theory");
+    renderCollectionHome("/c/cam-cs-tripos?q=graph+theory");
 
     await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
+    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByTestId("current-location")).toHaveTextContent(
+      "/c/cam-cs-tripos?q=graph+theory",
+    );
+
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByTestId("current-location")).toHaveTextContent(
+      "/c/cam-cs-tripos?q=graph+theory",
+    );
+
     await userEvent.click(screen.getByRole("button", { name: "Find questions" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent(

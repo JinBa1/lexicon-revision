@@ -21,11 +21,13 @@ export function ScopeRow({
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-ui text-[10px] uppercase tracking-wider text-ink-muted">In</span>
         <ScopeChip collection={activeCollection} onOpen={onOpenScope} />
-        <FiltersChip
-          schema={activeCollection?.metadata_schema ?? null}
-          value={filters}
-          onChange={onFiltersChange}
-        />
+        {activeCollection !== null ? (
+          <FiltersChip
+            schema={activeCollection.metadata_schema}
+            value={filters}
+            onChange={onFiltersChange}
+          />
+        ) : null}
       </div>
       <ActionPair
         onFindQuestions={() => onSubmit("questions")}

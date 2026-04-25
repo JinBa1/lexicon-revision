@@ -213,6 +213,35 @@ describe("AnswerRoute", () => {
     expect(screen.getByRole("main")).toContainElement(screen.getByRole("alert"));
   });
 
+  test("keeps header filter edits draft-only until Get answer is submitted", async () => {
+    renderAnswer("/c/cam-cs-tripos/answer?q=dynamic");
+    const initialStudyCalls = mockUseStudy.mock.calls.length;
+
+    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.type(screen.getByLabelText("Year from"), "2021");
+
+    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos/answer?q=dynamic");
+    expect(mockUseStudy).toHaveBeenCalledTimes(initialStudyCalls);
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByRole("button", { name: "+ Filters" })).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos/answer?q=dynamic");
+    expect(mockUseStudy).toHaveBeenCalledTimes(initialStudyCalls);
+
+    await userEvent.type(screen.getByLabelText("Year from"), "2021");
+    await userEvent.click(screen.getByRole("button", { name: "Get answer with sources" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/answer?q=dynamic&filter=year%3Agte%3A2021",
+    );
+    expect(mockUseStudy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filters: [{ field: "year", op: "gte", value: 2021 }],
+      }),
+    );
+  });
+
   test("403 wrong-affiliation redirects to the landing explanation", () => {
     mockUseCollections.mockReturnValue({
       data: [oxfordWrongAffiliation],

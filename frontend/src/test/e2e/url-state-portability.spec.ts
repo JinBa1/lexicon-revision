@@ -214,3 +214,50 @@ test("broken filter URL renders invalid state with clear filters action", async 
   await expectAlgorithmsResults(page);
   expect(searchRequests).toBe(1);
 });
+
+test("collection-home filters stay open and remain draft-only until explicit search", async ({
+  page,
+}) => {
+  let searchRequests = 0;
+  await stubCollections(page);
+  await page.route("**/search", async (route) => {
+    searchRequests += 1;
+    const request = route.request().postDataJSON() as SearchRequest;
+
+    expect(request).toMatchObject({
+      query: "algorithms",
+      collection: "public-demo",
+      filters: [{ field: "year", op: "gte", value: 2021 }],
+      limit: 15,
+      rerank: true,
+    });
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(algorithmsSearchResponse),
+    });
+  });
+
+  await page.goto("/c/public-demo?q=algorithms");
+
+  const filtersButton = page.getByRole("button", { name: "+ Filters" });
+  await filtersButton.click();
+
+  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  await expect(filtersButton).toHaveAttribute("aria-expanded", "true");
+
+  await page.getByLabel("Year from").fill("2021");
+
+  await expect(filtersButton).toHaveText("+ Filters (1)");
+  await expect(page).toHaveURL(/\/c\/public-demo\?q=algorithms$/);
+  expect(searchRequests).toBe(0);
+
+  await page.getByRole("button", { name: "Find questions" }).click();
+
+  await expect(page).toHaveURL(
+    /\/c\/public-demo\/questions\?q=algorithms&filter=year%3Agte%3A2021$/,
+  );
+  await expectAlgorithmsResults(page);
+  expect(searchRequests).toBe(1);
+});
