@@ -175,11 +175,6 @@ def run_calibration(
     rerank: bool,
     negative_queries: list[str],
 ) -> dict[str, Any]:
-    effective_limit = max(
-        limit,
-        10,
-        max((case.top_k for case in positive_cases), default=10),
-    )
     positive_report = evaluate_cases(
         service=service,
         cases=positive_cases,
@@ -188,6 +183,7 @@ def run_calibration(
         rerank=rerank,
         name=eval_name,
     )
+    effective_limit = int(positive_report["effective_limit"])
     negative_cases = [
         _evaluate_negative_query(
             service=service,

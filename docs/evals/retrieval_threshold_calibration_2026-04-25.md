@@ -54,9 +54,8 @@ technical topics, nearby-but-out-of-fixture CS topics, and nonsensical queries.
 - Positive eval command attempted:
   `RERANK_ENABLED=true RERANK_PROVIDER=voyage RERANK_MODEL=rerank-2.5-lite conda run -n rag-exam python scripts/evaluate_search.py docs/evals/cambridge_fixture_v1.yaml --rerank --format json --output /tmp/rag_exam_voyage_positive_raw.json`
 - Result: blocked by sandbox network/DNS before calibration data collection.
-  The failure occurred while resolving the configured Neon Postgres host
-  `ep-divine-snow-ab7bzpui-pooler.eu-west-2.aws.neon.tech`, before query
-  embedding or reranking.
+  The failure occurred while resolving the configured Neon Postgres host,
+  before query embedding or reranking.
 - Expected Voyage requests sent by this failed attempt: 0. The search path
   loads the collection schema before embedding or reranking, and the database
   connection failed at that schema lookup step.
