@@ -1,0 +1,291 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+
+import { ApiError } from "@/lib/api/errors";
+import type { StudyAnswerStatus, StudyResponse } from "@/lib/api/types";
+import { AnswerRoute } from "@/routes/answer";
+
+import {
+  cambridgeAccessible,
+  cambridgeLocked,
+  oxfordWrongAffiliation,
+} from "../fixtures/collections";
+
+const { mockUseCollections, mockUseStudy } = vi.hoisted(() => ({
+  mockUseCollections: vi.fn(),
+  mockUseStudy: vi.fn(),
+}));
+
+vi.mock("@/lib/hooks/useCollections", () => ({
+  useCollections: mockUseCollections,
+}));
+
+vi.mock("@/lib/hooks/useStudy", () => ({
+  useStudy: mockUseStudy,
+}));
+
+function renderAnswer(initialEntry = "/c/cam-cs-tripos/answer?q=dynamic") {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <LocationProbe />
+      <Routes>
+        <Route path="/c/:collection/answer" element={<AnswerRoute />} />
+        <Route path="*" element={<div />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  );
+}
+
+function studyResponse(status: StudyAnswerStatus = "ok"): StudyResponse {
+  return {
+    schema_version: "study_answer_v2",
+    request_id: "study-1",
+    query: "dynamic tables",
+    scope: { collection: "cam-cs-tripos" },
+    answer_status: status,
+    answer: {
+      overview: "Dynamic tables are usually handled with a potential argument.",
+      patterns: [
+        {
+          label: "Dynamic table resizing",
+          summary: "Explain why expansion and contraction keep amortized cost bounded.",
+          supporting_chunk_ids: ["chunk-1"],
+        },
+      ],
+      limitations: ["Only one source was retrieved."],
+    },
+    sources: [
+      {
+        chunk_id: "chunk-1",
+        chunk_level: "sub_question",
+        parent_chunk_id: "chunk-parent",
+        sub_question_label: "(b)",
+        score: 0.91,
+        excerpt: "A question about table doubling and halving on underflow.",
+        metadata: { year: 2022, module_title: "Algorithms" },
+        why_cited: "It asks for the same amortized-analysis pattern.",
+      },
+    ],
+    retrieval: {
+      status: "ok",
+      top_k: 15,
+      returned_result_count: 1,
+      context_budget_tokens: 4000,
+      context_chunk_ids: ["chunk-1"],
+      omitted_chunk_ids: [],
+      truncated_chunk_ids: [],
+      filters_applied: [],
+      rerank: true,
+    },
+    planning: {
+      status: "ok",
+      planner_version: "planner-v1",
+      original_query: "dynamic tables",
+      semantic_queries: ["dynamic tables"],
+      error_category: null,
+      latency_ms: 12,
+    },
+    generation: {
+      provider: "test",
+      model: "fixture",
+      prompt_version: "study-v2",
+      temperature: 0,
+      attempt_count: 1,
+      citation_drops: 0,
+      error_category: null,
+      latency_ms: 34,
+    },
+  };
+}
+
+function setStudyState(overrides: Record<string, unknown> = {}) {
+  const state = {
+    data: studyResponse(),
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  };
+  mockUseStudy.mockReturnValue(state);
+  return state;
+}
+
+describe("AnswerRoute", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseCollections.mockReturnValue({
+      data: [cambridgeAccessible],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    setStudyState();
+  });
+
+  test("enables study for non-empty query even when cached collection is locked", () => {
+    mockUseCollections.mockReturnValue({
+      data: [cambridgeLocked],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderAnswer();
+
+    expect(mockUseStudy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "cam-cs-tripos",
+        query: "dynamic",
+        filters: [],
+        enabled: true,
+      }),
+    );
+  });
+
+  test("delays filtered deep links while collections load, then enables backend-driven study", () => {
+    mockUseCollections.mockReturnValue({
+      data: [],
+      isLoading: true,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    const { unmount } = renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=year%3Agte%3A2020");
+
+    expect(mockUseStudy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "dynamic",
+        enabled: false,
+      }),
+    );
+
+    unmount();
+    mockUseStudy.mockClear();
+    mockUseCollections.mockReturnValue({
+      data: [cambridgeLocked],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=year%3Agte%3A2020");
+
+    expect(mockUseStudy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "cam-cs-tripos",
+        query: "dynamic",
+        enabled: true,
+      }),
+    );
+  });
+
+  test("empty query disables study and renders a prompt state", () => {
+    renderAnswer("/c/cam-cs-tripos/answer");
+
+    expect(mockUseStudy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "",
+        enabled: false,
+      }),
+    );
+    expect(screen.getByText("Ask a question to generate an answer")).toBeInTheDocument();
+  });
+
+  test("invalid parsed filters render invalid state without calling study", () => {
+    renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=paper%3Aeq%3A5");
+
+    expect(mockUseStudy).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Filters in this link aren't valid");
+    expect(screen.getByRole("alert")).toHaveTextContent("paper");
+    expect(screen.getByRole("main")).toContainElement(screen.getByRole("alert"));
+  });
+
+  test("403 wrong-affiliation redirects to the landing explanation", () => {
+    mockUseCollections.mockReturnValue({
+      data: [oxfordWrongAffiliation],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    setStudyState({
+      data: undefined,
+      isError: true,
+      error: new ApiError({ status: 403, code: "forbidden", detail: "Forbidden" }),
+    });
+
+    renderAnswer("/c/ox-maths/answer?q=dynamic");
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/?explain=wrong-affiliation&collection=ox-maths",
+    );
+  });
+
+  test("422 study errors render invalid filter state", () => {
+    setStudyState({
+      data: undefined,
+      isError: true,
+      error: new ApiError({ status: 422, code: "validation_error", detail: "Bad filter" }),
+    });
+
+    renderAnswer();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Filters in this link aren't valid");
+    expect(screen.getByRole("main")).toContainElement(screen.getByRole("alert"));
+  });
+
+  test.each<StudyAnswerStatus>(["insufficient_evidence", "generation_failed", "retrieval_failed"])(
+    "renders answer content and fallback retrieve link for %s",
+    (status) => {
+      setStudyState({ data: studyResponse(status) });
+
+      renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=year%3Agte%3A2020");
+
+      expect(
+        screen.getByText("Dynamic tables are usually handled with a potential argument."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Dynamic table resizing")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /citation 1, view source chunk-1/i }));
+      expect(screen.getByText("1 · 2022 / (b)")).toBeInTheDocument();
+      expect(screen.getByText(/Why cited: It asks for the same amortized-analysis pattern/i));
+      expect(
+        screen.getByRole("link", { name: /Retrieve matching questions instead/i }),
+      ).toHaveAttribute("href", "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020");
+    },
+  );
+
+  test("citation click scrolls and animates the matching source", async () => {
+    const scrollIntoView = vi.fn();
+    const animate = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: animate,
+    });
+
+    renderAnswer();
+
+    await userEvent.click(screen.getByRole("button", { name: /citation 1, view source chunk-1/i }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    expect(animate).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ boxShadow: "0 0 0 2px #7E2E2E" })]),
+      expect.objectContaining({ duration: 900, easing: "ease-out" }),
+    );
+  });
+});
