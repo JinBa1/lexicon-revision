@@ -12,7 +12,7 @@ matches.
 - Positive eval: `docs/evals/cambridge_fixture_v1.yaml`
 - Collection: `cam-cs-tripos-fixture`
 - Reranker target: Voyage `rerank-2.5-lite`
-- Threshold under calibration: `RETRIEVAL_RERANK_MIN_SCORE`
+- Threshold under calibration: `collections.retrieval_rerank_min_score`
 - Calibration rule: keep results with `score >= threshold`
 
 ## Negative Query Set
@@ -79,9 +79,9 @@ technical topics, nearby-but-out-of-fixture CS topics, and nonsensical queries.
 - Voyage observation from that run: positive eval passed 12/12, weakest
   matched positive score was `0.542969`, strongest negative top score was
   `0.453125`, and the midpoint candidate threshold was `0.498`.
-- MVP Fly deployment pins `RETRIEVAL_RERANK_MIN_SCORE=0.498` for Voyage
-  `rerank-2.5-lite`. This is a temporary MVP guardrail, not a universal score
-  boundary.
+- The MVP calibrated collection row sets `retrieval_rerank_min_score=0.498`
+  for Voyage `rerank-2.5-lite`. This is a temporary MVP guardrail for that
+  collection, not a universal score boundary.
 
 ## Calibration Procedure To Run Outside The Sandbox
 
@@ -138,19 +138,23 @@ then writes:
      --format json
    ```
 
-3. Choose a candidate `RETRIEVAL_RERANK_MIN_SCORE` that is:
+3. Choose a candidate collection `retrieval_rerank_min_score` that is:
    - lower than the weakest required matched positive result score;
    - higher than the strongest unacceptable negative result score;
    - rounded down with margin rather than set exactly at an observed score.
 
-4. Verify the candidate:
+4. Apply the candidate to the calibrated collection row, then verify it:
 
    ```bash
    set -a; source .env; set +a
-   export RETRIEVAL_RERANK_MIN_SCORE=<candidate>
    export RERANK_ENABLED=true
    export RERANK_PROVIDER=voyage
    export RERANK_MODEL=rerank-2.5-lite
+   psql "$DATABASE_URL" -c "
+     update collections
+     set retrieval_rerank_min_score = <candidate>
+     where name = 'cam-cs-tripos-fixture';
+   "
    conda run -n rag-exam python scripts/evaluate_search.py \
      docs/evals/cambridge_fixture_v1.yaml \
      --rerank \

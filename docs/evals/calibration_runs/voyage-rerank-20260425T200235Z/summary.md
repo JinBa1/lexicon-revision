@@ -12,7 +12,7 @@
 
 - Weakest matched positive score: `0.542969`
 - Strongest negative top score: `0.453125`
-- Suggested `RETRIEVAL_RERANK_MIN_SCORE`: `0.498`
+- Suggested collection `retrieval_rerank_min_score`: `0.498`
 
 ## Positive Cases
 
