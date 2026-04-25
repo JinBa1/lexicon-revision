@@ -139,6 +139,43 @@ def test_search_repository_raises_for_missing_collection() -> None:
         )
 
 
+def test_search_repository_loads_collection_retrieval_thresholds() -> None:
+    engine = _engine()
+    schema = _schema_with_field(key="year", field_type="integer")
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+
+    index_repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    index_repo.recreate_collection("fixture-thresholds")
+    index_repo.index_chunks(
+        collection_name="fixture-thresholds",
+        chunks=chunks,
+        vectors=_vectors(1, 8),
+        metadata_schema=schema,
+    )
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                update collections
+                set retrieval_vector_min_score = 0.2,
+                    retrieval_rerank_min_score = 0.498
+                where name = 'fixture-thresholds'
+                """
+            )
+        )
+
+    search_repo = PgSearchRepository(engine=engine)
+    thresholds = search_repo.get_collection_retrieval_thresholds("fixture-thresholds")
+
+    assert thresholds.vector_min_score == 0.2
+    assert thresholds.rerank_min_score == 0.498
+
+
 def test_search_repository_rejects_invalid_collection_schema() -> None:
     engine = _engine()
     with engine.begin() as conn:
