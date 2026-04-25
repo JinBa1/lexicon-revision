@@ -30,6 +30,7 @@ frontend_refs/
 docs/*
 !docs/evals/
 !docs/evals/**
+docs/evals/calibration_runs/**/calibration_raw.json
 
 # Allow test fixtures (MinerU JSON output, not PDFs/debug files)
 !tests/data/
