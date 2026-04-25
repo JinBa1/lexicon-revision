@@ -175,14 +175,19 @@ class PgSearchService:
             thresholds = self._repository.get_collection_retrieval_thresholds(
                 collection
             )
-            raw_min_score = (
-                thresholds.rerank_min_score
-                if rerank_telemetry is not None
-                else thresholds.vector_min_score
-            )
+            if rerank_telemetry is not None:
+                raw_min_score = thresholds.rerank_min_score
+                threshold_name = (
+                    f"collections.retrieval_rerank_min_score for {collection!r}"
+                )
+            else:
+                raw_min_score = thresholds.vector_min_score
+                threshold_name = (
+                    f"collections.retrieval_vector_min_score for {collection!r}"
+                )
             min_score = _validate_optional_min_score(
                 raw_min_score,
-                name="collection retrieval min score",
+                name=threshold_name,
             )
         if min_score is not None:
             scored_rows = [

@@ -677,7 +677,7 @@ def test_alembic_upgrade_from_0006_adds_auth_domain_gating_tables() -> None:
         engine.dispose()
 
 
-def test_alembic_upgrade_from_0007_adds_collection_retrieval_thresholds() -> None:
+def test_alembic_0008_adds_collection_retrieval_thresholds() -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")

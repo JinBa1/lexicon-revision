@@ -391,6 +391,57 @@ def test_pg_search_service_skips_filtering_when_collection_threshold_is_null() -
     assert response.total == 2
 
 
+@pytest.mark.parametrize(
+    ("thresholds", "reranker", "rerank", "expected_column"),
+    [
+        (
+            CollectionRetrievalThresholds(
+                vector_min_score=float("inf"),
+                rerank_min_score=None,
+            ),
+            None,
+            False,
+            "collections.retrieval_vector_min_score",
+        ),
+        (
+            CollectionRetrievalThresholds(
+                vector_min_score=None,
+                rerank_min_score=float("inf"),
+            ),
+            _Reranker(),
+            True,
+            "collections.retrieval_rerank_min_score",
+        ),
+    ],
+)
+def test_pg_search_service_rejects_non_finite_collection_threshold_with_context(
+    thresholds: CollectionRetrievalThresholds,
+    reranker: _Reranker | None,
+    rerank: bool,
+    expected_column: str,
+) -> None:
+    service = PgSearchService(
+        repository=_TwoRowRepo(thresholds={"fixture": thresholds}),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=reranker,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        service.search(
+            "q",
+            collection="fixture",
+            filters=[],
+            limit=2,
+            rerank=rerank,
+        )
+
+    message = str(exc_info.value)
+    assert expected_column in message
+    assert "'fixture'" in message
+    assert "must be finite" in message
+
+
 def test_pg_search_service_thresholds_are_collection_scoped() -> None:
     service = PgSearchService(
         repository=_TwoRowRepo(
