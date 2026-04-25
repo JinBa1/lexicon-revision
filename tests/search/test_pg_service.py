@@ -9,7 +9,7 @@ from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.runtime.telemetry import TokenUsage
 from src.search.errors import DEFAULT_COLLECTION, CollectionNotFoundError
 from src.search.models import SearchResponse
-from src.search.pg_repository import PgChunkRow
+from src.search.pg_repository import CollectionRetrievalThresholds, PgChunkRow
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingResult, RerankResult
 from src.storage.local import LocalObjectStorage
@@ -44,8 +44,25 @@ class _Embedder:
 
 
 class _Repo:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        thresholds: dict[str, CollectionRetrievalThresholds] | None = None,
+    ) -> None:
         self.calls = []
+        self.thresholds = thresholds or {}
+
+    def get_collection_retrieval_thresholds(
+        self,
+        collection_name: str,
+    ) -> CollectionRetrievalThresholds:
+        self.calls.append({"threshold_collection_name": collection_name})
+        return self.thresholds.get(
+            collection_name,
+            CollectionRetrievalThresholds(
+                vector_min_score=None,
+                rerank_min_score=None,
+            ),
+        )
 
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         self.calls.append({"schema_collection_name": collection_name})
@@ -206,6 +223,24 @@ class _Reranker:
 
 
 class _TwoRowRepo:
+    def __init__(
+        self,
+        thresholds: dict[str, CollectionRetrievalThresholds] | None = None,
+    ) -> None:
+        self.thresholds = thresholds or {}
+
+    def get_collection_retrieval_thresholds(
+        self,
+        collection_name: str,
+    ) -> CollectionRetrievalThresholds:
+        return self.thresholds.get(
+            collection_name,
+            CollectionRetrievalThresholds(
+                vector_min_score=None,
+                rerank_min_score=None,
+            ),
+        )
+
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         del collection_name
         return CollectionMetadataSchema.model_validate(
@@ -272,13 +307,19 @@ def test_pg_search_service_applies_rerank_order() -> None:
     assert response.results[0].score == 2.0
 
 
-def test_pg_search_service_filters_vector_results_below_min_score() -> None:
+def test_pg_search_service_filters_vector_results_using_collection_min_score() -> None:
     service = PgSearchService(
-        repository=_TwoRowRepo(),
+        repository=_TwoRowRepo(
+            thresholds={
+                "fixture": CollectionRetrievalThresholds(
+                    vector_min_score=0.15,
+                    rerank_min_score=None,
+                )
+            }
+        ),
         embedding_model=_Embedder(),
         embedding_dimension=2,
         reranker=None,
-        retrieval_vector_min_score=0.15,
     )
 
     response = service.search(
@@ -293,59 +334,19 @@ def test_pg_search_service_filters_vector_results_below_min_score() -> None:
     assert response.total == 1
 
 
-def test_pg_search_service_returns_empty_when_all_vector_results_are_weak() -> None:
+def test_pg_search_service_filters_after_rerank_using_collection_min_score() -> None:
     service = PgSearchService(
-        repository=_Repo(),
-        embedding_model=_Embedder(),
-        embedding_dimension=2,
-        reranker=None,
-        retrieval_vector_min_score=0.95,
-    )
-
-    response = service.search(
-        "q",
-        collection="fixture",
-        filters=[],
-        limit=3,
-        rerank=False,
-    )
-
-    assert response.results == []
-    assert response.total == 0
-    telemetry = service.pop_last_execution_telemetry()
-    assert telemetry is not None
-    assert telemetry.rerank is None
-
-
-def test_pg_search_service_keeps_scores_equal_to_vector_min_score() -> None:
-    service = PgSearchService(
-        repository=_Repo(),
-        embedding_model=_Embedder(),
-        embedding_dimension=2,
-        reranker=None,
-        retrieval_vector_min_score=0.9,
-    )
-
-    response = service.search(
-        "q",
-        collection="fixture",
-        filters=[],
-        limit=3,
-        rerank=False,
-    )
-
-    assert [result.chunk_id for result in response.results] == ["cam-1"]
-    assert response.total == 1
-
-
-def test_pg_search_service_filters_after_rerank_using_rerank_min_score() -> None:
-    service = PgSearchService(
-        repository=_TwoRowRepo(),
+        repository=_TwoRowRepo(
+            thresholds={
+                "fixture": CollectionRetrievalThresholds(
+                    vector_min_score=0.95,
+                    rerank_min_score=1.5,
+                )
+            }
+        ),
         embedding_model=_Embedder(),
         embedding_dimension=2,
         reranker=_Reranker(),
-        retrieval_vector_min_score=0.95,
-        retrieval_rerank_min_score=1.5,
     )
 
     response = service.search(
@@ -363,26 +364,72 @@ def test_pg_search_service_filters_after_rerank_using_rerank_min_score() -> None
     assert telemetry.rerank is not None
 
 
-def test_pg_search_service_uses_vector_threshold_when_reranker_is_unavailable() -> None:
+def test_pg_search_service_skips_filtering_when_collection_threshold_is_null() -> None:
     service = PgSearchService(
-        repository=_Repo(),
+        repository=_TwoRowRepo(
+            thresholds={
+                "fixture": CollectionRetrievalThresholds(
+                    vector_min_score=None,
+                    rerank_min_score=None,
+                )
+            }
+        ),
         embedding_model=_Embedder(),
         embedding_dimension=2,
         reranker=None,
-        retrieval_vector_min_score=0.95,
-        retrieval_rerank_min_score=0.0,
     )
 
     response = service.search(
         "q",
         collection="fixture",
         filters=[],
-        limit=3,
-        rerank=True,
+        limit=2,
+        rerank=False,
     )
 
-    assert response.results == []
-    assert response.total == 0
+    assert [result.chunk_id for result in response.results] == ["cam-1", "cam-2"]
+    assert response.total == 2
+
+
+def test_pg_search_service_thresholds_are_collection_scoped() -> None:
+    service = PgSearchService(
+        repository=_TwoRowRepo(
+            thresholds={
+                "strict-fixture": CollectionRetrievalThresholds(
+                    vector_min_score=0.95,
+                    rerank_min_score=None,
+                ),
+                "loose-fixture": CollectionRetrievalThresholds(
+                    vector_min_score=0.0,
+                    rerank_min_score=None,
+                ),
+            }
+        ),
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    strict_response = service.search(
+        "q",
+        collection="strict-fixture",
+        filters=[],
+        limit=2,
+        rerank=False,
+    )
+    loose_response = service.search(
+        "q",
+        collection="loose-fixture",
+        filters=[],
+        limit=2,
+        rerank=False,
+    )
+
+    assert strict_response.results == []
+    assert [result.chunk_id for result in loose_response.results] == [
+        "cam-1",
+        "cam-2",
+    ]
 
 
 class _MissingCollectionRepo:
@@ -477,6 +524,16 @@ def test_pg_search_service_telemetry_is_scoped_per_instance() -> None:
 
 
 class _InvalidChunkLevelRepo:
+    def get_collection_retrieval_thresholds(
+        self,
+        collection_name: str,
+    ) -> CollectionRetrievalThresholds:
+        del collection_name
+        return CollectionRetrievalThresholds(
+            vector_min_score=None,
+            rerank_min_score=None,
+        )
+
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         del collection_name
         return CollectionMetadataSchema.model_validate(
@@ -530,6 +587,16 @@ class _InvalidChunkLevelRepo:
 
 
 class _InvalidChunkLevelWithEnoughValidRepo:
+    def get_collection_retrieval_thresholds(
+        self,
+        collection_name: str,
+    ) -> CollectionRetrievalThresholds:
+        del collection_name
+        return CollectionRetrievalThresholds(
+            vector_min_score=None,
+            rerank_min_score=None,
+        )
+
     def get_collection_schema(self, collection_name: str) -> CollectionMetadataSchema:
         del collection_name
         return CollectionMetadataSchema.model_validate(

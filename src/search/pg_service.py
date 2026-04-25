@@ -44,8 +44,7 @@ class PgSearchService:
         reranker: RerankProvider | None = None,
         media_dir: str = DEFAULT_MEDIA_DIR,
         object_storage: ObjectStorage | None = None,
-        retrieval_vector_min_score: float | None = None,
-        retrieval_rerank_min_score: float | None = None,
+        apply_collection_thresholds: bool = True,
     ) -> None:
         self._repository = repository
         self._embedding_model = embedding_model
@@ -53,14 +52,7 @@ class PgSearchService:
         self._reranker = reranker
         self._media_dir = media_dir
         self._object_storage = object_storage
-        self._retrieval_vector_min_score = _validate_optional_min_score(
-            retrieval_vector_min_score,
-            name="retrieval_vector_min_score",
-        )
-        self._retrieval_rerank_min_score = _validate_optional_min_score(
-            retrieval_rerank_min_score,
-            name="retrieval_rerank_min_score",
-        )
+        self._apply_collection_thresholds = apply_collection_thresholds
         self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
         self._schema_cache: dict[str, CollectionMetadataSchema] = {}
         self._last_execution_telemetry_var: ContextVar[
@@ -178,11 +170,20 @@ class PgSearchService:
             rows = [pair[0] for pair in ranked]
             scores = [pair[1] for pair in ranked]
 
-        min_score = (
-            self._retrieval_rerank_min_score
-            if rerank_telemetry is not None
-            else self._retrieval_vector_min_score
-        )
+        min_score = None
+        if self._apply_collection_thresholds:
+            thresholds = self._repository.get_collection_retrieval_thresholds(
+                collection
+            )
+            raw_min_score = (
+                thresholds.rerank_min_score
+                if rerank_telemetry is not None
+                else thresholds.vector_min_score
+            )
+            min_score = _validate_optional_min_score(
+                raw_min_score,
+                name="collection retrieval min score",
+            )
         if min_score is not None:
             scored_rows = [
                 (row, score)
