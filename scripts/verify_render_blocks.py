@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
 
     engine = create_database_engine(settings)
     failures: list[str] = []
+    rows = []
 
     try:
         with engine.connect() as conn:

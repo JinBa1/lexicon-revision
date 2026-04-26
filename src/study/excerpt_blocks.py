@@ -19,13 +19,18 @@ def truncate_excerpt_blocks(
     if not blocks:
         return []
 
+    validated_blocks = RENDER_BLOCKS_ADAPTER.validate_python(blocks)
+    block_texts = [flatten_render_blocks([block]) for block in validated_blocks]
     has_paragraph = any(_block_type(block) == "paragraph" for block in blocks)
     selected: list[RenderBlock] = []
     included_paragraph = False
-    for block in blocks:
+    flattened_chars = 0
+    for index, block in enumerate(blocks):
         is_paragraph = _block_type(block) == "paragraph"
-        candidate = [*selected, block]
-        candidate_chars = len(_flatten_blocks(candidate))
+        candidate_chars = _candidate_flattened_length(
+            flattened_chars,
+            block_texts[index],
+        )
         if candidate_chars > budget_chars:
             if is_paragraph and not included_paragraph:
                 selected.append(block)
@@ -34,6 +39,7 @@ def truncate_excerpt_blocks(
                 break
             return [blocks[0]]
         selected.append(block)
+        flattened_chars = candidate_chars
         included_paragraph = included_paragraph or is_paragraph
 
     if selected and (included_paragraph or not has_paragraph):
@@ -56,6 +62,9 @@ def _block_type(block: RenderBlock) -> str | None:
     return block.type
 
 
-def _flatten_blocks(blocks: list[RenderBlock]) -> str:
-    validated_blocks = RENDER_BLOCKS_ADAPTER.validate_python(blocks)
-    return flatten_render_blocks(validated_blocks)
+def _candidate_flattened_length(current_chars: int, block_text: str) -> int:
+    if not block_text:
+        return current_chars
+    if current_chars == 0:
+        return len(block_text)
+    return current_chars + 2 + len(block_text)

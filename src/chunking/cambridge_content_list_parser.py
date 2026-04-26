@@ -215,7 +215,6 @@ def _strip_label_from_runs(runs: list[dict[str, Any]]) -> bool:
         if stripped != original:
             run["text"] = stripped
             return True
-        return False
     return False
 
 

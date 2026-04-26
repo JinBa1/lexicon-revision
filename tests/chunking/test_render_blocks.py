@@ -6,6 +6,7 @@ from pydantic import TypeAdapter
 from src.chunking.cambridge_content_list_parser import (
     CambridgeContentListParser,
     LogicalSegment,
+    _strip_label_from_runs,
 )
 from src.chunking.models import ParsedQuestion, SubQuestion
 from src.chunking.pipeline import _build_chunks, run_pipeline
@@ -229,6 +230,21 @@ def test_segments_carry_typed_render_blocks_and_inline_math_round_trips() -> Non
         }
     ]
     assert _validated_text(segments[0].blocks) == "Use $n^2$ operations."
+
+
+def test_strip_label_from_runs_checks_later_text_after_non_matching_run() -> None:
+    runs = [
+        {"type": "math", "latex": "x"},
+        {"type": "text", "text": " "},
+        {"type": "text", "text": "(a) Use induction."},
+    ]
+
+    assert _strip_label_from_runs(runs) is True
+    assert runs == [
+        {"type": "math", "latex": "x"},
+        {"type": "text", "text": " "},
+        {"type": "text", "text": "Use induction."},
+    ]
 
 
 def test_parent_chunk_label_prefix_falls_back_before_equation_first_segment() -> None:
