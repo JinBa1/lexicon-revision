@@ -89,9 +89,9 @@ function CompactChunkCard({
       />
       {metaChips.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1">
-          {metaChips.map((label, i) => (
-            <Chip key={i} variant="meta">
-              {label}
+          {metaChips.map((chip) => (
+            <Chip key={chip.id} variant="meta">
+              {chip.label}
             </Chip>
           ))}
         </div>
@@ -116,7 +116,10 @@ function FullChunkCard({
   footer,
   metadataSchema,
 }: Extract<ChunkCardProps, { mode: "full" }>) {
-  const blockMediaIds = getReferencedMediaIds(chunk.render_blocks ?? null);
+  const blockMediaIds = new Set([
+    ...getReferencedMediaIds(chunk.render_blocks ?? null),
+    ...getReferencedMediaIds(parent?.render_blocks ?? null),
+  ]);
   const remainingMedia = chunk.media.filter((m) => !blockMediaIds.has(m.media_id));
   // Spec §"Detail panel restructure": eyebrow renders sub_question_label literally,
   // or "Matched question" when null.
@@ -135,14 +138,14 @@ function FullChunkCard({
       />
       {metaChips.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-1">
-          {metaChips.map((label) => (
-            <Chip key={label} variant="meta">
-              {label}
+          {metaChips.map((chip) => (
+            <Chip key={chip.id} variant="meta">
+              {chip.label}
             </Chip>
           ))}
         </div>
       ) : null}
-      {parent ? <ParentCollapsible parent={parent} /> : null}
+      {parent ? <ParentCollapsible parent={parent} media={chunk.media} /> : null}
       {remainingMedia.length > 0 ? <MediaList media={remainingMedia} /> : null}
       {footer ? <div className="mt-4 border-t border-rule pt-3">{footer}</div> : null}
     </article>
@@ -151,7 +154,7 @@ function FullChunkCard({
 
 type FullParent = NonNullable<Extract<ChunkCardProps, { mode: "full" }>["parent"]>;
 
-function ParentCollapsible({ parent }: { parent: FullParent }) {
+function ParentCollapsible({ parent, media }: { parent: FullParent; media: MediaRef[] }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <section className="mt-5 border-t border-rule pt-4">
@@ -166,6 +169,7 @@ function ParentCollapsible({ parent }: { parent: FullParent }) {
           blocks={parent.render_blocks ?? null}
           mode="full"
           fallbackText={parent.text}
+          media={media}
         />
       </div>
       <button
@@ -214,15 +218,15 @@ function buildMetaChipsFromSchema(
   metadata: Record<string, unknown>,
   schema: CollectionMetadataSchema | null | undefined,
   subLabel: string | null,
-): string[] {
-  const out: string[] = [];
-  if (subLabel) out.push(`Part (${subLabel})`);
+): { id: string; label: string }[] {
+  const out: { id: string; label: string }[] = [];
+  if (subLabel) out.push({ id: "sub-question-label", label: `Part (${subLabel})` });
   if (!schema) return out;
   for (const field of schema.fields) {
     if (!field.exposed) continue;
     const value = metadata[field.key];
     if (value === null || value === undefined || value === "") continue;
-    out.push(`${field.label}: ${value}`);
+    out.push({ id: field.key, label: `${field.label}: ${value}` });
   }
   return out;
 }

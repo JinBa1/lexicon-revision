@@ -29,8 +29,20 @@ describe("useResultListKeyboardNav", () => {
     expect(onFocus).toHaveBeenCalledWith("b");
   });
 
+  it("ArrowDown with no selection focuses the first chunk_id", () => {
+    const { onFocus } = setup({ selectedChunkId: null });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    expect(onFocus).toHaveBeenCalledWith("a");
+  });
+
   it("ArrowUp at index 0 stays at index 0", () => {
     const { onFocus } = setup({ selectedChunkId: "a" });
+    fireEvent.keyDown(window, { key: "ArrowUp" });
+    expect(onFocus).toHaveBeenCalledWith("a");
+  });
+
+  it("ArrowUp with no selection focuses the first chunk_id", () => {
+    const { onFocus } = setup({ selectedChunkId: null });
     fireEvent.keyDown(window, { key: "ArrowUp" });
     expect(onFocus).toHaveBeenCalledWith("a");
   });

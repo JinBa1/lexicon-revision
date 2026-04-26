@@ -36,11 +36,12 @@ export function useResultListKeyboardNav({
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (results.length === 0) return;
         const idx = selectedChunkId ? results.findIndex((r) => r.chunk_id === selectedChunkId) : -1;
-        const start = idx >= 0 ? idx : 0;
         const next =
-          event.key === "ArrowDown"
-            ? Math.min(results.length - 1, start + 1)
-            : Math.max(0, start - 1);
+          idx < 0
+            ? 0
+            : event.key === "ArrowDown"
+              ? Math.min(results.length - 1, idx + 1)
+              : Math.max(0, idx - 1);
         const target = results[next];
         if (!target) return;
         event.preventDefault();

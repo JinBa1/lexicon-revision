@@ -137,7 +137,7 @@ test("render_blocks round-trip renders structured search results", async ({ page
   await page.goto("/c/public-demo/questions?q=render+blocks");
 
   await expect(page).toHaveURL(/\/c\/public-demo\/questions\?q=render\+blocks$/);
-  await expect(page.getByText("1 question matches")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top 1 results" })).toBeVisible();
 
   const resultRow = page.getByRole("button", { name: /Compute/ });
   await expect(resultRow.locator(".katex").first()).toBeVisible();

@@ -304,10 +304,7 @@ describe("ChunkCard", () => {
     expect(screen.queryByText(/plain parent fallback/i)).not.toBeInTheDocument();
   });
 
-  test("full mode: parent image blocks not deduplicated from MediaList (parent section has no media lookup)", () => {
-    // New design: ParentCollapsible renders parent blocks without media prop,
-    // so parent image blocks show "Image unavailable" inline. The image still
-    // appears in MediaList since blockMediaIds only covers chunk render_blocks.
+  test("full mode resolves parent image blocks with chunk media and dedupes them from MediaList", () => {
     render(
       <ChunkCard
         mode="full"
@@ -337,8 +334,7 @@ describe("ChunkCard", () => {
       />,
     );
 
-    // The image surfaces in MediaList (chunk.media not referenced by chunk render_blocks)
-    expect(screen.getByRole("img", { name: "Question media 1" })).toHaveAttribute(
+    expect(screen.getByRole("img", { name: "Question figure 1" })).toHaveAttribute(
       "src",
       "https://example.test/image_parent.png",
     );

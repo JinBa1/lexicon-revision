@@ -173,7 +173,7 @@ test("switching accessible collections preserves query on home and clears filter
   await page.goto("/c/public-demo/questions?q=x&filter=year%3Aeq%3A2022");
 
   await expect(page).toHaveURL(/\/c\/public-demo\/questions\?q=x&filter=year%3Aeq%3A2022$/);
-  await expect(page.getByText("1 question matches")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top 1 results" })).toBeVisible();
   expect(searchRequests).toContainEqual(
     expect.objectContaining({
       query: "x",
@@ -203,7 +203,7 @@ test("switching to a sign-in locked collection routes anonymous users to unlock 
   await stubFrontendContract(page);
 
   await page.goto("/c/public-demo/questions?q=x");
-  await expect(page.getByText("1 question matches")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top 1 results" })).toBeVisible();
 
   await page.getByRole("button", { name: "Public Demo ▾" }).click();
   await expect(page).toHaveURL("/?scopePicker=1&page=questions&q=x");

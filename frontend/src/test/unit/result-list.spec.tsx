@@ -23,7 +23,6 @@ describe("ResultList", () => {
     render(
       <ResultList
         results={[questionResult]}
-        total={1}
         selectedChunkId={null}
         onSelect={() => {}}
         metadataSchema={null}
@@ -37,7 +36,6 @@ describe("ResultList", () => {
     render(
       <ResultList
         results={[questionResult, subQuestionResult]}
-        total={2}
         selectedChunkId={null}
         onSelect={() => {}}
         metadataSchema={null}
@@ -53,7 +51,6 @@ describe("ResultList", () => {
     render(
       <ResultList
         results={[questionResult, subQuestionResult]}
-        total={2}
         selectedChunkId={subQuestionResult.chunk_id}
         onSelect={onSelect}
         metadataSchema={null}
@@ -84,7 +81,6 @@ describe("ResultList", () => {
             render_blocks: renderBlocksWithMathAndCode,
           },
         ]}
-        total={1}
         selectedChunkId={null}
         onSelect={() => {}}
         metadataSchema={null}
@@ -96,7 +92,7 @@ describe("ResultList", () => {
     expect(screen.queryByText(/plain fallback text/i)).not.toBeInTheDocument();
   });
 
-  it("renders 'Top {N} results' from results.length, never the backend total", () => {
+  it("renders 'Top {N} results' from results.length", () => {
     const results: SearchResult[] = [
       {
         chunk_id: "a",
@@ -134,13 +130,11 @@ describe("ResultList", () => {
     render(
       <ResultList
         results={results}
-        total={9999}
         selectedChunkId={null}
         onSelect={() => {}}
         metadataSchema={null}
       />,
     );
     expect(screen.getByRole("heading", { name: /Top 2 results/i })).toBeInTheDocument();
-    expect(screen.queryByText(/9999/)).not.toBeInTheDocument();
   });
 });

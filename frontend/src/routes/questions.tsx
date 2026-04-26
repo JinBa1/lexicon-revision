@@ -215,7 +215,6 @@ export function QuestionsRoute() {
         <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <ResultList
             results={results}
-            total={search.data?.total ?? results.length}
             selectedChunkId={selectedChunkId}
             onSelect={setFocus}
             metadataSchema={active?.metadata_schema ?? null}
@@ -271,8 +270,12 @@ function useIsMobile(): boolean {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia("(max-width: 1023px)");
     const onChange = () => setIsMobile(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
   }, []);
   return isMobile;
 }

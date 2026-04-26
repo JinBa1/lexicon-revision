@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -287,5 +287,40 @@ describe("QuestionsRoute", () => {
     fireEvent.keyDown(window, { key: "ArrowDown" });
 
     expect(screen.getByTestId("location")).toHaveTextContent("focus=cam-2022-p5-q3-b");
+  });
+
+  it("uses legacy MediaQueryList listeners when addEventListener is unavailable", async () => {
+    const originalMatchMedia = window.matchMedia;
+    const addListener = vi.fn<(listener: (event: MediaQueryListEvent) => void) => void>();
+    const removeListener = vi.fn<(listener: (event: MediaQueryListEvent) => void) => void>();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: true,
+        media: "(max-width: 1023px)",
+        onchange: null,
+        addListener,
+        removeListener,
+        dispatchEvent: vi.fn(),
+      }),
+    });
+
+    const { unmount } = renderQuestions(
+      "/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3",
+    );
+
+    expect(addListener).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(await screen.findByTestId("location")).not.toHaveTextContent("focus=");
+
+    unmount();
+    await waitFor(() => expect(removeListener).toHaveBeenCalledOnce());
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: originalMatchMedia,
+    });
   });
 });

@@ -3,18 +3,15 @@ import { ResultRow } from "./ResultRow";
 
 export function ResultList({
   results,
-  total,
   selectedChunkId,
   onSelect,
   metadataSchema,
 }: {
   results: SearchResult[];
-  total: number;
   selectedChunkId: string | null;
   onSelect: (chunkId: string) => void;
   metadataSchema: CollectionMetadataSchema | null;
 }) {
-  void total;
   return (
     <div className="border-r border-rule">
       <h2 className="px-4 py-3 font-display text-lg text-ink">Top {results.length} results</h2>
