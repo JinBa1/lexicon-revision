@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AnswerBody } from "@/components/answer/AnswerBody";
@@ -86,6 +86,9 @@ function AnswerContent({
 }) {
   const navigate = useNavigate();
   const sourceRefs = useRef(new Map<string, HTMLElement | null>());
+  const highlightTimeoutRef = useRef<number | null>(null);
+  const highlightTokenRef = useRef(0);
+  const highlightedElementRef = useRef<HTMLElement | null>(null);
 
   const registerRef = useCallback((chunkId: string, el: HTMLElement | null) => {
     sourceRefs.current.set(chunkId, el);
@@ -96,7 +99,22 @@ function AnswerContent({
     if (!el) return;
 
     const duration = 900;
-    const removeHighlight = () => el.classList.remove("citation-highlighted");
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    highlightedElementRef.current?.classList.remove("citation-highlighted");
+
+    const token = highlightTokenRef.current + 1;
+    highlightTokenRef.current = token;
+    highlightedElementRef.current = el;
+    const removeHighlight = () => {
+      if (highlightTokenRef.current !== token) return;
+      el.classList.remove("citation-highlighted");
+      if (highlightedElementRef.current === el) {
+        highlightedElementRef.current = null;
+      }
+    };
 
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     el.classList.add("citation-highlighted");
@@ -111,7 +129,15 @@ function AnswerContent({
       void animation.finished.finally(removeHighlight);
       return;
     }
-    window.setTimeout(removeHighlight, duration);
+    highlightTimeoutRef.current = window.setTimeout(removeHighlight, duration);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    };
   }, []);
 
   const hasQuery = query.trim().length > 0;

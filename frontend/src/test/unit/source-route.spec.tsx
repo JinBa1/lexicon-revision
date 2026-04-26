@@ -186,6 +186,63 @@ describe("SourceRoute", () => {
     expect(screen.getByText("Paper: Paper 5")).toBeInTheDocument();
   });
 
+  test("formats source metadata chips using dotted source keys and readable values", () => {
+    const collection: CollectionListItem = {
+      ...cambridgeAccessible,
+      metadata_schema: {
+        version: 1,
+        fields: [
+          {
+            key: "paper",
+            label: "Paper",
+            type: "string",
+            operators: ["eq"],
+            exposed: true,
+            source: "paper.label",
+          },
+          {
+            key: "has_figure",
+            label: "Has figure",
+            type: "boolean",
+            operators: ["eq"],
+            exposed: true,
+            source: null,
+          },
+          {
+            key: "attrs",
+            label: "Attrs",
+            type: "string",
+            operators: ["eq"],
+            exposed: true,
+            source: null,
+          },
+        ],
+      },
+    };
+    mockUseCollections.mockReturnValue({
+      data: [collection],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    setChunkState({
+      data: {
+        ...chunkDetailFixture,
+        metadata: {
+          "paper.label": "Paper dotted",
+          has_figure: false,
+          attrs: { topic: "amortized" },
+        },
+      },
+    });
+
+    renderSource();
+
+    expect(screen.getByText("Paper: Paper dotted")).toBeInTheDocument();
+    expect(screen.getByText("Has figure: No")).toBeInTheDocument();
+    expect(screen.getByText('Attrs: {"topic":"amortized"}')).toBeInTheDocument();
+  });
+
   test("location state back target uses Back to results and navigates there", async () => {
     renderSource({
       pathname: "/c/cam-cs-tripos/source/cam-2022-p5-q3-b",
@@ -304,6 +361,13 @@ describe("SourceRoute", () => {
             access_url: null,
             relation: "direct",
           },
+          {
+            media_id: "remaining-table",
+            kind: "table",
+            object_key: "remaining.csv",
+            access_url: "https://example.test/remaining.csv",
+            relation: "direct",
+          },
         ],
         render_blocks: [
           {
@@ -326,6 +390,8 @@ describe("SourceRoute", () => {
     expect(remainingImage).toHaveAttribute("loading", "lazy");
     expect(remainingImage).toHaveAttribute("width", "960");
     expect(remainingImage).toHaveAttribute("height", "640");
+    expect(screen.queryByAltText("Question media 2")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /remaining-table/i })).not.toBeInTheDocument();
     expect(screen.getByText("Media unavailable")).toBeInTheDocument();
   });
 

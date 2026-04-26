@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { cn } from "@/lib/cn";
 
-export const CitationSup = forwardRef<
+export const CitationChip = forwardRef<
   HTMLButtonElement,
   {
     label: string;
@@ -9,7 +9,7 @@ export const CitationSup = forwardRef<
     onActivate: (chunkId: string) => void;
     className?: string;
   }
->(function CitationSup({ label, targetChunkId, onActivate, className }, ref) {
+>(function CitationChip({ label, targetChunkId, onActivate, className }, ref) {
   return (
     <button
       ref={ref}

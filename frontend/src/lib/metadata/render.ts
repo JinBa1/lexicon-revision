@@ -37,12 +37,7 @@ function renderSchemaValues(
   return schema.fields
     .filter((field) => field.exposed)
     .map((field) => {
-      const value = metadata[field.key];
-      if (isRenderableValue(value) || field.source === null) {
-        return value;
-      }
-
-      return metadata[field.source] ?? metadata[field.source.replace(/^chunk\./, "")];
+      return resolveMetadataFieldValue(metadata, field.key, field.source);
     })
     .filter(isRenderableValue)
     .map(formatMetadataValue);
@@ -61,11 +56,29 @@ function renderGenericValues(metadata: Record<string, unknown>): string[] {
     .filter((value): value is string => value !== null);
 }
 
-function isRenderableValue(value: unknown): boolean {
+export function resolveMetadataFieldValue(
+  metadata: Record<string, unknown>,
+  key: string,
+  source: string | null,
+): unknown {
+  const directValue = metadata[key];
+  if (isRenderableValue(directValue) || source === null) {
+    return directValue;
+  }
+
+  const sourceValue = metadata[source];
+  if (isRenderableValue(sourceValue)) {
+    return sourceValue;
+  }
+
+  return metadata[source.replace(/^chunk\./, "")];
+}
+
+export function isRenderableValue(value: unknown): boolean {
   return value !== null && value !== undefined && value !== "";
 }
 
-function formatMetadataValue(value: unknown): string {
+export function formatMetadataValue(value: unknown): string {
   if (typeof value === "boolean") {
     return value ? "Yes" : "No";
   }

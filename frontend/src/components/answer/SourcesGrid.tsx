@@ -2,6 +2,11 @@ import { Link, useLocation } from "react-router-dom";
 import { Chip } from "@/components/shared/Chip";
 import { RenderBlocks } from "@/components/shared/render-blocks";
 import type { CollectionMetadataSchema, StudySource } from "@/lib/api/types";
+import {
+  formatMetadataValue,
+  isRenderableValue,
+  resolveMetadataFieldValue,
+} from "@/lib/metadata/render";
 import { buildSourceHref } from "@/lib/url/scope";
 
 export function SourcesGrid({
@@ -101,9 +106,9 @@ function buildMetaChips(
 
   for (const field of metadataSchema.fields) {
     if (!field.exposed) continue;
-    const value = resolveMetadataValue(metadata, field.key, field.source);
-    if (value === null || value === undefined || value === "") continue;
-    chips.push({ key: field.key, label: `${field.label}: ${value}` });
+    const value = resolveMetadataFieldValue(metadata, field.key, field.source);
+    if (!isRenderableValue(value)) continue;
+    chips.push({ key: field.key, label: `${field.label}: ${formatMetadataValue(value)}` });
   }
 
   return chips;
@@ -114,18 +119,4 @@ function normalizeSubQuestionLabel(sub_question_label: string | null): string | 
   if (!trimmed) return null;
   if (trimmed.startsWith("(") && trimmed.endsWith(")")) return trimmed.slice(1, -1).trim();
   return trimmed;
-}
-
-function resolveMetadataValue(
-  metadata: Record<string, unknown>,
-  key: string,
-  source: string | null,
-): unknown {
-  const directValue = metadata[key];
-  if (directValue !== null && directValue !== undefined && directValue !== "") return directValue;
-  if (!source) return directValue;
-
-  const fallbackKey = source.split(".").at(-1);
-  if (!fallbackKey) return directValue;
-  return metadata[fallbackKey];
 }

@@ -70,9 +70,6 @@ export function CollectionCard({
           {buildYearRange(collection)}
         </div>
       </div>
-      {locked && collection.lock_reason ? (
-        <span className="sr-only">{collection.lock_reason}</span>
-      ) : null}
       {/* isSignedIn is unused visually; kept in the API so parent logic can
           route locked_requires_signin for signed-in edge cases distinctly. */}
       {isSignedIn ? null : null}

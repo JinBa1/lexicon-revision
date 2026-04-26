@@ -309,6 +309,64 @@ describe("SourcesGrid", () => {
     );
     expect(registerRef).toHaveBeenCalledWith(source.chunk_id, expect.any(HTMLElement));
   });
+
+  test("formats chip metadata using full dotted source keys and readable values", () => {
+    const registerRef = vi.fn();
+    const sourceWithDottedMetadata: StudySource = {
+      ...source,
+      metadata: {
+        "paper.label": "Paper dotted",
+        has_figure: true,
+        attrs: { difficulty: "hard" },
+      },
+    };
+    const schema: CollectionMetadataSchema = {
+      version: 1,
+      fields: [
+        {
+          key: "paper",
+          label: "Paper",
+          type: "string",
+          operators: ["eq"],
+          exposed: true,
+          source: "paper.label",
+        },
+        {
+          key: "has_figure",
+          label: "Has figure",
+          type: "boolean",
+          operators: ["eq"],
+          exposed: true,
+          source: null,
+        },
+        {
+          key: "attrs",
+          label: "Attrs",
+          type: "string",
+          operators: ["eq"],
+          exposed: true,
+          source: null,
+        },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <SourcesGrid
+          collection="cam-cs-tripos"
+          sources={[sourceWithDottedMetadata]}
+          highlightedChunkId={source.chunk_id}
+          metadataSchema={schema}
+          registerRef={registerRef}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Paper: Paper dotted")).toBeInTheDocument();
+    expect(screen.getByText("Has figure: Yes")).toBeInTheDocument();
+    expect(screen.getByText('Attrs: {"difficulty":"hard"}')).toBeInTheDocument();
+    expect(screen.queryByText(/Paper: \[object Object\]/)).not.toBeInTheDocument();
+  });
 });
 
 describe("AnswerStatusBanner", () => {

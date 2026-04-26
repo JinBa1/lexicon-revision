@@ -126,5 +126,6 @@ describe("CollectionCard", () => {
       "aria-label",
       expect.stringContaining("Unavailable to your account"),
     );
+    expect(screen.getAllByText("Unavailable to your account")).toHaveLength(1);
   });
 });

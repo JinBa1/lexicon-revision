@@ -15,6 +15,11 @@ import { isApiError } from "@/lib/api/errors";
 import type { CollectionMetadataSchema, ChunkDetail, MediaRef } from "@/lib/api/types";
 import { useChunk } from "@/lib/hooks/useChunk";
 import { useCollections } from "@/lib/hooks/useCollections";
+import {
+  formatMetadataValue,
+  isRenderableValue,
+  resolveMetadataFieldValue,
+} from "@/lib/metadata/render";
 import { cn } from "@/lib/cn";
 import { buildQuestionsHref } from "@/lib/url/scope";
 
@@ -112,7 +117,9 @@ function SourceContent({
     ...getReferencedMediaIds(data.render_blocks),
     ...getReferencedMediaIds(data.parent?.render_blocks ?? null),
   ]);
-  const remainingMedia = data.media.filter((item) => !blockMediaIds.has(item.media_id));
+  const remainingMedia = data.media.filter(
+    (item) => item.kind === "image" && !blockMediaIds.has(item.media_id),
+  );
 
   return (
     <>
@@ -215,9 +222,9 @@ function buildMetaChips(
 
   for (const field of metadataSchema.fields) {
     if (!field.exposed) continue;
-    const value = resolveMetadataValue(metadata, field.key, field.source);
-    if (value === null || value === undefined || value === "") continue;
-    chips.push({ key: field.key, label: `${field.label}: ${value}` });
+    const value = resolveMetadataFieldValue(metadata, field.key, field.source);
+    if (!isRenderableValue(value)) continue;
+    chips.push({ key: field.key, label: `${field.label}: ${formatMetadataValue(value)}` });
   }
 
   return chips;
@@ -228,18 +235,4 @@ function normalizeSubQuestionLabel(subQuestionLabel: string | null): string | nu
   if (!trimmed) return null;
   if (trimmed.startsWith("(") && trimmed.endsWith(")")) return trimmed.slice(1, -1).trim();
   return trimmed;
-}
-
-function resolveMetadataValue(
-  metadata: Record<string, unknown>,
-  key: string,
-  source: string | null,
-): unknown {
-  const directValue = metadata[key];
-  if (directValue !== null && directValue !== undefined && directValue !== "") return directValue;
-  if (!source) return directValue;
-
-  const fallbackKey = source.split(".").at(-1);
-  if (!fallbackKey) return directValue;
-  return metadata[fallbackKey];
 }

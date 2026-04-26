@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -368,6 +368,52 @@ describe("AnswerRoute", () => {
         delete (HTMLElement.prototype as { animate?: unknown }).animate;
       }
       addClass.mockRestore();
+    }
+  });
+
+  test("citation fallback highlight keeps the latest activation until its timeout completes", () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    delete (HTMLElement.prototype as { animate?: unknown }).animate;
+
+    try {
+      renderAnswer();
+      const citation = screen.getByRole("button", { name: /jump to source 1/i });
+      const sourceCard = screen
+        .getByText("A question about table doubling and halving on underflow.")
+        .closest("li");
+
+      fireEvent.click(citation);
+      expect(sourceCard).toHaveClass("citation-highlighted");
+
+      vi.advanceTimersByTime(500);
+      fireEvent.click(citation);
+      vi.advanceTimersByTime(500);
+      expect(sourceCard).toHaveClass("citation-highlighted");
+
+      vi.advanceTimersByTime(400);
+      expect(sourceCard).not.toHaveClass("citation-highlighted");
+    } finally {
+      vi.useRealTimers();
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+      } else {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+      if (originalAnimate) {
+        Object.defineProperty(HTMLElement.prototype, "animate", originalAnimate);
+      } else {
+        delete (HTMLElement.prototype as { animate?: unknown }).animate;
+      }
     }
   });
 });
