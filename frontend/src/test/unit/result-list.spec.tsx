@@ -3,7 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { ResultList } from "@/components/questions/ResultList";
+import type { RenderBlock } from "@/lib/api/types";
 import { questionResult, subQuestionResult } from "../fixtures/search";
+
+const renderBlocksWithMathAndCode: RenderBlock[] = [
+  {
+    type: "paragraph",
+    runs: [
+      { type: "text", text: "Solve " },
+      { type: "math", latex: "x^2" },
+      { type: "text", text: " with recurrence expansion." },
+    ],
+  },
+  { type: "code", code: "def solve():\n    return 1", language: "python" },
+];
 
 describe("ResultList", () => {
   test("renders singular match count", () => {
@@ -56,5 +69,26 @@ describe("ResultList", () => {
     await userEvent.click(screen.getByRole("button", { name: /amortized analysis/i }));
 
     expect(onSelect).toHaveBeenCalledWith(questionResult.chunk_id);
+  });
+
+  test("passes result render_blocks into compact ChunkCard", () => {
+    const { container } = render(
+      <ResultList
+        results={[
+          {
+            ...questionResult,
+            text: "plain fallback text",
+            render_blocks: renderBlocksWithMathAndCode,
+          },
+        ]}
+        total={1}
+        selectedChunkId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(screen.getByText(/Contains code/i)).toBeInTheDocument();
+    expect(screen.queryByText(/plain fallback text/i)).not.toBeInTheDocument();
   });
 });

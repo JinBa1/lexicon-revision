@@ -21,6 +21,7 @@ export function ResultRow({
         text: result.text,
         metadata: result.metadata,
         media: result.media,
+        render_blocks: result.render_blocks,
       }}
       selected={selected}
       onClick={() => onSelect(result.chunk_id)}
