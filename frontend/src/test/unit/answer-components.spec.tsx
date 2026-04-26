@@ -41,6 +41,7 @@ const source: StudySource = {
     module_title: "Algorithms",
     paper_label: "Paper 5",
     question_label: "Question 3",
+    year: 2024,
   },
   why_cited: "Shows the exact dynamic-table variant discussed in the answer.",
   excerpt_blocks: null,
@@ -63,6 +64,14 @@ const metadataSchema: CollectionMetadataSchema = {
       type: "string",
       operators: ["eq"],
       exposed: false,
+      source: null,
+    },
+    {
+      key: "year",
+      label: "Year",
+      type: "integer",
+      operators: ["eq", "gte", "lte"],
+      exposed: true,
       source: null,
     },
     {
@@ -113,29 +122,35 @@ describe("PatternsList", () => {
 
     expect(screen.getByText("Patterns")).toBeInTheDocument();
     expect(screen.getByText("Dynamic tables")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /citation 1, view source chunk-1/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /jump to source 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /missing/i })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /citation 3, view source chunk-3/i }));
+    await userEvent.click(screen.getByRole("button", { name: /jump to source 3/i }));
 
     expect(onCitationActivate).toHaveBeenCalledWith("chunk-3");
   });
 });
 
 describe("LimitationsBlock", () => {
-  test("renders limitations when present and nothing when empty", () => {
-    const { container, rerender } = render(
-      <LimitationsBlock limitations={["Only three sources were retrieved."]} />,
+  test("renders nothing when empty", () => {
+    const { container } = render(<LimitationsBlock limitations={[]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test("renders limitations in a bordered callout", () => {
+    render(
+      <LimitationsBlock
+        limitations={["Only three sources were retrieved.", "The answer may omit later papers."]}
+      />,
     );
+
+    const callout = screen.getByRole("complementary", { name: /limitations/i });
 
     expect(screen.getByText("Limitations")).toBeInTheDocument();
     expect(screen.getByText("Only three sources were retrieved.")).toBeInTheDocument();
-
-    rerender(<LimitationsBlock limitations={[]} />);
-
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText("The answer may omit later papers.")).toBeInTheDocument();
+    expect(callout).toHaveClass("border-l-4", "border-claret");
   });
 });
 
@@ -245,7 +260,7 @@ describe("SourcesGrid", () => {
     expect(screen.getByText(source.excerpt)).toBeInTheDocument();
   });
 
-  test("falls back to generic metadata when no schema is provided", () => {
+  test("renders only the sub-question metadata chip when no schema is provided", () => {
     const registerRef = vi.fn();
 
     render(
@@ -259,14 +274,13 @@ describe("SourcesGrid", () => {
       </MemoryRouter>,
     );
 
-    expect(
-      screen.getByText(
-        "1 · module title: Algorithms / paper label: Paper 5 / question label: Question 3 / (b)",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Part (b)")).toBeInTheDocument();
+    expect(screen.queryByText(/module title:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/paper label:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/question label:/i)).not.toBeInTheDocument();
   });
 
-  test("renders source metadata in schema order using only exposed fields", () => {
+  test("renders source metadata as schema-ordered chips using only exposed fields", () => {
     const registerRef = vi.fn();
 
     render(
@@ -281,16 +295,77 @@ describe("SourcesGrid", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("1 · Question 3 / Paper 5 / (b)")).toBeInTheDocument();
+    expect(screen.getByText("Part (b)")).toBeInTheDocument();
+    expect(screen.getByText("Question: Question 3")).toBeInTheDocument();
+    expect(screen.getByText("Year: 2024")).toBeInTheDocument();
+    expect(screen.getByText("Paper: Paper 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Question 3 \/ 2024 \/ Paper 5/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Algorithms/)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/Why cited: Shows the exact dynamic-table variant/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Why cited")).toBeInTheDocument();
+    expect(screen.getByText(source.why_cited as string)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view source/i })).toHaveAttribute(
       "href",
       "/c/cam-cs-tripos/source/cam-2022-p5-q3-b",
     );
     expect(registerRef).toHaveBeenCalledWith(source.chunk_id, expect.any(HTMLElement));
+  });
+
+  test("formats chip metadata using full dotted source keys and readable values", () => {
+    const registerRef = vi.fn();
+    const sourceWithDottedMetadata: StudySource = {
+      ...source,
+      metadata: {
+        "paper.label": "Paper dotted",
+        has_figure: true,
+        attrs: { difficulty: "hard" },
+      },
+    };
+    const schema: CollectionMetadataSchema = {
+      version: 1,
+      fields: [
+        {
+          key: "paper",
+          label: "Paper",
+          type: "string",
+          operators: ["eq"],
+          exposed: true,
+          source: "paper.label",
+        },
+        {
+          key: "has_figure",
+          label: "Has figure",
+          type: "boolean",
+          operators: ["eq"],
+          exposed: true,
+          source: null,
+        },
+        {
+          key: "attrs",
+          label: "Attrs",
+          type: "string",
+          operators: ["eq"],
+          exposed: true,
+          source: null,
+        },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <SourcesGrid
+          collection="cam-cs-tripos"
+          sources={[sourceWithDottedMetadata]}
+          highlightedChunkId={source.chunk_id}
+          metadataSchema={schema}
+          registerRef={registerRef}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Paper: Paper dotted")).toBeInTheDocument();
+    expect(screen.getByText("Has figure: Yes")).toBeInTheDocument();
+    expect(screen.getByText('Attrs: {"difficulty":"hard"}')).toBeInTheDocument();
+    expect(screen.queryByText(/Paper: \[object Object\]/)).not.toBeInTheDocument();
   });
 });
 
@@ -301,17 +376,58 @@ describe("AnswerStatusBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  test.each<[StudyAnswerStatus, string]>([
-    ["partial", "Partial answer — see limitations."],
+  test("shows warm caution treatment for partial answers", () => {
+    const { container } = render(<AnswerStatusBanner status="partial" />);
+    const banner = container.firstElementChild;
+
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("Partial answer")).toHaveClass("font-bold");
+    expect(
+      screen.getByText("Some sub-questions had no strong evidence — see Limitations below."),
+    ).toHaveClass("mt-1");
+    expect(banner).toHaveClass(
+      "bg-paper-raised",
+      "border",
+      "border-rule",
+      "border-l-4",
+      "border-l-claret",
+      "text-ink",
+    );
+  });
+
+  test("shows stronger warning treatment for insufficient evidence", () => {
+    const { container } = render(<AnswerStatusBanner status="insufficient_evidence" />);
+    const banner = container.firstElementChild;
+
+    expect(screen.getByText("Insufficient evidence")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try retrieving matching questions instead, or broaden your filters."),
+    ).toBeInTheDocument();
+    expect(banner).toHaveClass(
+      "bg-claret-soft",
+      "border",
+      "border-claret",
+      "border-l-4",
+      "border-l-claret",
+      "text-ink",
+    );
+  });
+
+  test.each<[StudyAnswerStatus, string, string]>([
     [
-      "insufficient_evidence",
-      "Insufficient evidence — consider retrieving matching questions instead.",
+      "generation_failed",
+      "Could not generate answer",
+      "The answer service is temporarily unavailable. Try again in a moment.",
     ],
-    ["generation_failed", "The answer service is temporarily unavailable."],
-    ["retrieval_failed", "Retrieval failed. Try broadening filters or switching collection."],
-  ])("shows exact copy for %s status", (status, copy) => {
+    [
+      "retrieval_failed",
+      "Retrieval failed",
+      "Try broadening your filters or switching collection.",
+    ],
+  ])("shows exact title and body copy for %s status", (status, title, body) => {
     render(<AnswerStatusBanner status={status} />);
 
-    expect(screen.getByText(copy)).toBeInTheDocument();
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByText(body)).toBeInTheDocument();
   });
 });

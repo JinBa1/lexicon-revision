@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AnswerBody } from "@/components/answer/AnswerBody";
@@ -86,6 +86,9 @@ function AnswerContent({
 }) {
   const navigate = useNavigate();
   const sourceRefs = useRef(new Map<string, HTMLElement | null>());
+  const highlightTimeoutRef = useRef<number | null>(null);
+  const highlightTokenRef = useRef(0);
+  const highlightedElementRef = useRef<HTMLElement | null>(null);
 
   const registerRef = useCallback((chunkId: string, el: HTMLElement | null) => {
     sourceRefs.current.set(chunkId, el);
@@ -95,11 +98,46 @@ function AnswerContent({
     const el = sourceRefs.current.get(chunkId);
     if (!el) return;
 
+    const duration = 900;
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    highlightedElementRef.current?.classList.remove("citation-highlighted");
+
+    const token = highlightTokenRef.current + 1;
+    highlightTokenRef.current = token;
+    highlightedElementRef.current = el;
+    const removeHighlight = () => {
+      if (highlightTokenRef.current !== token) return;
+      el.classList.remove("citation-highlighted");
+      if (highlightedElementRef.current === el) {
+        highlightedElementRef.current = null;
+      }
+    };
+
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.animate?.([{ boxShadow: "0 0 0 2px #7E2E2E" }, { boxShadow: "0 0 0 0 transparent" }], {
-      duration: 900,
-      easing: "ease-out",
-    });
+    el.classList.add("citation-highlighted");
+    const animation = el.animate?.(
+      [{ boxShadow: "0 0 0 2px #7E2E2E" }, { boxShadow: "0 0 0 0 transparent" }],
+      {
+        duration,
+        easing: "ease-out",
+      },
+    );
+    if (animation) {
+      void animation.finished.finally(removeHighlight);
+      return;
+    }
+    highlightTimeoutRef.current = window.setTimeout(removeHighlight, duration);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    };
   }, []);
 
   const hasQuery = query.trim().length > 0;
@@ -188,22 +226,18 @@ function AnswerContent({
         ) : data ? (
           <>
             <section className="border-b border-rule pb-3">
-              <div className="font-ui text-[10px] uppercase tracking-[0.14em] text-ink-muted">
-                Question
-              </div>
-              <p className="mt-1 font-display text-[15px] italic leading-snug text-ink">
-                {data.query}
-              </p>
+              <div className="section-eyebrow">Question</div>
+              <h1 className="mt-1 font-display text-xl text-ink">{data.query}</h1>
             </section>
             <AnswerStatusBanner status={data.answer_status} />
             <div className="mt-4 space-y-4">
               <AnswerBody overview={data.answer.overview} />
+              <LimitationsBlock limitations={data.answer.limitations} />
               <PatternsList
                 patterns={data.answer.patterns}
                 chunkIdToPosition={chunkIdToPosition}
                 onCitationActivate={onCitationActivate}
               />
-              <LimitationsBlock limitations={data.answer.limitations} />
             </div>
             <RetrievalFooter retrieval={data.retrieval} />
             <SourcesGrid

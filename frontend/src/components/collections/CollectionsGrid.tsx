@@ -16,15 +16,12 @@ export function CollectionsGrid({
 }) {
   return (
     <section className="mt-10 border-t border-rule/50 pt-8">
-      <div className="mb-4 flex items-baseline justify-between">
+      <div className="mb-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
           Collections
         </h2>
-        <span className="font-display text-[11px] uppercase tracking-[0.1em] text-ink-muted">
-          Click to change scope
-        </span>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div data-collection-rows className="flex flex-col gap-3">
         {collections.map((collection) => (
           <CollectionCard
             key={collection.name}

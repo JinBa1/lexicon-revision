@@ -1,15 +1,19 @@
 export function LimitationsBlock({ limitations }: { limitations: string[] }) {
   if (limitations.length === 0) return null;
+
   return (
-    <div className="mt-4 rounded-sm border border-rule bg-paper-raised px-4 py-3 font-body text-[13px] leading-relaxed">
-      <div className="mb-1 font-ui text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+    <aside
+      aria-labelledby="limitations-heading"
+      className="my-4 border-l-4 border-claret bg-claret-soft py-3 pl-4 pr-3 font-body text-[13px] leading-relaxed"
+    >
+      <div id="limitations-heading" className="section-eyebrow">
         Limitations
       </div>
-      <ul className="list-disc space-y-1 pl-5">
-        {limitations.map((limitation, i) => (
-          <li key={i}>{limitation}</li>
+      <ul className="mt-2 list-disc space-y-1 pl-5">
+        {limitations.map((l, i) => (
+          <li key={i}>{l}</li>
         ))}
       </ul>
-    </div>
+    </aside>
   );
 }

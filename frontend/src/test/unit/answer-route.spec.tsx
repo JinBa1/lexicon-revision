@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -205,6 +205,28 @@ describe("AnswerRoute", () => {
     expect(screen.getByText("Ask a question to generate an answer")).toBeInTheDocument();
   });
 
+  test("renders the answer question as an eyebrow and level-one heading", () => {
+    renderAnswer();
+
+    expect(screen.getByText("Question")).toHaveClass("section-eyebrow");
+    const heading = screen.getByRole("heading", { level: 1, name: "dynamic tables" });
+    expect(heading).toHaveClass("font-display", "text-xl", "text-ink");
+    expect(heading).not.toHaveClass("italic");
+  });
+
+  test("renders limitations between the answer overview and patterns", () => {
+    renderAnswer();
+
+    const overview = screen.getByText(
+      "Dynamic tables are usually handled with a potential argument.",
+    );
+    const limitation = screen.getByText("Only one source was retrieved.");
+    const pattern = screen.getByText("Dynamic table resizing");
+
+    expect(overview.compareDocumentPosition(limitation)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(limitation.compareDocumentPosition(pattern)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   test("invalid parsed filters render invalid state without calling study", () => {
     renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=paper%3Aeq%3A5");
 
@@ -287,9 +309,13 @@ describe("AnswerRoute", () => {
         screen.getByText("Dynamic tables are usually handled with a potential argument."),
       ).toBeInTheDocument();
       expect(screen.getByText("Dynamic table resizing")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /citation 1, view source chunk-1/i }));
-      expect(screen.getByText("1 · 2022 / (b)")).toBeInTheDocument();
-      expect(screen.getByText(/Why cited: It asks for the same amortized-analysis pattern/i));
+      expect(screen.getByRole("button", { name: /jump to source 1/i }));
+      expect(screen.getByText("Year: 2022")).toBeInTheDocument();
+      expect(screen.getByText("Part (b)")).toBeInTheDocument();
+      expect(screen.getByText("Why cited")).toBeInTheDocument();
+      expect(
+        screen.getByText("It asks for the same amortized-analysis pattern."),
+      ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: /Retrieve matching questions instead/i }),
       ).toHaveAttribute("href", "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020");
@@ -298,7 +324,12 @@ describe("AnswerRoute", () => {
 
   test("citation click scrolls and animates the matching source", async () => {
     const scrollIntoView = vi.fn();
-    const animate = vi.fn();
+    const animate = vi.fn(() => ({ finished: Promise.resolve() }) as unknown as Animation);
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate");
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: scrollIntoView,
@@ -307,15 +338,82 @@ describe("AnswerRoute", () => {
       configurable: true,
       value: animate,
     });
+    const addClass = vi.spyOn(DOMTokenList.prototype, "add");
 
-    renderAnswer();
+    try {
+      renderAnswer();
 
-    await userEvent.click(screen.getByRole("button", { name: /citation 1, view source chunk-1/i }));
+      await userEvent.click(screen.getByRole("button", { name: /jump to source 1/i }));
+      const sourceCard = screen
+        .getByText("A question about table doubling and halving on underflow.")
+        .closest("li");
 
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
-    expect(animate).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ boxShadow: "0 0 0 2px #7E2E2E" })]),
-      expect.objectContaining({ duration: 900, easing: "ease-out" }),
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      expect(addClass).toHaveBeenCalledWith("citation-highlighted");
+      expect(animate).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ boxShadow: "0 0 0 2px #7E2E2E" })]),
+        expect.objectContaining({ duration: 900, easing: "ease-out" }),
+      );
+      await Promise.resolve();
+      expect(sourceCard).not.toHaveClass("citation-highlighted");
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+      } else {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+      if (originalAnimate) {
+        Object.defineProperty(HTMLElement.prototype, "animate", originalAnimate);
+      } else {
+        delete (HTMLElement.prototype as { animate?: unknown }).animate;
+      }
+      addClass.mockRestore();
+    }
+  });
+
+  test("citation fallback highlight keeps the latest activation until its timeout completes", () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
     );
+    const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    delete (HTMLElement.prototype as { animate?: unknown }).animate;
+
+    try {
+      renderAnswer();
+      const citation = screen.getByRole("button", { name: /jump to source 1/i });
+      const sourceCard = screen
+        .getByText("A question about table doubling and halving on underflow.")
+        .closest("li");
+
+      fireEvent.click(citation);
+      expect(sourceCard).toHaveClass("citation-highlighted");
+
+      vi.advanceTimersByTime(500);
+      fireEvent.click(citation);
+      vi.advanceTimersByTime(500);
+      expect(sourceCard).toHaveClass("citation-highlighted");
+
+      vi.advanceTimersByTime(400);
+      expect(sourceCard).not.toHaveClass("citation-highlighted");
+    } finally {
+      vi.useRealTimers();
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+      } else {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+      if (originalAnimate) {
+        Object.defineProperty(HTMLElement.prototype, "animate", originalAnimate);
+      } else {
+        delete (HTMLElement.prototype as { animate?: unknown }).animate;
+      }
+    }
   });
 });

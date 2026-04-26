@@ -1,4 +1,4 @@
-import { CitationSup } from "@/components/shared/CitationSup";
+import { CitationChip } from "@/components/shared/CitationChip";
 import type { StudyPattern } from "@/lib/api/types";
 
 export function PatternsList({
@@ -29,7 +29,7 @@ export function PatternsList({
                   const pos = chunkIdToPosition.get(chunkId);
                   if (pos === undefined) return null;
                   return (
-                    <CitationSup
+                    <CitationChip
                       key={`${chunkId}-${j}`}
                       label={String(pos)}
                       targetChunkId={chunkId}

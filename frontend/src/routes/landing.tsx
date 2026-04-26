@@ -5,6 +5,8 @@ import { CollectionsGrid } from "@/components/collections/CollectionsGrid";
 import { NoAffiliationBanner } from "@/components/collections/NoAffiliationBanner";
 import { WrongAffiliationModal } from "@/components/collections/WrongAffiliationModal";
 import { Hero } from "@/components/hero/Hero";
+import { HeroStatusStrip } from "@/components/hero/HeroStatusStrip";
+import { SteppedRibbon } from "@/components/hero/SteppedRibbon";
 import { Button } from "@/components/shared/Button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
@@ -61,7 +63,7 @@ export function LandingRoute() {
     }
 
     setScopeFlash(true);
-    const grid = document.getElementById("collections-grid");
+    const grid = document.getElementById("collections");
     grid?.scrollIntoView({ behavior: "smooth", block: "start" });
     scopeFlashTimeoutRef.current = window.setTimeout(() => {
       setScopeFlash(false);
@@ -95,6 +97,7 @@ export function LandingRoute() {
       </div>
 
       <div className="mt-6">
+        <SteppedRibbon />
         <Hero
           mode="landing"
           activeCollection={null}
@@ -103,11 +106,13 @@ export function LandingRoute() {
           onQueryChange={setQuery}
           onFiltersChange={() => {}}
           onOpenScope={() => {
-            document.getElementById("collections-grid")?.scrollIntoView({ behavior: "smooth" });
+            document.getElementById("collections")?.scrollIntoView({ behavior: "smooth" });
           }}
           onSubmit={() => {}}
           onScopeMissing={onScopeMissing}
+          showScopeRequiredHelper={false}
         />
+        <HeroStatusStrip activeCollection={null} />
         {scopeFlash ? (
           <div role="alert" className="mt-2 text-center font-display text-sm italic text-claret">
             Please pick a collection first
@@ -115,7 +120,7 @@ export function LandingRoute() {
         ) : null}
       </div>
 
-      <div id="collections-grid">
+      <div id="collections">
         {isLoading ? (
           <section className="mt-10">
             <LoadingSkeleton variant="card" count={6} />
