@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "fields": [
+    {"key": "year", "label": "Year", "type": "integer",
+     "operators": ["eq", "gte", "lte"], "exposed": true,
+     "source": "chunk.year"},
+    {"key": "tripos_part", "label": "Course Code", "type": "string",
+     "operators": ["eq"], "exposed": true,
+     "source": "chunk.tripos_part"},
+    {"key": "topic", "label": "Course Title", "type": "string",
+     "operators": ["eq"], "exposed": true,
+     "source": "chunk.topic"},
+    {"key": "question_number", "label": "Question", "type": "integer",
+     "operators": ["eq", "gte", "lte"], "exposed": true,
+     "source": "chunk.question_number"},
+    {"key": "marks", "label": "Marks", "type": "integer",
+     "operators": ["eq", "gte", "lte"], "exposed": true,
+     "source": "chunk.marks"},
+    {"key": "total_marks", "label": "Total Marks", "type": "integer",
+     "operators": ["eq", "gte", "lte"], "exposed": false,
+     "source": "chunk.total_marks"},
+    {"key": "has_code", "label": "Has Code", "type": "boolean",
+     "operators": ["eq"], "exposed": true,
+     "source": "chunk.has_code"},
+    {"key": "has_figure", "label": "Has Figure", "type": "boolean",
+     "operators": ["eq"], "exposed": true,
+     "source": "chunk.has_figure"},
+    {"key": "has_table", "label": "Has Table", "type": "boolean",
+     "operators": ["eq"], "exposed": true,
+     "source": "chunk.has_table"}
+  ]
+}
