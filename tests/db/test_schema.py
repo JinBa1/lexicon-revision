@@ -56,6 +56,9 @@ def test_collections_embedding_columns() -> None:
 def test_chunks_use_canonical_metadata_jsonb_column() -> None:
     assert "metadata" in chunks.c
     assert isinstance(chunks.c.metadata.type, JSONB)
+    assert "render_blocks" in chunks.c
+    assert isinstance(chunks.c.render_blocks.type, JSONB)
+    assert chunks.c.render_blocks.nullable is True
 
 
 def test_chunks_drop_legacy_filter_columns() -> None:

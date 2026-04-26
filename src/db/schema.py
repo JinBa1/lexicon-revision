@@ -276,6 +276,7 @@ chunks = Table(
         nullable=False,
         server_default=sql_text("'{}'::jsonb"),
     ),
+    Column("render_blocks", JSONB, nullable=True),
     Column("source_pdf", Text, nullable=False),
     UniqueConstraint(
         "collection_id",
