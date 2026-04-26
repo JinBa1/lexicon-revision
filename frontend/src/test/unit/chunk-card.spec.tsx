@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, expect, it, test } from "vitest";
 import { ChunkCard } from "@/components/shared/ChunkCard";
 import type { CollectionMetadataSchema, MediaRef, RenderBlock } from "@/lib/api/types";
 import { renderMetadataSummary } from "@/lib/metadata/render";
@@ -65,7 +65,7 @@ const directMedia: MediaRef[] = [
 ];
 
 describe("ChunkCard", () => {
-  test("compact mode shows metadata line and excerpt", () => {
+  test("compact mode shows excerpt text", () => {
     render(
       <ChunkCard
         mode="compact"
@@ -80,8 +80,6 @@ describe("ChunkCard", () => {
         }}
       />,
     );
-    expect(screen.getByText(/2022/)).toBeInTheDocument();
-    expect(screen.getByText(/paper 5/i)).toBeInTheDocument();
     expect(screen.getByText(/amortized analysis/i)).toBeInTheDocument();
   });
 
@@ -180,7 +178,9 @@ describe("ChunkCard", () => {
       />,
     );
 
-    expect(screen.getByText("Paper 5 / No / 2022")).toBeInTheDocument();
+    // M20b: meta chips replace the slash-joined summary line
+    expect(screen.getByText("Year: 2022")).toBeInTheDocument();
+    expect(screen.getByText("Has figure: false")).toBeInTheDocument();
   });
 
   test("compact mode renders render_blocks with KaTeX and code indicator", () => {
@@ -304,7 +304,7 @@ describe("ChunkCard", () => {
     expect(screen.queryByText(/plain parent fallback/i)).not.toBeInTheDocument();
   });
 
-  test("full mode resolves parent image blocks from chunk media without duplicating MediaList", () => {
+  test("full mode resolves parent image blocks with chunk media and dedupes them from MediaList", () => {
     render(
       <ChunkCard
         mode="full"
@@ -338,8 +338,130 @@ describe("ChunkCard", () => {
       "src",
       "https://example.test/image_parent.png",
     );
-    expect(screen.queryByText(/Image unavailable/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("img")).toHaveLength(1);
+  });
+});
+
+describe("<ChunkCard> compact (M20b)", () => {
+  const baseChunk = {
+    chunk_id: "x",
+    chunk_level: "question" as const,
+    parent_chunk_id: null,
+    sub_question_label: null,
+    text: "fallback text",
+    metadata: { year: 2024, paper: 1, question: 3 },
+    media: [],
+    render_blocks: null,
+  };
+
+  it("base row reserves border-l-4 transparent", () => {
+    const { container } = render(<ChunkCard mode="compact" chunk={baseChunk} />);
+    expect((container.firstChild as HTMLElement).className).toContain("border-l-4");
+    expect((container.firstChild as HTMLElement).className).toContain("border-l-transparent");
+  });
+
+  it("selected row applies .selectable-selected", () => {
+    const { container } = render(
+      <ChunkCard mode="compact" chunk={baseChunk} selected onClick={() => {}} />,
+    );
+    expect((container.firstChild as HTMLElement).className).toContain("selectable-selected");
+  });
+
+  it("renders meta chip row from exposed schema fields", () => {
+    const schema = {
+      version: 1,
+      fields: [
+        {
+          key: "year",
+          label: "Year",
+          type: "integer" as const,
+          operators: [],
+          exposed: true,
+          source: null,
+        },
+        {
+          key: "paper",
+          label: "Paper",
+          type: "integer" as const,
+          operators: [],
+          exposed: true,
+          source: null,
+        },
+      ],
+    };
+    render(<ChunkCard mode="compact" chunk={baseChunk} metadataSchema={schema} />);
+    expect(screen.getByText(/Year/)).toBeInTheDocument();
+    expect(screen.getByText(/Paper/)).toBeInTheDocument();
+  });
+
+  it("does not render the legacy '{N} media' footer", () => {
+    const chunk = {
+      ...baseChunk,
+      media: [
+        {
+          media_id: "image_1",
+          kind: "image" as const,
+          object_key: null,
+          access_url: null,
+          relation: "direct" as const,
+        },
+      ],
+    };
+    render(<ChunkCard mode="compact" chunk={chunk} />);
+    expect(screen.queryByText(/\d+ media/)).not.toBeInTheDocument();
+  });
+});
+
+describe("<ChunkCard> full (M20b)", () => {
+  const baseChunk = {
+    chunk_id: "x",
+    chunk_level: "sub_question" as const,
+    parent_chunk_id: "p",
+    sub_question_label: "a",
+    text: "body",
+    metadata: { year: 2024 },
+    media: [],
+    render_blocks: null,
+  };
+
+  it("renders section eyebrow with sub_question_label literal", () => {
+    render(<ChunkCard mode="full" chunk={baseChunk} parent={null} />);
+    // Spec: eyebrow text equals sub_question_label exactly ("a"), or
+    // "Matched question" when null.
+    expect(screen.getByText("a")).toBeInTheDocument();
+  });
+
+  it("renders 'Matched question' eyebrow when sub_question_label is null", () => {
+    const chunk = { ...baseChunk, sub_question_label: null, chunk_level: "question" as const };
+    render(<ChunkCard mode="full" chunk={chunk} parent={null} />);
+    expect(screen.getByText("Matched question")).toBeInTheDocument();
+  });
+
+  it("renders meta chip row instead of slashed metadata", () => {
+    const schema = {
+      version: 1,
+      fields: [
+        {
+          key: "year",
+          label: "Year",
+          type: "integer" as const,
+          operators: [],
+          exposed: true,
+          source: null,
+        },
+      ],
+    };
+    render(<ChunkCard mode="full" chunk={baseChunk} parent={null} metadataSchema={schema} />);
+    expect(screen.getByText(/Year/)).toBeInTheDocument();
+  });
+
+  it("parent block is collapsed by default and toggled by Show full parent", () => {
+    const parent = { text: "long parent text", metadata: {}, render_blocks: null };
+    render(<ChunkCard mode="full" chunk={baseChunk} parent={parent} />);
+    const toggle = screen.getByRole("button", { name: /show full parent|collapse parent/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 });
 

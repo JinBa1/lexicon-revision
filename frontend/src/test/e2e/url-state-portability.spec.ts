@@ -147,7 +147,7 @@ async function stubSearchAndChunkDetails(page: Page) {
 }
 
 async function expectAlgorithmsResults(page: Page) {
-  await expect(page.getByText("2 questions match")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeVisible();
   await expect(
     page.getByText("Analyze the running time of a divide-and-conquer sorting algorithm."),
   ).toBeVisible();
@@ -206,7 +206,7 @@ test("broken filter URL renders invalid state with clear filters action", async 
   await expect(page.getByText("Filters in this link aren't valid")).toBeVisible();
   await expect(page.getByText("Adjust or clear filters to continue.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Clear filters" })).toBeVisible();
-  await expect(page.getByText("2 questions match")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeHidden();
   await expect(
     page.getByText("Analyze the running time of a divide-and-conquer sorting algorithm."),
   ).toBeHidden();

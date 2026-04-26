@@ -323,7 +323,7 @@ test.describe("critical axe accessibility", () => {
 
   test("has no critical axe violations on focused questions route", async ({ page }) => {
     await page.goto("/c/public-demo/questions?q=graphs&focus=chunk-1");
-    await expect(page.getByText("2 questions match")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeVisible();
     await expect(page.getByRole("article").first().getByText(focusedChunk.text)).toBeVisible();
 
     await assertNoCriticalAxeViolations(page);

@@ -133,7 +133,7 @@ test("anonymous user can pick a public collection and search for matching questi
   await page.getByRole("button", { name: "Find questions" }).click();
 
   await expect(page).toHaveURL(/\/c\/public-demo\/questions\?q=dynamic\+programming/);
-  await expect(page.getByText("2 questions match")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeVisible();
   await expect(
     page.getByText("Design a dynamic programming algorithm for optimal binary search trees."),
   ).toBeVisible();

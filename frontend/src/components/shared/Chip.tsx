@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-type ChipVariant = "default" | "ghost" | "active";
+type ChipVariant = "default" | "ghost" | "active" | "meta";
 
 export type ChipProps = {
   children: ReactNode;
@@ -18,6 +18,7 @@ const variants: Record<ChipVariant, string> = {
   default: "border-rule bg-paper-raised text-ink",
   ghost: "border-rule bg-transparent text-ink",
   active: "border-claret bg-claret-soft text-claret",
+  meta: "border-rule-soft bg-paper text-ink-muted",
 };
 
 export function Chip({

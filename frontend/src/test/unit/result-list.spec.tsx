@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { ResultList } from "@/components/questions/ResultList";
-import type { RenderBlock } from "@/lib/api/types";
+import type { RenderBlock, SearchResult } from "@/lib/api/types";
 import { questionResult, subQuestionResult } from "../fixtures/search";
 
 const renderBlocksWithMathAndCode: RenderBlock[] = [
@@ -23,26 +23,26 @@ describe("ResultList", () => {
     render(
       <ResultList
         results={[questionResult]}
-        total={1}
         selectedChunkId={null}
         onSelect={() => {}}
+        metadataSchema={null}
       />,
     );
 
-    expect(screen.getByText("1 question matches")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Top 1 results/i })).toBeInTheDocument();
   });
 
   test("renders plural match count", () => {
     render(
       <ResultList
         results={[questionResult, subQuestionResult]}
-        total={2}
         selectedChunkId={null}
         onSelect={() => {}}
+        metadataSchema={null}
       />,
     );
 
-    expect(screen.getByText("2 questions match")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Top 2 results/i })).toBeInTheDocument();
   });
 
   test("marks the selected row and selects rows by chunk id", async () => {
@@ -51,9 +51,9 @@ describe("ResultList", () => {
     render(
       <ResultList
         results={[questionResult, subQuestionResult]}
-        total={2}
         selectedChunkId={subQuestionResult.chunk_id}
         onSelect={onSelect}
+        metadataSchema={null}
       />,
     );
 
@@ -81,14 +81,60 @@ describe("ResultList", () => {
             render_blocks: renderBlocksWithMathAndCode,
           },
         ]}
-        total={1}
         selectedChunkId={null}
         onSelect={() => {}}
+        metadataSchema={null}
       />,
     );
 
     expect(container.querySelector(".katex")).not.toBeNull();
     expect(screen.getByText(/Contains code/i)).toBeInTheDocument();
     expect(screen.queryByText(/plain fallback text/i)).not.toBeInTheDocument();
+  });
+
+  it("renders 'Top {N} results' from results.length", () => {
+    const results: SearchResult[] = [
+      {
+        chunk_id: "a",
+        chunk_level: "question" as const,
+        parent_chunk_id: null,
+        sub_question_label: null,
+        text: "First result text",
+        score: 0.9,
+        metadata: {
+          year: 2022,
+          paper_label: "Paper 1",
+          question_label: "Question 1",
+          has_figure: false,
+        },
+        media: [],
+        render_blocks: null,
+      },
+      {
+        chunk_id: "b",
+        chunk_level: "question" as const,
+        parent_chunk_id: null,
+        sub_question_label: null,
+        text: "Second result text",
+        score: 0.85,
+        metadata: {
+          year: 2023,
+          paper_label: "Paper 2",
+          question_label: "Question 2",
+          has_figure: false,
+        },
+        media: [],
+        render_blocks: null,
+      },
+    ];
+    render(
+      <ResultList
+        results={results}
+        selectedChunkId={null}
+        onSelect={() => {}}
+        metadataSchema={null}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /Top 2 results/i })).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, type ReactNode } from "react";
-import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { EmptyQuestions } from "@/components/questions/EmptyQuestions";
 import { HeaderEcho } from "@/components/questions/HeaderEcho";
@@ -13,8 +13,10 @@ import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { isApiError } from "@/lib/api/errors";
 import { useChunk } from "@/lib/hooks/useChunk";
 import { useCollections } from "@/lib/hooks/useCollections";
+import { useResultListKeyboardNav } from "@/lib/hooks/useResultListKeyboardNav";
 import { useSearch } from "@/lib/hooks/useSearch";
 import { useUrlState } from "@/lib/hooks/useUrlState";
+import { buildSourceHref } from "@/lib/url/scope";
 
 export function QuestionsRoute() {
   const { collection: collectionName = "" } = useParams<{ collection: string }>();
@@ -57,6 +59,21 @@ export function QuestionsRoute() {
     },
     [searchParams, setSearchParams],
   );
+
+  const location = useLocation();
+  const isMobile = useIsMobile();
+  useResultListKeyboardNav({
+    results,
+    selectedChunkId,
+    onFocus: setFocus,
+    onNavigate: (chunkId) => {
+      navigate(buildSourceHref(collectionName, chunkId), {
+        state: { from: location.pathname + location.search },
+      });
+    },
+    onCloseOverlay: () => setFocus(null),
+    isMobileOverlayOpen: focus !== null && isMobile,
+  });
 
   useEffect(() => {
     if (search.data === undefined || focus === null) return;
@@ -198,27 +215,36 @@ export function QuestionsRoute() {
         <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <ResultList
             results={results}
-            total={search.data?.total ?? results.length}
             selectedChunkId={selectedChunkId}
             onSelect={setFocus}
+            metadataSchema={active?.metadata_schema ?? null}
           />
           <div className="hidden min-h-[34rem] lg:block">
             <DetailPanel
               collection={collectionName}
               chunk={chunk.data}
               isLoading={chunk.isLoading}
+              metadataSchema={active?.metadata_schema ?? null}
             />
           </div>
         </div>
       </div>
+      <p className="mt-3 text-center font-ui text-[11px] text-ink-muted">
+        Use ↑↓ to move through results · Enter to open source · Esc to close detail (mobile)
+      </p>
       {focus !== null ? (
         <div className="fixed inset-0 z-30 overflow-y-auto bg-paper lg:hidden">
-          <div className="sticky top-0 border-b border-rule bg-paper-raised p-3">
-            <Button variant="secondary" onClick={() => setFocus(null)}>
-              Back to results
+          <div className="sticky top-0 z-10 border-b border-rule bg-paper-raised p-3 shadow-sm">
+            <Button variant="secondary" onClick={() => setFocus(null)} className="h-12 px-4">
+              ← Back to results
             </Button>
           </div>
-          <DetailPanel collection={collectionName} chunk={chunk.data} isLoading={chunk.isLoading} />
+          <DetailPanel
+            collection={collectionName}
+            chunk={chunk.data}
+            isLoading={chunk.isLoading}
+            metadataSchema={active?.metadata_schema ?? null}
+          />
         </div>
       ) : null}
     </QuestionsShell>
@@ -232,4 +258,24 @@ function QuestionsShell({ header, children }: { header: ReactNode; children: Rea
       <div className="mt-5">{children}</div>
     </main>
   );
+}
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window === "undefined" || !window.matchMedia
+      ? false
+      : window.matchMedia("(max-width: 1023px)").matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = () => setIsMobile(mq.matches);
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
+  }, []);
+  return isMobile;
 }
