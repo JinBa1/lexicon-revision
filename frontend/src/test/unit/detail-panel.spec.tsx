@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 
 import { DetailPanel } from "@/components/questions/DetailPanel";
 import type { RenderBlock } from "@/lib/api/types";
@@ -50,7 +50,7 @@ describe("DetailPanel", () => {
     expect(screen.getByText(/Give an amortized analysis/i)).toBeInTheDocument();
     expect(screen.getByText(/halves on underflow/i)).toBeInTheDocument();
 
-    expect(screen.getByRole("link", { name: /open as shareable source/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /open shareable source/i })).toHaveAttribute(
       "href",
       "/c/cam-cs-tripos/source/cam-2022-p5-q3-b",
     );
@@ -107,5 +107,16 @@ describe("DetailPanel", () => {
     expect(screen.getByText("overflow")).toBeInTheDocument();
     expect(screen.queryByText("CHILD FALLBACK SHOULD NOT RENDER")).not.toBeInTheDocument();
     expect(screen.queryByText("PARENT FALLBACK SHOULD NOT RENDER")).not.toBeInTheDocument();
+  });
+
+  it("renders primary 'Open shareable source' button instead of footer link", () => {
+    renderDetailPanel({
+      collection: "cam",
+      chunk: chunkDetailFixture,
+      isLoading: false,
+    });
+    expect(screen.getByRole("link", { name: /open shareable source/i })).toBeInTheDocument();
+    // No tiny uppercase-claret hover-link variant remains.
+    expect(screen.queryByText(/^Open as shareable source/i)).not.toBeInTheDocument();
   });
 });

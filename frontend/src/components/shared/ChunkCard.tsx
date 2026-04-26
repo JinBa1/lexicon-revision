@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { Chip } from "@/components/shared/Chip";
 import { RenderBlocks, getReferencedMediaIds } from "@/components/shared/render-blocks";
 import type { BlockIndicator } from "@/components/shared/render-blocks";
 import { buildMetadataFallbackIndicators } from "@/components/shared/buildMetadataFallbackIndicators";
 import type { CollectionMetadataSchema, MediaRef, RenderBlock } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
-import { renderMetadataSummary } from "@/lib/metadata/render";
 import { truncateExcerpt } from "@/lib/url/query";
 
 type CommonChunk = {
@@ -116,45 +116,67 @@ function FullChunkCard({
   footer,
   metadataSchema,
 }: Extract<ChunkCardProps, { mode: "full" }>) {
-  const referencedMediaIds = new Set([
-    ...getReferencedMediaIds(chunk.render_blocks ?? null),
-    ...getReferencedMediaIds(parent?.render_blocks ?? null),
-  ]);
-  const remainingMedia = chunk.media.filter((item) => !referencedMediaIds.has(item.media_id));
+  const blockMediaIds = getReferencedMediaIds(chunk.render_blocks ?? null);
+  const remainingMedia = chunk.media.filter((m) => !blockMediaIds.has(m.media_id));
+  // Spec §"Detail panel restructure": eyebrow renders sub_question_label literally,
+  // or "Matched question" when null.
+  const eyebrowLabel = chunk.sub_question_label ?? "Matched question";
+  const metaChips = buildMetaChipsFromSchema(chunk.metadata, metadataSchema, null);
 
   return (
     <article className="rounded-sm bg-paper-raised p-5">
-      {parent ? (
-        <>
-          <div className="font-ui text-[10px] uppercase tracking-wider text-ink-muted">
-            Parent question
-          </div>
-          <RenderBlocks
-            blocks={parent.render_blocks ?? null}
-            mode="full"
-            fallbackText={parent.text}
-            media={chunk.media}
-            className="mt-1 text-sm text-ink-muted"
-          />
-          <div className="my-4 h-px bg-rule" />
-        </>
-      ) : null}
-      <div className="font-ui text-[10px] uppercase tracking-wider text-ink-muted">
-        {renderMetadataSummary(chunk.metadata, {
-          schema: metadataSchema,
-          subLabel: chunk.sub_question_label,
-        })}
-      </div>
+      <div className="section-eyebrow">{eyebrowLabel}</div>
       <RenderBlocks
         blocks={chunk.render_blocks ?? null}
         mode="full"
         fallbackText={chunk.text}
         media={chunk.media}
-        className="mt-2 max-w-[65ch] font-body text-[15px] leading-relaxed text-ink"
+        className="mt-2"
       />
+      {metaChips.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {metaChips.map((label) => (
+            <Chip key={label} variant="meta">
+              {label}
+            </Chip>
+          ))}
+        </div>
+      ) : null}
+      {parent ? <ParentCollapsible parent={parent} /> : null}
       {remainingMedia.length > 0 ? <MediaList media={remainingMedia} /> : null}
       {footer ? <div className="mt-4 border-t border-rule pt-3">{footer}</div> : null}
     </article>
+  );
+}
+
+type FullParent = NonNullable<Extract<ChunkCardProps, { mode: "full" }>["parent"]>;
+
+function ParentCollapsible({ parent }: { parent: FullParent }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <section className="mt-5 border-t border-rule pt-4">
+      <div className="section-eyebrow">Parent question</div>
+      <div
+        className={cn(
+          "mt-1 text-[14px] text-ink-muted overflow-hidden",
+          expanded ? "" : "max-h-24",
+        )}
+      >
+        <RenderBlocks
+          blocks={parent.render_blocks ?? null}
+          mode="full"
+          fallbackText={parent.text}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="mt-2 font-ui text-[11px] uppercase tracking-widest text-claret hover:underline"
+      >
+        {expanded ? "Collapse parent" : "Show full parent"}
+      </button>
+    </section>
   );
 }
 

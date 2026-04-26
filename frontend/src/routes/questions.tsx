@@ -208,6 +208,7 @@ export function QuestionsRoute() {
               collection={collectionName}
               chunk={chunk.data}
               isLoading={chunk.isLoading}
+              metadataSchema={active?.metadata_schema ?? null}
             />
           </div>
         </div>
@@ -219,7 +220,12 @@ export function QuestionsRoute() {
               Back to results
             </Button>
           </div>
-          <DetailPanel collection={collectionName} chunk={chunk.data} isLoading={chunk.isLoading} />
+          <DetailPanel
+            collection={collectionName}
+            chunk={chunk.data}
+            isLoading={chunk.isLoading}
+            metadataSchema={active?.metadata_schema ?? null}
+          />
         </div>
       ) : null}
     </QuestionsShell>
