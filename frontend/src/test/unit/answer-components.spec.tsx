@@ -299,17 +299,58 @@ describe("AnswerStatusBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  test.each<[StudyAnswerStatus, string]>([
-    ["partial", "Partial answer — see limitations."],
+  test("shows warm caution treatment for partial answers", () => {
+    const { container } = render(<AnswerStatusBanner status="partial" />);
+    const banner = container.firstElementChild;
+
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("Partial answer")).toHaveClass("font-bold");
+    expect(
+      screen.getByText("Some sub-questions had no strong evidence — see Limitations below."),
+    ).toHaveClass("mt-1");
+    expect(banner).toHaveClass(
+      "bg-paper-raised",
+      "border",
+      "border-rule",
+      "border-l-4",
+      "border-l-claret",
+      "text-ink",
+    );
+  });
+
+  test("shows stronger warning treatment for insufficient evidence", () => {
+    const { container } = render(<AnswerStatusBanner status="insufficient_evidence" />);
+    const banner = container.firstElementChild;
+
+    expect(screen.getByText("Insufficient evidence")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try retrieving matching questions instead, or broaden your filters."),
+    ).toBeInTheDocument();
+    expect(banner).toHaveClass(
+      "bg-claret-soft",
+      "border",
+      "border-claret",
+      "border-l-4",
+      "border-l-claret",
+      "text-ink",
+    );
+  });
+
+  test.each<[StudyAnswerStatus, string, string]>([
     [
-      "insufficient_evidence",
-      "Insufficient evidence — consider retrieving matching questions instead.",
+      "generation_failed",
+      "Could not generate answer",
+      "The answer service is temporarily unavailable. Try again in a moment.",
     ],
-    ["generation_failed", "The answer service is temporarily unavailable."],
-    ["retrieval_failed", "Retrieval failed. Try broadening filters or switching collection."],
-  ])("shows exact copy for %s status", (status, copy) => {
+    [
+      "retrieval_failed",
+      "Retrieval failed",
+      "Try broadening your filters or switching collection.",
+    ],
+  ])("shows exact title and body copy for %s status", (status, title, body) => {
     render(<AnswerStatusBanner status={status} />);
 
-    expect(screen.getByText(copy)).toBeInTheDocument();
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByText(body)).toBeInTheDocument();
   });
 });
