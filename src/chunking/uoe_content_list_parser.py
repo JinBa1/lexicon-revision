@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 
 from src.chunking.base_parser import BaseParser
@@ -60,6 +61,14 @@ UOE_COVER_BOILERPLATE_TOKENS = (
     "Convener",
     "External Examiner",
 )
+
+UOE_PART_RE = re.compile(r"^\s*([a-z])\)\s+", re.MULTILINE)
+UOE_MARKS_TRAILING_RE = re.compile(r"\((\d+)\)\s*$")
+UOE_FILENAME_PAPER_RE = re.compile(r"^(\d+)_")
+
+# UOE sub-question label: bare letter followed by ) and whitespace, e.g. "a) "
+UOE_SUB_QUESTION_RE = re.compile(r"^\s*([a-z])\)\s+")
+UOE_SUB_QUESTION_PREFIX_RE = re.compile(r"^\s*[a-z]\)\s*")
 
 
 @dataclass
@@ -296,6 +305,11 @@ class UOEContentListParser(BaseParser):
         if not cover_meta.get("year"):
             base_warnings.append("uoe_year_missing")
 
+        # Derive paper_id from filename: e.g. "2019937_MECE10017_content_list"
+        stem = Path(content_list_path).stem.replace("_content_list", "")
+        m = UOE_FILENAME_PAPER_RE.match(stem)
+        paper_id = int(m.group(1)) if m else None
+
         # Split post-cover blocks into per-question groups
         post_cover_blocks = blocks[first_q_idx:]
         question_groups = self._split_questions(post_cover_blocks)
@@ -310,7 +324,7 @@ class UOEContentListParser(BaseParser):
                 ParsedQuestion(
                     tripos_part=cover_meta.get("course_code"),
                     year=cover_meta.get("year"),
-                    paper=None,
+                    paper=paper_id,
                     question_number=question_number,
                     topic=cover_meta.get("course_title"),
                     author=None,
@@ -513,7 +527,12 @@ class UOEContentListParser(BaseParser):
     def _split_sub_questions(
         self, body_blocks: list[dict]
     ) -> tuple[str, list[SubQuestion]]:
-        """Split body into preamble and sub-questions (Cambridge logic)."""
+        """Split body into preamble and sub-questions.
+
+        Uses approach (a): reuse _flatten_to_segments + _filter_sequential_labels,
+        relying on the overridden _detect_top_level_label to recognise UOE 'a)' labels.
+        Marks are extracted with the overridden _extract_marks (UOE trailing '(N)').
+        """
         segments = self._flatten_to_segments(body_blocks)
 
         if not segments:
@@ -543,10 +562,12 @@ class UOEContentListParser(BaseParser):
             sub_parts = [text for text, _ in segments[start_seg:end_seg]]
             sub_text = "\n".join(sub_parts).strip()
 
+            # Strip the leading UOE label prefix (e.g. "a) ")
             sub_text = self._strip_top_level_label_prefix(sub_text)
 
             marks = self._extract_marks(sub_text)
-            cleaned_text = MARKS_RE.sub("", sub_text).strip()
+            # Strip trailing (N) marks notation from displayed text
+            cleaned_text = UOE_MARKS_TRAILING_RE.sub("", sub_text).strip()
 
             sub_questions.append(
                 SubQuestion(label=label, text=cleaned_text, marks=marks)
@@ -799,22 +820,22 @@ class UOEContentListParser(BaseParser):
         return result
 
     def _detect_top_level_label(self, text: str) -> str | None:
-        """Detect a single-letter sub-question token at the start of text."""
-        match = SUB_QUESTION_RE.match(text)
+        """Detect a UOE bare-letter label 'a) ' at the start of text."""
+        match = UOE_SUB_QUESTION_RE.match(text)
         if match:
             return match.group(1)
         return None
 
     def _strip_top_level_label_prefix(self, text: str) -> str:
-        """Remove a leading top-level label token while preserving body text."""
-        return SUB_QUESTION_PREFIX_RE.sub("", text, count=1)
+        """Remove leading UOE label prefix 'a) ' from text."""
+        return UOE_SUB_QUESTION_PREFIX_RE.sub("", text, count=1)
 
     def _extract_marks(self, text: str) -> int | None:
-        """Extract total marks from text. Uses the last [N marks] found."""
-        matches = MARKS_RE.findall(text)
-        if not matches:
-            return None
-        return sum(int(m) for m in matches)
+        """Extract marks from UOE trailing '(N)' pattern."""
+        m = UOE_MARKS_TRAILING_RE.search(text)
+        if m:
+            return int(m.group(1))
+        return None
 
     def _compute_total_marks(self, sub_questions: list[SubQuestion]) -> int | None:
         if not sub_questions:
