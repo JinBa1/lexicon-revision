@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, it, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import { ApiError } from "@/lib/api/errors";
@@ -267,5 +267,25 @@ describe("QuestionsRoute", () => {
       collection: "cam-cs-tripos",
       chunkId: "missing",
     });
+  });
+
+  it("renders keyboard hint with Esc-only-mobile copy", () => {
+    setSearchState();
+    renderQuestions();
+
+    expect(
+      screen.getByText(
+        /Use ↑↓ to move through results · Enter to open source · Esc to close detail \(mobile\)/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("ArrowDown updates focus param via keyboard hook", async () => {
+    setSearchState();
+    renderQuestions("/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3");
+
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+
+    expect(screen.getByTestId("location")).toHaveTextContent("focus=cam-2022-p5-q3-b");
   });
 });
