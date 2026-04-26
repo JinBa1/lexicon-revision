@@ -1,86 +1,241 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useState } from "react";
 
-import { HeaderEcho } from "@/components/questions/HeaderEcho";
+import { CopyLinkButton } from "@/components/source/CopyLinkButton";
 import { Button } from "@/components/shared/Button";
-import { ChunkCard } from "@/components/shared/ChunkCard";
+import { Chip } from "@/components/shared/Chip";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
+import {
+  RenderBlocks,
+  flattenFirstParagraph,
+  getReferencedMediaIds,
+} from "@/components/shared/render-blocks";
 import { isApiError } from "@/lib/api/errors";
+import type { CollectionMetadataSchema, ChunkDetail, MediaRef } from "@/lib/api/types";
 import { useChunk } from "@/lib/hooks/useChunk";
+import { useCollections } from "@/lib/hooks/useCollections";
+import { cn } from "@/lib/cn";
 import { buildQuestionsHref } from "@/lib/url/scope";
+
+type MetaChip = {
+  key: string;
+  label: string;
+};
 
 export function SourceRoute() {
   const { collection: collectionName = "", chunkId = "" } = useParams<{
     collection: string;
     chunkId: string;
   }>();
+  const location = useLocation();
   const navigate = useNavigate();
+  const [parentExpanded, setParentExpanded] = useState(false);
+  const { data: collections = [] } = useCollections();
   const { data, isLoading, isError, error, refetch } = useChunk({
     collection: collectionName,
     chunkId,
   });
-  const questionsHref = buildQuestionsHref({
+
+  const previousFrom = (location.state as { from?: string } | null)?.from;
+  const fallbackHref = buildQuestionsHref({
     collection: collectionName,
     query: "",
     filters: [],
   });
+  const previousHref = previousFrom ?? fallbackHref;
+  const previousLabel = previousFrom ? "Back to results" : "Back to collection";
+  const activeCollection = collections.find((collection) => collection.name === collectionName);
+  const metadataSchema = activeCollection?.metadata_schema ?? null;
+  const shareUrl = `${location.pathname}${location.search}${location.hash}`;
+
+  return (
+    <main className="mx-auto max-w-3xl px-6 py-10">
+      {isLoading ? (
+        <LoadingSkeleton variant="prose" count={8} />
+      ) : isError && isApiError(error) && error.status === 404 ? (
+        <ErrorState
+          title="Source not found"
+          detail={`"${chunkId}" is no longer in ${collectionName}.`}
+          actions={<Button onClick={() => navigate(previousHref)}>{previousLabel}</Button>}
+        />
+      ) : isError && isApiError(error) && error.status === 403 ? (
+        <ErrorState
+          title="Access denied"
+          actions={<Button onClick={() => navigate("/")}>Back to home</Button>}
+        />
+      ) : isError ? (
+        <ErrorState
+          title="Couldn't load source"
+          actions={
+            <Button variant="primary" onClick={() => refetch()}>
+              Retry
+            </Button>
+          }
+        />
+      ) : data ? (
+        <SourceContent
+          data={data}
+          metadataSchema={metadataSchema}
+          parentExpanded={parentExpanded}
+          previousLabel={previousLabel}
+          shareUrl={shareUrl}
+          onBack={() => navigate(previousHref)}
+          onToggleParent={() => setParentExpanded((expanded) => !expanded)}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+function SourceContent({
+  data,
+  metadataSchema,
+  parentExpanded,
+  previousLabel,
+  shareUrl,
+  onBack,
+  onToggleParent,
+}: {
+  data: ChunkDetail;
+  metadataSchema: CollectionMetadataSchema | null;
+  parentExpanded: boolean;
+  previousLabel: string;
+  shareUrl: string;
+  onBack: () => void;
+  onToggleParent: () => void;
+}) {
+  const heading = flattenFirstParagraph(data.render_blocks) ?? data.text;
+  const metaChips = buildMetaChips(data.metadata, metadataSchema, data.sub_question_label);
+  const blockMediaIds = new Set([
+    ...getReferencedMediaIds(data.render_blocks),
+    ...getReferencedMediaIds(data.parent?.render_blocks ?? null),
+  ]);
+  const remainingMedia = data.media.filter((item) => !blockMediaIds.has(item.media_id));
 
   return (
     <>
-      <HeaderEcho
-        page="source"
-        collectionName={collectionName}
-        initialQuery=""
-        initialFilters={[]}
-      />
-      <main className="mx-auto max-w-4xl px-6 py-10">
-        {isLoading ? (
-          <LoadingSkeleton variant="prose" count={8} />
-        ) : isError && isApiError(error) && error.status === 404 ? (
-          <ErrorState
-            title="Source not found"
-            detail={`"${chunkId}" is no longer in ${collectionName}.`}
-            actions={<Button onClick={() => navigate(questionsHref)}>Back to questions</Button>}
-          />
-        ) : isError && isApiError(error) && error.status === 403 ? (
-          <ErrorState
-            title="Access denied"
-            actions={<Button onClick={() => navigate("/")}>Back to home</Button>}
-          />
-        ) : isError ? (
-          <ErrorState
-            title="Couldn't load source"
-            actions={
-              <Button variant="primary" onClick={() => refetch()}>
-                Retry
-              </Button>
-            }
-          />
-        ) : data ? (
-          <ChunkCard
-            mode="full"
-            chunk={{
-              chunk_id: data.chunk_id,
-              chunk_level: data.chunk_level,
-              parent_chunk_id: data.parent_chunk_id,
-              sub_question_label: data.sub_question_label,
-              text: data.text,
-              metadata: data.metadata,
-              media: data.media,
-              render_blocks: data.render_blocks,
-            }}
-            parent={
-              data.parent
-                ? {
-                    text: data.parent.text,
-                    metadata: data.parent.metadata,
-                    render_blocks: data.parent.render_blocks,
-                  }
-                : null
-            }
-          />
+      <Button variant="text" onClick={onBack}>
+        {`← ${previousLabel}`}
+      </Button>
+      <div className="mt-6">
+        <div className="section-eyebrow">Shareable source</div>
+        <h1 className="mt-1 font-display text-2xl text-ink line-clamp-2">{heading}</h1>
+        {metaChips.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-1">
+            {metaChips.map((chip) => (
+              <Chip key={chip.key} variant="meta">
+                {chip.label}
+              </Chip>
+            ))}
+          </div>
         ) : null}
-      </main>
+        <div className="mt-4">
+          <CopyLinkButton url={shareUrl} />
+        </div>
+      </div>
+
+      <article className="mt-6 select-text">
+        <RenderBlocks
+          blocks={data.render_blocks}
+          mode="full"
+          fallbackText={data.text}
+          media={data.media}
+        />
+      </article>
+
+      {data.parent ? (
+        <section className="mt-8 border-t border-rule pt-5">
+          <div className="section-eyebrow">Parent question</div>
+          <div
+            data-testid="source-parent-body"
+            className={cn(
+              "mt-2 overflow-hidden text-[14px] text-ink-muted",
+              parentExpanded ? "" : "max-h-24",
+            )}
+          >
+            <RenderBlocks
+              blocks={data.parent.render_blocks}
+              mode="full"
+              fallbackText={data.parent.text}
+              media={data.media}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onToggleParent}
+            aria-expanded={parentExpanded}
+            className="mt-2 font-ui text-[11px] uppercase tracking-widest text-claret hover:underline"
+          >
+            {parentExpanded ? "Collapse parent" : "Show full parent"}
+          </button>
+        </section>
+      ) : null}
+
+      {remainingMedia.length > 0 ? <MediaList media={remainingMedia} /> : null}
     </>
   );
+}
+
+function MediaList({ media }: { media: MediaRef[] }) {
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      {media.map((item, index) => (
+        <figure key={item.media_id} className="rounded-sm border border-rule-soft bg-paper">
+          {item.access_url ? (
+            <img
+              src={item.access_url}
+              alt={`Question media ${index + 1}`}
+              className="mx-auto max-h-96 object-contain"
+            />
+          ) : (
+            <div className="p-4 font-ui text-xs text-ink-muted">Media unavailable</div>
+          )}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+function buildMetaChips(
+  metadata: Record<string, unknown>,
+  metadataSchema: CollectionMetadataSchema | null,
+  subQuestionLabel: string | null,
+): MetaChip[] {
+  const chips: MetaChip[] = [];
+  const normalizedSubLabel = normalizeSubQuestionLabel(subQuestionLabel);
+  if (normalizedSubLabel) {
+    chips.push({ key: "sub-question-label", label: `Part (${normalizedSubLabel})` });
+  }
+  if (!metadataSchema) return chips;
+
+  for (const field of metadataSchema.fields) {
+    if (!field.exposed) continue;
+    const value = resolveMetadataValue(metadata, field.key, field.source);
+    if (value === null || value === undefined || value === "") continue;
+    chips.push({ key: field.key, label: `${field.label}: ${value}` });
+  }
+
+  return chips;
+}
+
+function normalizeSubQuestionLabel(subQuestionLabel: string | null): string | null {
+  const trimmed = subQuestionLabel?.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("(") && trimmed.endsWith(")")) return trimmed.slice(1, -1).trim();
+  return trimmed;
+}
+
+function resolveMetadataValue(
+  metadata: Record<string, unknown>,
+  key: string,
+  source: string | null,
+): unknown {
+  const directValue = metadata[key];
+  if (directValue !== null && directValue !== undefined && directValue !== "") return directValue;
+  if (!source) return directValue;
+
+  const fallbackKey = source.split(".").at(-1);
+  if (!fallbackKey) return directValue;
+  return metadata[fallbackKey];
 }

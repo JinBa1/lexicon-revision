@@ -1,5 +1,20 @@
 import type { RenderBlock } from "@/lib/api/types";
 
+export function flattenFirstParagraph(blocks: RenderBlock[] | null): string | null {
+  const paragraph = blocks?.find((block) => block.type === "paragraph");
+  if (!paragraph) return null;
+
+  const text = paragraph.runs
+    .map((run) => {
+      if (run.type === "text") return run.text;
+      return `$${run.latex}$`;
+    })
+    .join("")
+    .trim();
+
+  return text === "" ? null : text;
+}
+
 export function getReferencedMediaIds(blocks: RenderBlock[] | null): Set<string> {
   const out = new Set<string>();
   if (!blocks) return out;
