@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -90,6 +91,7 @@ class Chunk:
 
     # Parse quality
     warnings: list[str] = field(default_factory=list)
+    render_blocks: list[dict[str, Any]] = field(default_factory=list)
 
 
 def make_chunk_id(
