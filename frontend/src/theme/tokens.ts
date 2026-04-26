@@ -10,6 +10,7 @@ export const archiveTokens = {
     "rule-soft": "#C9B98E",
     claret: "#7E2E2E",
     "claret-soft": "#F7EED6",
+    "claret-active": "#E8D4D4",
   },
   fontFamily: {
     display: ['"Source Serif Pro"', "Georgia", "serif"],
