@@ -429,8 +429,10 @@ class UOEContentListParser(BaseParser):
                 if ym:
                     year = int(ym.group(1))
 
-            # Course title: non-boilerplate, meaningful length; only after course_code
-            if course_title is None and course_code is not None and text:
+            # Course title: non-boilerplate, meaningful length. Title may
+            # appear before or after the course code on the cover, so do
+            # not require course_code to be set first.
+            if course_title is None and text:
                 text_lower = text.lower()
                 is_boilerplate = any(
                     text_lower.startswith(token) for token in boilerplate_lower
