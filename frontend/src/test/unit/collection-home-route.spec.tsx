@@ -105,15 +105,16 @@ describe("CollectionHomeRoute", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/");
   });
 
-  test("renders active collection hero and active scope card", () => {
+  test("renders active collection hero and active scope row", () => {
     renderCollectionHome();
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Cambridge CS Tripos" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Cambridge CS Tripos\. Active scope/ }));
-    expect(screen.getByText("● Active scope")).toBeInTheDocument();
+    const activeRow = screen.getByRole("button", { name: /Cambridge CS Tripos\. Active scope/ });
+    expect(activeRow).toHaveClass("selectable-selected");
+    expect(screen.getByText("Active scope")).toBeInTheDocument();
   });
 
   test("submits to questions with query and filters", async () => {
@@ -174,6 +175,13 @@ describe("CollectionHomeRoute", () => {
     expect(screen.getByTestId("current-location")).toHaveTextContent(
       "/c/public-demo?q=tree+rotations",
     );
+
+    const newActiveRow = screen.getByRole("button", { name: /MIT 6\.006 \(demo\)\. Active scope/ });
+    const oldActiveRow = screen.getByRole("button", { name: "Cambridge CS Tripos" });
+    expect(newActiveRow).toHaveAttribute("aria-pressed", "true");
+    expect(newActiveRow).toHaveClass("selectable-selected");
+    expect(oldActiveRow).toHaveAttribute("aria-pressed", "false");
+    expect(oldActiveRow).not.toHaveClass("selectable-selected");
   });
 
   test("scope switching uses edited query state and omits blank q", async () => {

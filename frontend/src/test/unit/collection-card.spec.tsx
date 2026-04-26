@@ -14,7 +14,7 @@ function wrap(ui: React.ReactNode) {
 }
 
 describe("CollectionCard", () => {
-  test("accessible card shows title and metadata", () => {
+  test("accessible row shows title and metadata", () => {
     render(
       wrap(
         <CollectionCard
@@ -28,9 +28,10 @@ describe("CollectionCard", () => {
     );
     expect(screen.getByText("Cambridge CS Tripos")).toBeInTheDocument();
     expect(screen.getByText(/744 papers/)).toBeInTheDocument();
+    expect(screen.getByRole("button")).toHaveClass("flex-row");
   });
 
-  test("active card exposes Active scope state accessibly", () => {
+  test("active row exposes Active scope state accessibly", () => {
     render(
       wrap(
         <CollectionCard
@@ -45,6 +46,10 @@ describe("CollectionCard", () => {
     expect(screen.getByText(/Active scope/i)).toBeInTheDocument();
     const btn = screen.getByRole("button", { name: /Active scope/i });
     expect(btn).toHaveAttribute("aria-pressed", "true");
+    expect(btn).toHaveClass("selectable-selected");
+    expect(btn).not.toHaveClass("border-l-transparent");
+    expect(btn).not.toHaveClass("bg-paper-raised");
+    expect(btn).not.toHaveClass("bg-paper-lock");
   });
 
   test("locked anonymous click calls onPickLocked with signin reason", async () => {
@@ -64,6 +69,27 @@ describe("CollectionCard", () => {
     expect(onPickLocked).toHaveBeenCalledWith(cambridgeLocked);
   });
 
+  test("active locked row does not keep inactive lock styling tokens", () => {
+    render(
+      wrap(
+        <CollectionCard
+          collection={cambridgeLocked}
+          isActive={true}
+          isSignedIn={false}
+          onPickAccessible={() => {}}
+          onPickLocked={() => {}}
+        />,
+      ),
+    );
+
+    const btn = screen.getByRole("button", { name: /Active scope/i });
+    expect(btn).toHaveClass("selectable-selected");
+    expect(btn).not.toHaveClass("border-l-transparent");
+    expect(btn).not.toHaveClass("bg-paper-raised");
+    expect(btn).not.toHaveClass("bg-paper-lock");
+    expect(btn).not.toHaveClass("opacity-90");
+  });
+
   test("accessible click calls onPickAccessible", async () => {
     const onPickAccessible = vi.fn();
     render(
@@ -81,7 +107,7 @@ describe("CollectionCard", () => {
     expect(onPickAccessible).toHaveBeenCalledWith(cambridgeAccessible);
   });
 
-  test("locked card has accessible label spelling out lock reason", () => {
+  test("locked row has accessible label spelling out lock reason", () => {
     render(
       wrap(
         <CollectionCard
