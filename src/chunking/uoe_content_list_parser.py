@@ -278,8 +278,6 @@ class UOEContentListParser(BaseParser):
         with open(content_list_path, encoding="utf-8") as f:
             blocks: list[dict] = json.load(f)
 
-        warnings: list[str] = []
-
         # Filter out skip types
         blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
 
@@ -289,44 +287,49 @@ class UOEContentListParser(BaseParser):
         # Extract cover metadata and locate first Question N block
         cover_meta, first_q_idx = self._extract_cover_metadata(blocks)
 
-        # Build warnings for missing cover fields
+        # Build per-paper warnings for missing cover fields
+        base_warnings: list[str] = []
         if not cover_meta.get("course_code"):
-            warnings.append("uoe_course_code_missing")
+            base_warnings.append("uoe_course_code_missing")
         if not cover_meta.get("course_title"):
-            warnings.append("uoe_course_title_missing")
+            base_warnings.append("uoe_course_title_missing")
         if not cover_meta.get("year"):
-            warnings.append("uoe_year_missing")
+            base_warnings.append("uoe_year_missing")
 
-        # Slice post-cover blocks (body)
+        # Split post-cover blocks into per-question groups
         post_cover_blocks = blocks[first_q_idx:]
-        has_code, has_figure, has_table = self._detect_content_flags(blocks)
-        media_blocks = self._extract_media_blocks(post_cover_blocks)
-        preamble, sub_questions = self._split_sub_questions(post_cover_blocks)
+        question_groups = self._split_questions(post_cover_blocks)
 
-        return [
-            ParsedQuestion(
-                tripos_part=cover_meta.get("course_code"),
-                year=cover_meta.get("year"),
-                paper=None,
-                question_number=None,
-                topic=cover_meta.get("course_title"),
-                author=None,
-                preamble=preamble,
-                sub_questions=sub_questions,
-                total_marks=self._compute_total_marks(sub_questions),
-                has_code=has_code,
-                has_figure=has_figure,
-                has_table=has_table,
-                media_blocks=media_blocks,
-                warnings=warnings,
+        parsed_questions: list[ParsedQuestion] = []
+        for question_number, body_blocks in question_groups:
+            has_code, has_figure, has_table = self._detect_content_flags(body_blocks)
+            media_blocks = self._extract_media_blocks(body_blocks)
+            preamble, sub_questions = self._split_sub_questions(body_blocks)
+
+            parsed_questions.append(
+                ParsedQuestion(
+                    tripos_part=cover_meta.get("course_code"),
+                    year=cover_meta.get("year"),
+                    paper=None,
+                    question_number=question_number,
+                    topic=cover_meta.get("course_title"),
+                    author=None,
+                    preamble=preamble,
+                    sub_questions=sub_questions,
+                    total_marks=self._compute_total_marks(sub_questions),
+                    has_code=has_code,
+                    has_figure=has_figure,
+                    has_table=has_table,
+                    media_blocks=media_blocks,
+                    warnings=list(base_warnings),
+                )
             )
-        ]
+
+        return parsed_questions
 
     def parse_with_segments(
         self, content_list_path: str
     ) -> tuple[list[ParsedQuestion], list[list[LogicalSegment]]]:
-        parsed_questions = self.parse(content_list_path)
-
         with open(content_list_path, encoding="utf-8") as f:
             blocks: list[dict[str, Any]] = json.load(f)
 
@@ -334,8 +337,45 @@ class UOEContentListParser(BaseParser):
         blocks = self._strip_repeating_headers_footers(blocks)
         _, first_q_idx = self._extract_cover_metadata(blocks)
         post_cover_blocks = blocks[first_q_idx:]
+        question_groups = self._split_questions(post_cover_blocks)
 
-        return parsed_questions, [self._split_into_logical_segments(post_cover_blocks)]
+        parsed_questions = self.parse(content_list_path)
+
+        all_segments: list[list[LogicalSegment]] = []
+        for _question_number, body_blocks in question_groups:
+            all_segments.append(self._split_into_logical_segments(body_blocks))
+
+        return parsed_questions, all_segments
+
+    def _split_questions(
+        self, post_cover_blocks: list[dict]
+    ) -> list[tuple[int, list[dict]]]:
+        """Split post-cover blocks on 'Question N' markers.
+
+        Returns list of (question_number, body_blocks) tuples.
+        Marker blocks themselves are excluded from body.
+        """
+        result: list[tuple[int, list[dict]]] = []
+        current_number: int | None = None
+        current_body: list[dict] = []
+
+        for block in post_cover_blocks:
+            text = (block.get("text") or "").strip()
+            m = UOE_QUESTION_MARKER_RE.match(text)
+            if m:
+                if current_number is not None:
+                    result.append((current_number, current_body))
+                current_number = int(m.group(1))
+                current_body = []
+            else:
+                if current_number is not None:
+                    current_body.append(block)
+
+        # Flush last question
+        if current_number is not None:
+            result.append((current_number, current_body))
+
+        return result
 
     def _extract_cover_metadata(self, content_blocks: list[dict]) -> tuple[dict, int]:
         """Walk blocks until first 'Question 1' marker.
