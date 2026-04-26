@@ -303,6 +303,44 @@ describe("ChunkCard", () => {
     expect(screen.getByText(/Structured parent context/i)).toBeInTheDocument();
     expect(screen.queryByText(/plain parent fallback/i)).not.toBeInTheDocument();
   });
+
+  test("full mode resolves parent image blocks from chunk media without duplicating MediaList", () => {
+    render(
+      <ChunkCard
+        mode="full"
+        chunk={{
+          chunk_id: chunkDetailFixture.chunk_id,
+          chunk_level: chunkDetailFixture.chunk_level,
+          parent_chunk_id: chunkDetailFixture.parent_chunk_id,
+          sub_question_label: chunkDetailFixture.sub_question_label,
+          text: "child body",
+          metadata: chunkDetailFixture.metadata,
+          media: [
+            {
+              media_id: "image_parent",
+              kind: "image",
+              object_key: "chunks/image_parent.png",
+              access_url: "https://example.test/image_parent.png",
+              relation: "inherited_shared",
+            },
+          ],
+          render_blocks: [{ type: "paragraph", runs: [{ type: "text", text: "Child body." }] }],
+        }}
+        parent={{
+          text: "parent fallback",
+          metadata: {},
+          render_blocks: [{ type: "image", media_id: "image_parent" }],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Question figure" })).toHaveAttribute(
+      "src",
+      "https://example.test/image_parent.png",
+    );
+    expect(screen.queryByText(/Image unavailable/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+  });
 });
 
 describe("renderMetadataSummary", () => {

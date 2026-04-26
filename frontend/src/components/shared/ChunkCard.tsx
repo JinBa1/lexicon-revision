@@ -108,7 +108,10 @@ function FullChunkCard({
   footer,
   metadataSchema,
 }: Extract<ChunkCardProps, { mode: "full" }>) {
-  const referencedMediaIds = getReferencedMediaIds(chunk.render_blocks ?? null);
+  const referencedMediaIds = new Set([
+    ...getReferencedMediaIds(chunk.render_blocks ?? null),
+    ...getReferencedMediaIds(parent?.render_blocks ?? null),
+  ]);
   const remainingMedia = chunk.media.filter((item) => !referencedMediaIds.has(item.media_id));
 
   return (
@@ -122,6 +125,7 @@ function FullChunkCard({
             blocks={parent.render_blocks ?? null}
             mode="full"
             fallbackText={parent.text}
+            media={chunk.media}
             className="mt-1 text-sm text-ink-muted"
           />
           <div className="my-4 h-px bg-rule" />
