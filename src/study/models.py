@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from src.metadata_schema.models import FilterCondition
+from src.rendering.blocks import RenderBlock
 from src.runtime.telemetry import TokenUsage
 from src.search.pg_service import SearchExecutionTelemetry
 
@@ -87,6 +88,7 @@ class StudySource(BaseModel):
     sub_question_label: str | None
     score: float
     excerpt: str
+    excerpt_blocks: list[RenderBlock] | None = None
     metadata: dict[str, Any]
     why_cited: str | None = Field(max_length=400)
 

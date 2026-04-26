@@ -1,0 +1,29 @@
+[
+  {
+    "type": "paragraph",
+    "runs": [
+      { "type": "text", "text": "Solve " },
+      { "type": "math", "latex": "x^2 + 1 = 0" },
+      { "type": "text", "text": " for real x." }
+    ]
+  },
+  {
+    "type": "list",
+    "marker": "bullet",
+    "items": [
+      [{ "type": "text", "text": "first bullet" }],
+      [{ "type": "text", "text": "second bullet" }]
+    ]
+  },
+  { "type": "equation", "latex": "f(x) = \\sin(x) + \\cos(x)" },
+  { "type": "code", "code": "for i in range(10):\n    print(i)", "language": null },
+  {
+    "type": "table",
+    "rows": [
+      ["alpha", "beta"],
+      ["1", "2"]
+    ],
+    "media_id": "table_3"
+  },
+  { "type": "image", "media_id": "image_4" }
+]

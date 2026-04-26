@@ -214,3 +214,63 @@ def test_chunk_has_table_field():
         warnings=[],
     )
     assert chunk.has_table is True
+
+
+def test_chunk_render_blocks_defaults_to_empty_list():
+    """Chunk carries structured presentation blocks independently of text."""
+    chunk = Chunk(
+        id="cam-2025-p1-q2",
+        chunk_level="question",
+        parent_chunk_id=None,
+        text="Consider $x$.",
+        year=2025,
+        paper=1,
+        question_number=2,
+        topic="Databases",
+        author="tgg22",
+        tripos_part="Part IA",
+        sub_question_label=None,
+        marks=None,
+        total_marks=20,
+        has_code=False,
+        has_figure=False,
+        has_table=True,
+        media=[],
+        source_pdf="y2025p1q2.pdf",
+    )
+    assert chunk.render_blocks == []
+
+
+def test_chunk_render_blocks_accepts_serializable_dicts():
+    """Chunk can carry JSON-serializable render block payloads."""
+    render_blocks = [
+        {
+            "type": "paragraph",
+            "runs": [
+                {"type": "text", "text": "Consider "},
+                {"type": "math", "latex": "x"},
+            ],
+        }
+    ]
+    chunk = Chunk(
+        id="cam-2025-p1-q2",
+        chunk_level="question",
+        parent_chunk_id=None,
+        text="Consider $x$",
+        year=2025,
+        paper=1,
+        question_number=2,
+        topic="Databases",
+        author="tgg22",
+        tripos_part="Part IA",
+        sub_question_label=None,
+        marks=None,
+        total_marks=20,
+        has_code=False,
+        has_figure=False,
+        has_table=True,
+        media=[],
+        source_pdf="y2025p1q2.pdf",
+        render_blocks=render_blocks,
+    )
+    assert chunk.render_blocks == render_blocks

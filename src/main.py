@@ -703,10 +703,15 @@ def create_app(
             sub_question_label=row.sub_question_label,
             text=row.text,
             metadata=row.metadata,
+            render_blocks=row.render_blocks,
             media=media,
             collection=collection,
             parent=(
-                ChunkParentContext(text=row.parent.text, metadata=row.parent.metadata)
+                ChunkParentContext(
+                    text=row.parent.text,
+                    metadata=row.parent.metadata,
+                    render_blocks=row.parent.render_blocks,
+                )
                 if row.parent is not None
                 else None
             ),

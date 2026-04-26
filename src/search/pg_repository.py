@@ -42,6 +42,7 @@ class PgChunkRow:
     text: str
     score: float
     metadata: dict[str, Any]
+    render_blocks: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class CollectionRetrievalThresholds:
 class ChunkParentRow:
     text: str
     metadata: dict[str, Any]
+    render_blocks: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,7 @@ class ChunkDetailRow:
     text: str
     metadata: dict[str, Any]
     parent: ChunkParentRow | None
+    render_blocks: list[dict[str, Any]] | None = None
 
 
 class PgIndexRepository:
@@ -218,6 +221,7 @@ class PgIndexRepository:
                         parent_chunk_id=chunk.parent_chunk_id,
                         sub_question_label=chunk.sub_question_label,
                         text=chunk.text,
+                        render_blocks=chunk.render_blocks or None,
                         metadata=build_chunk_metadata(chunk, metadata_schema),
                         source_pdf=chunk.source_pdf,
                     )
@@ -272,6 +276,7 @@ class PgSearchRepository:
                     chunks_table.c.parent_chunk_id,
                     chunks_table.c.sub_question_label,
                     chunks_table.c.text,
+                    chunks_table.c.render_blocks,
                     chunks_table.c.metadata,
                 )
                 .where(
@@ -287,7 +292,11 @@ class PgSearchRepository:
             parent: ChunkParentRow | None = None
             if row.parent_chunk_id is not None:
                 parent_stmt = (
-                    select(chunks_table.c.text, chunks_table.c.metadata)
+                    select(
+                        chunks_table.c.text,
+                        chunks_table.c.metadata,
+                        chunks_table.c.render_blocks,
+                    )
                     .where(
                         chunks_table.c.collection_id == collection_row.id,
                         chunks_table.c.chunk_id == row.parent_chunk_id,
@@ -299,6 +308,7 @@ class PgSearchRepository:
                     parent = ChunkParentRow(
                         text=str(parent_row.text),
                         metadata=_result_metadata_from_row(parent_row, schema),
+                        render_blocks=parent_row.render_blocks,
                     )
 
             return ChunkDetailRow(
@@ -317,6 +327,7 @@ class PgSearchRepository:
                 text=str(row.text),
                 metadata=_result_metadata_from_row(row, schema),
                 parent=parent,
+                render_blocks=row.render_blocks,
             )
 
     def get_collection_retrieval_thresholds(
@@ -397,6 +408,7 @@ class PgSearchRepository:
                     chunks_table.c.text,
                     distance_expr,
                     chunks_table.c.metadata,
+                    chunks_table.c.render_blocks,
                 )
                 .select_from(
                     chunks_table.join(
@@ -421,6 +433,7 @@ class PgSearchRepository:
                     text=row.text,
                     score=1.0 - row.distance,
                     metadata=_result_metadata_from_row(row, collection_schema),
+                    render_blocks=row.render_blocks,
                 )
                 for row in results
             ]

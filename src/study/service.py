@@ -15,6 +15,7 @@ from src.search.errors import InvalidMetadataFilterError
 from src.search.models import SearchResponse, SearchResult
 from src.search.pg_service import SearchExecutionTelemetry
 from src.study.config import StudySettings
+from src.study.excerpt_blocks import truncate_excerpt_blocks
 from src.study.models import (
     AnswerStatus,
     ErrorCategory,
@@ -63,6 +64,7 @@ PROVIDER_ERRORS = (
     ModelNotAvailableError,
     ProviderHTTPError,
 )
+STUDY_SOURCE_EXCERPT_CHARS = 500
 
 
 class StudyService:
@@ -675,7 +677,12 @@ def _study_source(result: SearchResult, why_cited: str | None) -> StudySource:
         parent_chunk_id=result.parent_chunk_id,
         sub_question_label=result.sub_question_label,
         score=result.score,
-        excerpt=result.text[:500],
+        excerpt=result.text[:STUDY_SOURCE_EXCERPT_CHARS],
+        excerpt_blocks=(
+            truncate_excerpt_blocks(result.render_blocks, STUDY_SOURCE_EXCERPT_CHARS)
+            if result.render_blocks is not None
+            else None
+        ),
         metadata=metadata,
         why_cited=why_cited,
     )

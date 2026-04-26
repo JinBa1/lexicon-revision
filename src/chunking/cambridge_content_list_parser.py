@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
+from html import unescape
+from html.parser import HTMLParser
+from typing import Any
 
 from src.chunking.base_parser import BaseParser
 from src.chunking.models import ParsedMediaBlock, ParsedQuestion, SubQuestion
+from src.rendering.blocks import split_inline_math
 
 HEADER_RE = re.compile(
     r"COMPUTER SCIENCE TRIPOS\s+Part\s+([A-Z]+)\s*[–·\-]\s*(\d{4})\s*[–·\-]\s*"
@@ -28,10 +33,222 @@ MARKS_RE = re.compile(r"\[\s*(\d+)\s+marks?\s*\]")
 
 # Block types to skip entirely
 SKIP_TYPES = {"page_number"}
+MINERU_BULLET_PREFIX_RE = re.compile(r"^\s*\u0088\s*")
+NUMERIC_LIST_RE = re.compile(r"^\s*\d+\.\s+")
+ROMAN_LABEL_RE = re.compile(r"^\s*\([ivxlcdm]+\)\s+", re.IGNORECASE)
+
+
+@dataclass
+class LogicalSegment:
+    label: str | None
+    blocks: list[dict[str, Any]]
+
+
+class _TableHTMLParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.rows: list[list[str]] = []
+        self._current_row: list[str] | None = None
+        self._current_cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "tr":
+            self._current_row = []
+        elif tag in {"td", "th"} and self._current_row is not None:
+            self._current_cell = []
+
+    def handle_data(self, data: str) -> None:
+        if self._current_cell is not None:
+            self._current_cell.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"td", "th"} and self._current_cell is not None:
+            if self._current_row is not None:
+                self._current_row.append("".join(self._current_cell).strip())
+            self._current_cell = None
+        elif tag == "tr" and self._current_row is not None:
+            if self._current_row:
+                self.rows.append(self._current_row)
+            self._current_row = None
+
+
+def _mineru_block_to_render_blocks(
+    block: dict[str, Any], order_index: int = 0
+) -> list[dict[str, Any]]:
+    block_type = block.get("type")
+
+    if block_type == "text":
+        return _paragraph_blocks_from_text(block.get("text", ""))
+    if block_type == "equation":
+        latex = _strip_display_math_wrappers(block.get("text", "").strip())
+        return [{"type": "equation", "latex": latex}] if latex else []
+    if block_type == "list":
+        return _list_blocks_from_items(block.get("list_items", []))
+    if block_type == "code":
+        return [
+            {
+                "type": "code",
+                "code": block.get("code_body", ""),
+                "language": None,
+            }
+        ]
+    if block_type == "image":
+        return [{"type": "image", "media_id": f"image_{order_index}"}]
+    if block_type == "table":
+        rows = _parse_table_rows(block.get("table_body", ""))
+        if rows:
+            return [
+                {
+                    "type": "table",
+                    "rows": rows,
+                    "media_id": f"table_{order_index}",
+                }
+            ]
+        fallback_text = _malformed_table_fallback_text(block.get("table_body", ""))
+        return _paragraph_blocks_from_text(fallback_text)
+
+    text = block.get("text", "")
+    if isinstance(text, str) and text.strip():
+        return _paragraph_blocks_from_text(text)
+    return []
+
+
+def _paragraph_blocks_from_text(text: str) -> list[dict[str, Any]]:
+    stripped = text.strip()
+    if not stripped:
+        return []
+    return [
+        {
+            "type": "paragraph",
+            "runs": [run.model_dump() for run in split_inline_math(stripped)],
+        }
+    ]
+
+
+def _list_blocks_from_items(items: list[Any]) -> list[dict[str, Any]]:
+    cleaned_items = [
+        _strip_mineru_bullet_prefix(str(item).strip())
+        for item in items
+        if str(item).strip()
+    ]
+    if not cleaned_items:
+        return []
+    marker = _detect_list_marker(cleaned_items)
+    rendered_items = (
+        [_strip_numeric_list_prefix(item) for item in cleaned_items]
+        if marker == "ordered"
+        else cleaned_items
+    )
+    return [
+        {
+            "type": "list",
+            "marker": marker,
+            "items": [
+                [run.model_dump() for run in split_inline_math(item)]
+                for item in rendered_items
+            ],
+        }
+    ]
+
+
+def _strip_mineru_bullet_prefix(text: str) -> str:
+    return MINERU_BULLET_PREFIX_RE.sub("", text, count=1)
+
+
+def _detect_list_marker(items: list[str]) -> str:
+    if all(NUMERIC_LIST_RE.match(item) for item in items):
+        return "ordered"
+    if any(ROMAN_LABEL_RE.match(item) for item in items):
+        return "plain"
+    return "bullet"
+
+
+def _strip_numeric_list_prefix(text: str) -> str:
+    return NUMERIC_LIST_RE.sub("", text, count=1)
+
+
+def _strip_display_math_wrappers(text: str) -> str:
+    if text.startswith("$$") and text.endswith("$$") and len(text) >= 4:
+        return text[2:-2].strip()
+    return text
+
+
+def _parse_table_rows(table_body: Any) -> list[list[str]]:
+    if not isinstance(table_body, str):
+        return []
+    parser = _TableHTMLParser()
+    parser.feed(table_body)
+    parser.close()
+    return parser.rows
+
+
+def _malformed_table_fallback_text(table_body: Any) -> str:
+    placeholder = "[table — see source]"
+    if not isinstance(table_body, str):
+        return placeholder
+    raw_text = re.sub(r"<[^>]+>", " ", table_body)
+    collapsed = " ".join(unescape(raw_text).split())
+    if not collapsed:
+        return placeholder
+    return f"{placeholder} {collapsed}"
+
+
+def _strip_label_from_render_blocks(blocks: list[dict[str, Any]]) -> None:
+    for block in blocks:
+        if block.get("type") == "paragraph":
+            if _strip_label_from_runs(block.get("runs", [])):
+                return
+        elif block.get("type") == "list":
+            for item in block.get("items", []):
+                if _strip_label_from_runs(item):
+                    return
+
+
+def _strip_label_from_runs(runs: list[dict[str, Any]]) -> bool:
+    for run in runs:
+        if run.get("type") != "text":
+            continue
+        original = run.get("text", "")
+        if not isinstance(original, str):
+            continue
+        stripped = SUB_QUESTION_PREFIX_RE.sub("", original, count=1)
+        if stripped != original:
+            run["text"] = stripped
+            return True
+    return False
+
+
+def _insert_label_prefix(blocks: list[dict[str, Any]], label: str) -> None:
+    prefix = f"({label}) "
+    for block in blocks:
+        if block.get("type") == "paragraph":
+            if _insert_prefix_into_runs(block.get("runs", []), prefix):
+                return
+        elif block.get("type") == "list":
+            for item in block.get("items", []):
+                if _insert_prefix_into_runs(item, prefix):
+                    return
+    blocks.insert(0, {"type": "paragraph", "runs": [{"type": "text", "text": prefix}]})
+
+
+def _insert_prefix_into_runs(runs: list[dict[str, Any]], prefix: str) -> bool:
+    for run in runs:
+        if run.get("type") == "text":
+            run["text"] = f"{prefix}{run.get('text', '')}"
+            return True
+    if runs:
+        runs.insert(0, {"type": "text", "text": prefix})
+        return True
+    return False
 
 
 class CambridgeContentListParser(BaseParser):
     """Parser for MinerU content_list.json files (Cambridge CS Tripos)."""
+
+    def _mineru_block_to_render_blocks(
+        self, block: dict[str, Any], order_index: int = 0
+    ) -> list[dict[str, Any]]:
+        return _mineru_block_to_render_blocks(block, order_index=order_index)
 
     def parse(self, content_list_path: str) -> list[ParsedQuestion]:
         with open(content_list_path, encoding="utf-8") as f:
@@ -76,6 +293,20 @@ class CambridgeContentListParser(BaseParser):
                 warnings=warnings,
             )
         ]
+
+    def parse_with_segments(
+        self, content_list_path: str
+    ) -> tuple[list[ParsedQuestion], list[list[LogicalSegment]]]:
+        parsed_questions = self.parse(content_list_path)
+
+        with open(content_list_path, encoding="utf-8") as f:
+            blocks: list[dict[str, Any]] = json.load(f)
+
+        blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
+        question_info = self._parse_question_line(blocks)
+        body_blocks = self._extract_body_blocks(blocks, question_info)
+
+        return parsed_questions, [self._split_into_logical_segments(body_blocks)]
 
     def _parse_header(self, blocks: list[dict]) -> dict[str, str | int] | None:
         """Find and parse the header block (usually at the end)."""
@@ -330,6 +561,111 @@ class CambridgeContentListParser(BaseParser):
                 segments.append((text, label, block_index))
 
         return segments
+
+    def _split_into_logical_segments(
+        self, body_blocks: list[dict[str, Any]]
+    ) -> list[LogicalSegment]:
+        positioned_segments = self._flatten_to_positioned_segments(body_blocks)
+        candidates = [
+            (segment_index, label)
+            for segment_index, (_, label, _) in enumerate(positioned_segments)
+            if label is not None
+        ]
+        top_level_starts = self._filter_sequential_labels(candidates)
+        labels_by_segment = {
+            segment_index: label for segment_index, label in top_level_starts
+        }
+        segment_indices_by_list_item: dict[tuple[int, int], int] = {}
+        segment_indices_by_block: dict[int, int] = {}
+
+        segment_index = 0
+        for block_index, block in enumerate(body_blocks):
+            block_type = block.get("type")
+            if block_type == "list":
+                for item_index, item in enumerate(block.get("list_items", [])):
+                    if str(item).strip():
+                        segment_indices_by_list_item[(block_index, item_index)] = (
+                            segment_index
+                        )
+                        segment_index += 1
+            elif block_type in ("text", "equation", "code", "table", "image"):
+                if self._extract_block_text(block):
+                    segment_indices_by_block[block_index] = segment_index
+                    segment_index += 1
+
+        segments: list[LogicalSegment] = []
+        current_segment: LogicalSegment | None = None
+
+        def ensure_segment(label: str | None) -> LogicalSegment:
+            nonlocal current_segment
+            if current_segment is None:
+                current_segment = LogicalSegment(label=label, blocks=[])
+                segments.append(current_segment)
+            return current_segment
+
+        def start_segment(label: str) -> LogicalSegment:
+            nonlocal current_segment
+            current_segment = LogicalSegment(label=label, blocks=[])
+            segments.append(current_segment)
+            return current_segment
+
+        for block_index, block in enumerate(body_blocks):
+            block_type = block.get("type")
+            if block_type == "list":
+                current_items: list[str] = []
+                item_owner: LogicalSegment | None = None
+
+                def flush_items() -> None:
+                    nonlocal current_items, item_owner
+                    if current_items and item_owner is not None:
+                        item_owner.blocks.extend(_list_blocks_from_items(current_items))
+                    current_items = []
+                    item_owner = None
+
+                for item_index, item in enumerate(block.get("list_items", [])):
+                    item_text = str(item).strip()
+                    if not item_text:
+                        continue
+                    item_segment_index = segment_indices_by_list_item[
+                        (block_index, item_index)
+                    ]
+                    label = labels_by_segment.get(item_segment_index)
+                    if label is not None:
+                        flush_items()
+                        owner = start_segment(label)
+                    else:
+                        owner = ensure_segment(None)
+
+                    if item_owner is not owner:
+                        flush_items()
+                        item_owner = owner
+                    current_items.append(item_text)
+
+                flush_items()
+                continue
+
+            block_segment_index = segment_indices_by_block.get(block_index)
+            if block_segment_index is not None:
+                label = labels_by_segment.get(block_segment_index)
+                owner = (
+                    start_segment(label) if label is not None else ensure_segment(None)
+                )
+            else:
+                owner = ensure_segment(None)
+
+            owner.blocks.extend(
+                self._mineru_block_to_render_blocks(block, order_index=block_index)
+            )
+
+        for segment in segments:
+            if segment.label is not None:
+                _strip_label_from_render_blocks(segment.blocks)
+
+        return [
+            segment
+            for segment in segments
+            if segment.blocks or segment.label is not None
+        ]
 
     def _extract_media_text_payload(self, block: dict) -> str | None:
         if block.get("type") == "table":

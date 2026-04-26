@@ -232,6 +232,7 @@ class PgSearchService:
                     text=row.text,
                     score=score,
                     metadata=row.metadata,
+                    render_blocks=row.render_blocks,
                     media=materialize_media_refs(
                         refs=media_map.get(row.chunk_id, []),
                         object_storage=self._object_storage,

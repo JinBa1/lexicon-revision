@@ -177,6 +177,75 @@ async def test_get_chunk_detail_returns_parent_context_for_sub_question() -> Non
 
 
 @pytest.mark.anyio
+async def test_get_chunk_detail_returns_top_level_and_parent_render_blocks() -> None:
+    from src.main import create_app
+
+    row_render_blocks = [
+        {"type": "paragraph", "runs": [{"type": "text", "text": "sub"}]}
+    ]
+    parent_render_blocks = [
+        {"type": "paragraph", "runs": [{"type": "text", "text": "parent"}]}
+    ]
+    sub_row = ChunkDetailRow(
+        chunk_id="q-1-a",
+        chunk_level="sub_question",
+        parent_chunk_id="q-1",
+        sub_question_label="(a)",
+        text="sub",
+        metadata={"year": 2022},
+        render_blocks=row_render_blocks,
+        parent=ChunkParentRow(
+            text="parent",
+            metadata={"year": 2022},
+            render_blocks=parent_render_blocks,
+        ),
+    )
+    repo = _FakeChunkRepo(chunks={("demo", "q-1-a"): sub_row})
+
+    class _Service:
+        search_repository = repo
+
+    app = create_app(
+        search_service=_Service(),
+        access_service=_FakeAccessServiceWithAuthorize(allowed=True),
+        auth_resolver=_FakeIdentityResolver(),
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/collections/demo/chunks/q-1-a")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["render_blocks"] == row_render_blocks
+    assert payload["parent"]["render_blocks"] == parent_render_blocks
+
+
+@pytest.mark.anyio
+async def test_get_chunk_detail_serializes_legacy_null_render_blocks() -> None:
+    from src.main import create_app
+
+    repo = _FakeChunkRepo(chunks={("demo", "q-1"): _row()})
+
+    class _Service:
+        search_repository = repo
+
+    app = create_app(
+        search_service=_Service(),
+        access_service=_FakeAccessServiceWithAuthorize(allowed=True),
+        auth_resolver=_FakeIdentityResolver(),
+        allow_unauthorized_test_mode=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/collections/demo/chunks/q-1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["render_blocks"] is None
+
+
+@pytest.mark.anyio
 async def test_get_chunk_detail_returns_media_refs_with_presigned_urls() -> None:
     from src.main import create_app
 
