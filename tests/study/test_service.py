@@ -146,6 +146,7 @@ def search_result(
     chunk_level: str = "question",
     parent_chunk_id: str | None = None,
     sub_question_label: str | None = None,
+    render_blocks: list[dict[str, Any]] | None = None,
 ) -> SearchResult:
     return SearchResult(
         chunk_id=chunk_id,
@@ -161,6 +162,7 @@ def search_result(
             "topic": "Algorithms",
         },
         media=[],
+        render_blocks=render_blocks,
     )
 
 
@@ -456,6 +458,48 @@ async def test_orchestrate_preserves_sub_question_label_on_sources() -> None:
     assert response.sources[0].chunk_level == "sub_question"
     assert response.sources[0].parent_chunk_id == "parent-1"
     assert response.sources[0].sub_question_label == "b"
+
+
+@pytest.mark.anyio
+async def test_orchestrate_builds_excerpt_blocks_from_search_result_blocks() -> None:
+    render_blocks = [
+        {"type": "paragraph", "runs": [{"type": "text", "text": "A" * 400}]},
+        {"type": "paragraph", "runs": [{"type": "text", "text": "B" * 200}]},
+    ]
+    query_planner = FakeQueryPlanner(
+        planner_execution(
+            QueryPlan(original_query="q", semantic_queries=["dynamic programming"])
+        )
+    )
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="dynamic programming",
+                collection="cam-cs-tripos",
+                results=[
+                    search_result("a", text="A" * 600, render_blocks=render_blocks)
+                ],
+                total=1,
+            ),
+            executed_queries=["dynamic programming"],
+            filters_applied=[],
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    response = await service.orchestrate(
+        StudyRequest(query="q", scope={"collection": "cam-cs-tripos"})
+    )
+
+    assert response.sources[0].excerpt == "A" * 500
+    assert response.sources[0].model_dump(mode="json")["excerpt_blocks"] == [
+        render_blocks[0]
+    ]
 
 
 @pytest.mark.anyio

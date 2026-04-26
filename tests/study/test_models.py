@@ -215,6 +215,46 @@ def test_study_source_uses_metadata_bag() -> None:
     assert source.metadata["paper"] == 2
 
 
+def test_study_source_accepts_excerpt_blocks_and_serializes_legacy_null() -> None:
+    source = StudySource.model_validate(
+        {
+            "chunk_id": "cam-2024-p2-q5",
+            "chunk_level": "question",
+            "parent_chunk_id": None,
+            "sub_question_label": None,
+            "score": 0.91,
+            "excerpt": "Binary search trees support efficient lookup.",
+            "excerpt_blocks": None,
+            "metadata": {"year": 2024},
+            "why_cited": None,
+        }
+    )
+
+    assert source.model_dump(mode="json")["excerpt_blocks"] is None
+
+    source_with_blocks = StudySource.model_validate(
+        {
+            "chunk_id": "cam-2024-p2-q5",
+            "chunk_level": "question",
+            "parent_chunk_id": None,
+            "sub_question_label": None,
+            "score": 0.91,
+            "excerpt": "Binary search trees support efficient lookup.",
+            "excerpt_blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [{"type": "text", "text": "Binary search"}],
+                }
+            ],
+            "metadata": {"year": 2024},
+            "why_cited": None,
+        }
+    )
+    assert source_with_blocks.model_dump(mode="json")["excerpt_blocks"] == [
+        {"type": "paragraph", "runs": [{"type": "text", "text": "Binary search"}]}
+    ]
+
+
 def test_final_study_response_allows_null_why_cited() -> None:
     nullable_source = StudySource(
         chunk_id="cam-2023-p2-q4",
