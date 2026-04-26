@@ -62,7 +62,6 @@ UOE_COVER_BOILERPLATE_TOKENS = (
     "External Examiner",
 )
 
-UOE_PART_RE = re.compile(r"^\s*([a-z])\)\s+", re.MULTILINE)
 UOE_MARKS_TRAILING_RE = re.compile(r"\((\d+)\)\s*$")
 UOE_FILENAME_PAPER_RE = re.compile(r"^(\d+)_")
 
@@ -408,8 +407,9 @@ class UOEContentListParser(BaseParser):
             text_raw = block.get("text", "") or ""
             text = text_raw.strip()
 
-            # Check for Question N marker — stop here
-            if UOE_QUESTION_MARKER_RE.match(text):
+            # Check for Question 1 marker specifically — stop here
+            m = UOE_QUESTION_MARKER_RE.match(text)
+            if m and m.group(1) == "1":
                 break
 
             block_type = block.get("type")
@@ -429,8 +429,8 @@ class UOEContentListParser(BaseParser):
                 if ym:
                     year = int(ym.group(1))
 
-            # Course title: non-boilerplate, meaningful length
-            if course_title is None and text:
+            # Course title: non-boilerplate, meaningful length; only after course_code
+            if course_title is None and course_code is not None and text:
                 text_lower = text.lower()
                 is_boilerplate = any(
                     text_lower.startswith(token) for token in boilerplate_lower
