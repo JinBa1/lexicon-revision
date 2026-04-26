@@ -13,7 +13,13 @@ from src.chunking.cambridge_content_list_parser import (
     _insert_label_prefix,
 )
 from src.chunking.models import Chunk, MediaRef, ParsedQuestion, make_chunk_id
+from src.chunking.uoe_content_list_parser import UOEContentListParser
 from src.rendering.blocks import RenderBlock, flatten_render_blocks
+
+PARSER_REGISTRY = {
+    "cambridge": CambridgeContentListParser,
+    "uoe": UOEContentListParser,
+}
 
 logger = logging.getLogger(__name__)
 RENDER_BLOCKS_ADAPTER = TypeAdapter(list[RenderBlock])
@@ -23,10 +29,15 @@ def run_pipeline(
     mineru_output_dir: str,
     metadata_path: str | None = None,
     university: str = "cam",
+    parser: str = "cambridge",
 ) -> list[Chunk]:
     output_dir = Path(mineru_output_dir)
     metadata = _load_metadata(metadata_path) if metadata_path is not None else {}
-    parser = CambridgeContentListParser()
+    if parser not in PARSER_REGISTRY:
+        raise ValueError(
+            f"Unknown parser {parser!r}; expected one of {sorted(PARSER_REGISTRY)}"
+        )
+    parser_instance = PARSER_REGISTRY[parser]()
 
     all_chunks: list[Chunk] = []
     parsed_count = 0
@@ -44,7 +55,7 @@ def run_pipeline(
         downloader_meta = metadata.get(filename, {})
 
         try:
-            parsed_questions, question_segments = parser.parse_with_segments(
+            parsed_questions, question_segments = parser_instance.parse_with_segments(
                 str(cl_path)
             )
         except Exception:
