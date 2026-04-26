@@ -243,7 +243,7 @@ def _strip_label_from_runs(runs: list[dict[str, Any]]) -> bool:
         original = run.get("text", "")
         if not isinstance(original, str):
             continue
-        stripped = SUB_QUESTION_PREFIX_RE.sub("", original, count=1)
+        stripped = UOE_SUB_QUESTION_PREFIX_RE.sub("", original, count=1)
         if stripped != original:
             run["text"] = stripped
             return True
