@@ -23,7 +23,9 @@ vi.mock("@/lib/hooks/useCollections", () => ({
   useCollections: mockUseCollections,
 }));
 
-type SourceInitialEntry = string | { pathname: string; state?: unknown };
+type SourceInitialEntry =
+  | string
+  | { pathname: string; search?: string; hash?: string; state?: unknown };
 
 function renderSource(
   initialEntry: SourceInitialEntry = "/c/cam-cs-tripos/source/cam-2022-p5-q3-b",
@@ -128,18 +130,21 @@ describe("SourceRoute", () => {
     expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
   });
 
-  test("copy link uses the current route URL instead of the global window URL", async () => {
+  test("copy link uses an absolute URL derived from the route location and origin", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, {
       clipboard: { writeText },
     });
+    window.history.pushState(null, "", "/stale-window-location");
 
-    renderSource();
+    renderSource("/c/cam-cs-tripos/source/cam-2022-p5-q3-b?from=deep#media");
 
     await userEvent.click(screen.getByRole("button", { name: "Copy link" }));
 
-    expect(writeText).toHaveBeenCalledWith("/c/cam-cs-tripos/source/cam-2022-p5-q3-b");
-    expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining("about:blank"));
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/c/cam-cs-tripos/source/cam-2022-p5-q3-b?from=deep#media`,
+    );
+    expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining("stale-window-location"));
   });
 
   test("renders metadata chips with normalized sublabels and schema source fallback", () => {
@@ -316,10 +321,11 @@ describe("SourceRoute", () => {
     renderSource();
 
     expect(screen.getAllByAltText("Question figure 1")).toHaveLength(1);
-    expect(screen.getByAltText("Question media 1")).toHaveAttribute(
-      "src",
-      "https://example.test/remaining.png",
-    );
+    const remainingImage = screen.getByAltText("Question media 1");
+    expect(remainingImage).toHaveAttribute("src", "https://example.test/remaining.png");
+    expect(remainingImage).toHaveAttribute("loading", "lazy");
+    expect(remainingImage).toHaveAttribute("width", "960");
+    expect(remainingImage).toHaveAttribute("height", "640");
     expect(screen.getByText("Media unavailable")).toBeInTheDocument();
   });
 

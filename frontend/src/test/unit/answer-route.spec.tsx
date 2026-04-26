@@ -214,6 +214,19 @@ describe("AnswerRoute", () => {
     expect(heading).not.toHaveClass("italic");
   });
 
+  test("renders limitations between the answer overview and patterns", () => {
+    renderAnswer();
+
+    const overview = screen.getByText(
+      "Dynamic tables are usually handled with a potential argument.",
+    );
+    const limitation = screen.getByText("Only one source was retrieved.");
+    const pattern = screen.getByText("Dynamic table resizing");
+
+    expect(overview.compareDocumentPosition(limitation)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(limitation.compareDocumentPosition(pattern)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   test("invalid parsed filters render invalid state without calling study", () => {
     renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=paper%3Aeq%3A5");
 

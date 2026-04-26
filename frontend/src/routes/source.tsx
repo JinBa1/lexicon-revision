@@ -47,7 +47,8 @@ export function SourceRoute() {
   const previousLabel = previousFrom ? "Back to results" : "Back to collection";
   const activeCollection = collections.find((collection) => collection.name === collectionName);
   const metadataSchema = activeCollection?.metadata_schema ?? null;
-  const shareUrl = `${location.pathname}${location.search}${location.hash}`;
+  const sharePath = `${location.pathname}${location.search}${location.hash}`;
+  const shareUrl = `${window.location.origin}${sharePath}`;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -186,6 +187,9 @@ function MediaList({ media }: { media: MediaRef[] }) {
             <img
               src={item.access_url}
               alt={`Question media ${index + 1}`}
+              loading="lazy"
+              width={960}
+              height={640}
               className="mx-auto max-h-96 object-contain"
             />
           ) : (

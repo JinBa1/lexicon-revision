@@ -206,12 +206,12 @@ function AnswerContent({
             <AnswerStatusBanner status={data.answer_status} />
             <div className="mt-4 space-y-4">
               <AnswerBody overview={data.answer.overview} />
+              <LimitationsBlock limitations={data.answer.limitations} />
               <PatternsList
                 patterns={data.answer.patterns}
                 chunkIdToPosition={chunkIdToPosition}
                 onCitationActivate={onCitationActivate}
               />
-              <LimitationsBlock limitations={data.answer.limitations} />
             </div>
             <RetrievalFooter retrieval={data.retrieval} />
             <SourcesGrid

@@ -37,7 +37,7 @@ export function CollectionCard({
         "flex w-full flex-row items-center justify-between gap-4 rounded-sm border border-l-4 px-4 py-3 text-left transition-colors",
         "hover:bg-paper",
         isActive
-          ? "border-rule selectable-selected"
+          ? "selectable-selected"
           : cn(
               "border-l-transparent",
               locked ? "border-rule bg-paper-lock opacity-90" : "border-rule bg-paper-raised",

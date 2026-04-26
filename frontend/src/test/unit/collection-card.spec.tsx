@@ -47,6 +47,7 @@ describe("CollectionCard", () => {
     const btn = screen.getByRole("button", { name: /Active scope/i });
     expect(btn).toHaveAttribute("aria-pressed", "true");
     expect(btn).toHaveClass("selectable-selected");
+    expect(btn).not.toHaveClass("border-rule");
     expect(btn).not.toHaveClass("border-l-transparent");
     expect(btn).not.toHaveClass("bg-paper-raised");
     expect(btn).not.toHaveClass("bg-paper-lock");
@@ -84,6 +85,7 @@ describe("CollectionCard", () => {
 
     const btn = screen.getByRole("button", { name: /Active scope/i });
     expect(btn).toHaveClass("selectable-selected");
+    expect(btn).not.toHaveClass("border-rule");
     expect(btn).not.toHaveClass("border-l-transparent");
     expect(btn).not.toHaveClass("bg-paper-raised");
     expect(btn).not.toHaveClass("bg-paper-lock");
