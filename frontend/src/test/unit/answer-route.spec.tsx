@@ -205,6 +205,15 @@ describe("AnswerRoute", () => {
     expect(screen.getByText("Ask a question to generate an answer")).toBeInTheDocument();
   });
 
+  test("renders the answer question as an eyebrow and level-one heading", () => {
+    renderAnswer();
+
+    expect(screen.getByText("Question")).toHaveClass("section-eyebrow");
+    const heading = screen.getByRole("heading", { level: 1, name: "dynamic tables" });
+    expect(heading).toHaveClass("font-display", "text-xl", "text-ink");
+    expect(heading).not.toHaveClass("italic");
+  });
+
   test("invalid parsed filters render invalid state without calling study", () => {
     renderAnswer("/c/cam-cs-tripos/answer?q=dynamic&filter=paper%3Aeq%3A5");
 

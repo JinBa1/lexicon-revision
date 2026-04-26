@@ -200,12 +200,8 @@ function AnswerContent({
         ) : data ? (
           <>
             <section className="border-b border-rule pb-3">
-              <div className="font-ui text-[10px] uppercase tracking-[0.14em] text-ink-muted">
-                Question
-              </div>
-              <p className="mt-1 font-display text-[15px] italic leading-snug text-ink">
-                {data.query}
-              </p>
+              <div className="section-eyebrow">Question</div>
+              <h1 className="mt-1 font-display text-xl text-ink">{data.query}</h1>
             </section>
             <AnswerStatusBanner status={data.answer_status} />
             <div className="mt-4 space-y-4">
