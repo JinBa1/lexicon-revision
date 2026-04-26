@@ -48,6 +48,10 @@
   .section-eyebrow {
     @apply font-ui text-[10px] uppercase tracking-[0.14em] text-ink-muted;
   }
+
+  .citation-highlighted {
+    @apply ring-2 ring-claret;
+  }
 }
 
 @layer utilities {
