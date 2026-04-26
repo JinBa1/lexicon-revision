@@ -201,6 +201,7 @@ export function QuestionsRoute() {
             total={search.data?.total ?? results.length}
             selectedChunkId={selectedChunkId}
             onSelect={setFocus}
+            metadataSchema={active?.metadata_schema ?? null}
           />
           <div className="hidden min-h-[34rem] lg:block">
             <DetailPanel

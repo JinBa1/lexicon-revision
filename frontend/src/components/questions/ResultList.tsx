@@ -1,4 +1,4 @@
-import type { SearchResult } from "@/lib/api/types";
+import type { CollectionMetadataSchema, SearchResult } from "@/lib/api/types";
 import { ResultRow } from "./ResultRow";
 
 export function ResultList({
@@ -6,11 +6,13 @@ export function ResultList({
   total,
   selectedChunkId,
   onSelect,
+  metadataSchema,
 }: {
   results: SearchResult[];
   total: number;
   selectedChunkId: string | null;
   onSelect: (chunkId: string) => void;
+  metadataSchema: CollectionMetadataSchema | null;
 }) {
   return (
     <div className="border-r border-rule">
@@ -24,6 +26,7 @@ export function ResultList({
               result={result}
               selected={selectedChunkId === result.chunk_id}
               onSelect={onSelect}
+              metadataSchema={metadataSchema}
             />
           </li>
         ))}

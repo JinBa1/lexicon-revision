@@ -63,38 +63,46 @@ function CompactChunkCard({
 }: Extract<ChunkCardProps, { mode: "compact" }>) {
   const isSub = chunk.chunk_level === "sub_question";
   const className = cn(
-    "block w-full rounded-sm border border-transparent px-3 py-2.5 text-left",
+    "block w-full rounded-sm border-l-4 border-l-transparent px-3 py-2.5 text-left",
     onClick && "hover:bg-paper-raised",
     isSub && "ml-5",
-    selected && "border-l-2 border-claret bg-claret-soft",
+    selected && "selectable-selected",
   );
-  const fallbackIndicators =
-    chunk.render_blocks == null || chunk.render_blocks.length === 0
-      ? buildMetadataFallbackIndicators(chunk.metadata)
-      : [];
+
+  const fallbackIndicators = chunk.render_blocks?.length
+    ? null
+    : buildMetadataFallbackIndicators(chunk.metadata);
+
+  const metaChips = buildMetaChipsFromSchema(
+    chunk.metadata,
+    metadataSchema,
+    chunk.sub_question_label,
+  );
+
   const content = (
     <>
-      <div className="font-ui text-[11px] uppercase tracking-wider text-ink-muted">
-        {renderMetadataSummary(chunk.metadata, {
-          schema: metadataSchema,
-          subLabel: chunk.sub_question_label,
-        })}
-      </div>
       <RenderBlocks
         blocks={chunk.render_blocks ?? null}
         mode="compact"
         fallbackText={chunk.text}
         compactLines={3}
-        className="mt-1"
       />
-      <FallbackIndicatorList indicators={fallbackIndicators} />
+      {metaChips.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {metaChips.map((label, i) => (
+            <Chip key={i} variant="meta">
+              {label}
+            </Chip>
+          ))}
+        </div>
+      ) : null}
+      {fallbackIndicators && fallbackIndicators.length > 0 ? (
+        <FallbackIndicatorList indicators={fallbackIndicators} />
+      ) : null}
     </>
   );
 
-  if (!onClick) {
-    return <div className={className}>{content}</div>;
-  }
-
+  if (!onClick) return <div className={className}>{content}</div>;
   return (
     <button type="button" onClick={onClick} aria-pressed={selected} className={className}>
       {content}
@@ -178,6 +186,23 @@ function FallbackIndicatorList({ indicators }: { indicators: BlockIndicator[] })
       ))}
     </div>
   );
+}
+
+function buildMetaChipsFromSchema(
+  metadata: Record<string, unknown>,
+  schema: CollectionMetadataSchema | null | undefined,
+  subLabel: string | null,
+): string[] {
+  const out: string[] = [];
+  if (subLabel) out.push(`Part (${subLabel})`);
+  if (!schema) return out;
+  for (const field of schema.fields) {
+    if (!field.exposed) continue;
+    const value = metadata[field.key];
+    if (value === null || value === undefined || value === "") continue;
+    out.push(`${field.label}: ${value}`);
+  }
+  return out;
 }
 
 function MediaList({ media }: { media: MediaRef[] }) {

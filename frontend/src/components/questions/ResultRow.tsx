@@ -1,14 +1,16 @@
 import { ChunkCard } from "@/components/shared/ChunkCard";
-import type { SearchResult } from "@/lib/api/types";
+import type { CollectionMetadataSchema, SearchResult } from "@/lib/api/types";
 
 export function ResultRow({
   result,
   selected,
   onSelect,
+  metadataSchema,
 }: {
   result: SearchResult;
   selected: boolean;
   onSelect: (chunkId: string) => void;
+  metadataSchema: CollectionMetadataSchema | null;
 }) {
   return (
     <ChunkCard
@@ -23,6 +25,7 @@ export function ResultRow({
         media: result.media,
         render_blocks: result.render_blocks,
       }}
+      metadataSchema={metadataSchema}
       selected={selected}
       onClick={() => onSelect(result.chunk_id)}
     />

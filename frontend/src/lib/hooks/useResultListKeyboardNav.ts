@@ -41,8 +41,10 @@ export function useResultListKeyboardNav({
           event.key === "ArrowDown"
             ? Math.min(results.length - 1, start + 1)
             : Math.max(0, start - 1);
+        const target = results[next];
+        if (!target) return;
         event.preventDefault();
-        onFocus(results[next].chunk_id);
+        onFocus(target.chunk_id);
         return;
       }
 

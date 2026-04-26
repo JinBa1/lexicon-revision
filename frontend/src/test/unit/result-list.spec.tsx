@@ -26,6 +26,7 @@ describe("ResultList", () => {
         total={1}
         selectedChunkId={null}
         onSelect={() => {}}
+        metadataSchema={null}
       />,
     );
 
@@ -39,6 +40,7 @@ describe("ResultList", () => {
         total={2}
         selectedChunkId={null}
         onSelect={() => {}}
+        metadataSchema={null}
       />,
     );
 
@@ -54,6 +56,7 @@ describe("ResultList", () => {
         total={2}
         selectedChunkId={subQuestionResult.chunk_id}
         onSelect={onSelect}
+        metadataSchema={null}
       />,
     );
 
@@ -84,6 +87,7 @@ describe("ResultList", () => {
         total={1}
         selectedChunkId={null}
         onSelect={() => {}}
+        metadataSchema={null}
       />,
     );
 

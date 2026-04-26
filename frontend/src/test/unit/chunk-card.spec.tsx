@@ -65,7 +65,7 @@ const directMedia: MediaRef[] = [
 ];
 
 describe("ChunkCard", () => {
-  test("compact mode shows metadata line and excerpt", () => {
+  test("compact mode shows excerpt text", () => {
     render(
       <ChunkCard
         mode="compact"
@@ -80,8 +80,6 @@ describe("ChunkCard", () => {
         }}
       />,
     );
-    expect(screen.getByText(/2022/)).toBeInTheDocument();
-    expect(screen.getByText(/paper 5/i)).toBeInTheDocument();
     expect(screen.getByText(/amortized analysis/i)).toBeInTheDocument();
   });
 
@@ -180,7 +178,9 @@ describe("ChunkCard", () => {
       />,
     );
 
-    expect(screen.getByText("Paper 5 / No / 2022")).toBeInTheDocument();
+    // M20b: meta chips replace the slash-joined summary line
+    expect(screen.getByText("Year: 2022")).toBeInTheDocument();
+    expect(screen.getByText("Has figure: false")).toBeInTheDocument();
   });
 
   test("compact mode renders render_blocks with KaTeX and code indicator", () => {
@@ -340,6 +340,76 @@ describe("ChunkCard", () => {
     );
     expect(screen.queryByText(/Image unavailable/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("img")).toHaveLength(1);
+  });
+});
+
+describe("<ChunkCard> compact (M20b)", () => {
+  const baseChunk = {
+    chunk_id: "x",
+    chunk_level: "question" as const,
+    parent_chunk_id: null,
+    sub_question_label: null,
+    text: "fallback text",
+    metadata: { year: 2024, paper: 1, question: 3 },
+    media: [],
+    render_blocks: null,
+  };
+
+  it("base row reserves border-l-4 transparent", () => {
+    const { container } = render(<ChunkCard mode="compact" chunk={baseChunk} />);
+    expect((container.firstChild as HTMLElement).className).toContain("border-l-4");
+    expect((container.firstChild as HTMLElement).className).toContain("border-l-transparent");
+  });
+
+  it("selected row applies .selectable-selected", () => {
+    const { container } = render(
+      <ChunkCard mode="compact" chunk={baseChunk} selected onClick={() => {}} />,
+    );
+    expect((container.firstChild as HTMLElement).className).toContain("selectable-selected");
+  });
+
+  it("renders meta chip row from exposed schema fields", () => {
+    const schema = {
+      version: 1,
+      fields: [
+        {
+          key: "year",
+          label: "Year",
+          type: "integer" as const,
+          operators: [],
+          exposed: true,
+          source: null,
+        },
+        {
+          key: "paper",
+          label: "Paper",
+          type: "integer" as const,
+          operators: [],
+          exposed: true,
+          source: null,
+        },
+      ],
+    };
+    render(<ChunkCard mode="compact" chunk={baseChunk} metadataSchema={schema} />);
+    expect(screen.getByText(/Year/)).toBeInTheDocument();
+    expect(screen.getByText(/Paper/)).toBeInTheDocument();
+  });
+
+  it("does not render the legacy '{N} media' footer", () => {
+    const chunk = {
+      ...baseChunk,
+      media: [
+        {
+          media_id: "image_1",
+          kind: "image" as const,
+          object_key: null,
+          access_url: null,
+          relation: "direct" as const,
+        },
+      ],
+    };
+    render(<ChunkCard mode="compact" chunk={chunk} />);
+    expect(screen.queryByText(/\d+ media/)).not.toBeInTheDocument();
   });
 });
 
