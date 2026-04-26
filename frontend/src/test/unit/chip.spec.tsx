@@ -18,4 +18,11 @@ describe("Chip", () => {
     render(<Chip variant="ghost">X</Chip>);
     expect(screen.getByText("X").className).toContain("bg-transparent");
   });
+
+  it("renders meta variant with low-emphasis classes", () => {
+    const { container } = render(<Chip variant="meta">Year 2024</Chip>);
+    const node = container.firstChild as HTMLElement;
+    expect(node.className).toContain("border-rule-soft");
+    expect(node.textContent).toBe("Year 2024");
+  });
 });
