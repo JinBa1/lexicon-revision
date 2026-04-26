@@ -1,3 +1,52 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .question-prose {
+    @apply font-body text-[15px] leading-relaxed text-ink;
+  }
+
+  .question-prose p,
+  .question-prose ul,
+  .question-prose ol {
+    @apply my-2 max-w-[65ch] break-words;
+  }
+
+  .question-prose ul,
+  .question-prose ol {
+    @apply pl-5;
+  }
+
+  .question-prose li {
+    @apply my-1;
+  }
+
+  .question-prose pre {
+    @apply my-3 overflow-x-auto rounded-sm bg-paper px-3 py-2 font-mono text-[13px];
+  }
+
+  .question-prose table {
+    @apply my-3 border-collapse text-[13px];
+  }
+
+  .question-prose figure {
+    @apply my-3;
+  }
+
+  .question-prose .katex-display {
+    @apply my-3 max-w-full overflow-x-auto overflow-y-hidden;
+  }
+
+  .question-prose-compact {
+    @apply break-words font-body text-[13.5px] leading-snug text-ink;
+  }
+}
+
+@layer utilities {
+  .question-prose-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
