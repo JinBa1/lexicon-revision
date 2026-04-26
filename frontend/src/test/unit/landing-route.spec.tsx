@@ -76,7 +76,13 @@ describe("LandingRoute", () => {
     const { container } = renderLanding();
 
     expect(screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }));
-    expect(screen.getByText(/Pick a collection below to enable search/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Pick a collection below to enable search/i)).toBeNull();
+    expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
+      "href",
+      "#collections",
+    );
+    expect(document.getElementById("collections")).toBeInTheDocument();
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 

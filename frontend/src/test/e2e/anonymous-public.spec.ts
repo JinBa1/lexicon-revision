@@ -124,7 +124,11 @@ test("anonymous user can pick a public collection and search for matching questi
 
   await page.goto("/");
 
-  await expect(page.getByText("Pick a collection below to enable search.")).toBeVisible();
+  await expect(page.getByText("Choose a collection below to enable search.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
+    "href",
+    "#collections",
+  );
   await page.getByRole("button", { name: /MIT 6\.006 \(demo\)/ }).click();
 
   await expect(page.getByRole("heading", { level: 1, name: "MIT 6.006 (demo)" })).toBeVisible();

@@ -20,6 +20,7 @@ export type HeroProps = {
   onOpenScope: () => void;
   onSubmit: (action: HeroSubmitAction) => void;
   onScopeMissing?: () => void;
+  showScopeRequiredHelper?: boolean;
 };
 
 export function Hero(props: HeroProps) {
@@ -33,6 +34,7 @@ export function Hero(props: HeroProps) {
     onOpenScope,
     onSubmit,
     onScopeMissing,
+    showScopeRequiredHelper = true,
   } = props;
 
   const attemptSubmit = useCallback(
@@ -90,13 +92,13 @@ export function Hero(props: HeroProps) {
       />
       {mode === "landing" ? (
         <div className="mt-3 border-t border-rule-soft pt-3 font-body text-sm">
-          {activeCollection === null ? (
+          {activeCollection === null && showScopeRequiredHelper ? (
             <ScopeRequiredHelper />
-          ) : (
+          ) : activeCollection ? (
             <div className="font-ui text-[11px] uppercase tracking-wider text-ink-muted">
               {describeMeta(activeCollection)}
             </div>
-          )}
+          ) : null}
           <HelperExamples onPick={onHelperPick} />
         </div>
       ) : null}
