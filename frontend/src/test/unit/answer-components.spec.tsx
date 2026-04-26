@@ -162,6 +162,89 @@ describe("RetrievalFooter", () => {
 });
 
 describe("SourcesGrid", () => {
+  test("renders excerpt_blocks with inline math in compact mode", () => {
+    const registerRef = vi.fn();
+    const sourceWithMath: StudySource = {
+      ...source,
+      excerpt: "Fallback text should not render when blocks are present.",
+      excerpt_blocks: [
+        {
+          type: "paragraph",
+          runs: [
+            { type: "text", text: "Use potential " },
+            { type: "math", latex: "\\Phi=n" },
+            { type: "text", text: " for amortized cost." },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <MemoryRouter>
+        <SourcesGrid
+          collection="cam-cs-tripos"
+          sources={[sourceWithMath]}
+          highlightedChunkId={source.chunk_id}
+          registerRef={registerRef}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/Use potential/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Fallback text should not render/i)).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".katex").length).toBeGreaterThan(0);
+    expect(container.querySelector(".question-prose-clamp")).toHaveStyle({
+      WebkitLineClamp: "4",
+    });
+  });
+
+  test("renders excerpt_blocks table indicator in compact mode", () => {
+    const registerRef = vi.fn();
+    const sourceWithTable: StudySource = {
+      ...source,
+      excerpt_blocks: [
+        {
+          type: "table",
+          rows: [
+            ["operation", "cost"],
+            ["insert", "O(1) amortized"],
+          ],
+          media_id: null,
+        },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <SourcesGrid
+          collection="cam-cs-tripos"
+          sources={[sourceWithTable]}
+          highlightedChunkId={source.chunk_id}
+          registerRef={registerRef}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/Contains table/i)).toBeInTheDocument();
+  });
+
+  test("renders fallback excerpt text when excerpt_blocks is null", () => {
+    const registerRef = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <SourcesGrid
+          collection="cam-cs-tripos"
+          sources={[source]}
+          highlightedChunkId={source.chunk_id}
+          registerRef={registerRef}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(source.excerpt)).toBeInTheDocument();
+  });
+
   test("falls back to generic metadata when no schema is provided", () => {
     const registerRef = vi.fn();
 
