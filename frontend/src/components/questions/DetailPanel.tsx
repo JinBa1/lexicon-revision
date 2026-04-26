@@ -41,8 +41,17 @@ export function DetailPanel({
           text: chunk.text,
           metadata: chunk.metadata,
           media: chunk.media,
+          render_blocks: chunk.render_blocks,
         }}
-        parent={chunk.parent}
+        parent={
+          chunk.parent
+            ? {
+                text: chunk.parent.text,
+                metadata: chunk.parent.metadata,
+                render_blocks: chunk.parent.render_blocks,
+              }
+            : null
+        }
         footer={
           <Link
             to={buildSourceHref(collection, chunk.chunk_id)}

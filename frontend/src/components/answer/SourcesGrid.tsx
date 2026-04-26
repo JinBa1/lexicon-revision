@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
+import { RenderBlocks } from "@/components/shared/render-blocks";
 import type { CollectionMetadataSchema, StudySource } from "@/lib/api/types";
 import { renderMetadataSummary } from "@/lib/metadata/render";
-import { truncateExcerpt } from "@/lib/url/query";
 import { buildSourceHref } from "@/lib/url/scope";
 
 export function SourcesGrid({
@@ -43,9 +43,13 @@ export function SourcesGrid({
             >
               {i + 1} · {renderMeta(source, metadataSchema)}
             </div>
-            <p className="mt-1 font-body text-[12.5px] italic text-ink">
-              {truncateExcerpt(source.excerpt, 140)}
-            </p>
+            <RenderBlocks
+              blocks={source.excerpt_blocks}
+              mode="compact"
+              fallbackText={source.excerpt}
+              compactLines={4}
+              className="mt-1"
+            />
             {source.why_cited ? (
               <p className="mt-2 border-t border-dashed border-rule-soft pt-2 font-body text-[11px] text-ink-muted">
                 Why cited: {source.why_cited}

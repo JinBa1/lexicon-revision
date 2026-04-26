@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, test } from "vitest";
 
 import { DetailPanel } from "@/components/questions/DetailPanel";
+import type { RenderBlock } from "@/lib/api/types";
 import { chunkDetailFixture } from "../fixtures/search";
 
 function renderDetailPanel(props: React.ComponentProps<typeof DetailPanel>) {
@@ -53,5 +54,58 @@ describe("DetailPanel", () => {
       "href",
       "/c/cam-cs-tripos/source/cam-2022-p5-q3-b",
     );
+  });
+
+  test("passes child and parent render_blocks through to the full ChunkCard", () => {
+    const childBlocks: RenderBlock[] = [
+      {
+        type: "paragraph",
+        runs: [
+          { type: "text", text: "Structured child prompt with " },
+          { type: "math", latex: "x^2" },
+          { type: "text", text: "." },
+        ],
+      },
+      { type: "code", code: "def answer():\n    return 42", language: "python" },
+      {
+        type: "table",
+        rows: [
+          ["Case", "Cost"],
+          ["overflow", "O(1) amortized"],
+        ],
+        media_id: null,
+      },
+    ];
+    const parentBlocks: RenderBlock[] = [
+      {
+        type: "paragraph",
+        runs: [{ type: "text", text: "Structured parent question text" }],
+      },
+    ];
+
+    const { container } = renderDetailPanel({
+      collection: "cam-cs-tripos",
+      chunk: {
+        ...chunkDetailFixture,
+        text: "CHILD FALLBACK SHOULD NOT RENDER",
+        render_blocks: childBlocks,
+        parent: chunkDetailFixture.parent
+          ? {
+              ...chunkDetailFixture.parent,
+              text: "PARENT FALLBACK SHOULD NOT RENDER",
+              render_blocks: parentBlocks,
+            }
+          : null,
+      },
+      isLoading: false,
+    });
+
+    expect(screen.getByText("Structured parent question text")).toBeInTheDocument();
+    expect(screen.getByText(/Structured child prompt with/i)).toBeInTheDocument();
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(screen.getByText(/def answer\(\):\s+return 42/)).toBeInTheDocument();
+    expect(screen.getByText("overflow")).toBeInTheDocument();
+    expect(screen.queryByText("CHILD FALLBACK SHOULD NOT RENDER")).not.toBeInTheDocument();
+    expect(screen.queryByText("PARENT FALLBACK SHOULD NOT RENDER")).not.toBeInTheDocument();
   });
 });

@@ -94,6 +94,7 @@ function searchResponseFor(request: SearchRequest): SearchResponse {
           question_label: "Question 1",
         },
         media: [],
+        render_blocks: null,
       },
     ],
   };
@@ -114,6 +115,7 @@ function chunkDetailFor(collection: string, chunkId: string): ChunkDetail {
     media: [],
     collection,
     parent: null,
+    render_blocks: null,
   };
 }
 

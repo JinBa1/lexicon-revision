@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { ChunkCard } from "@/components/shared/ChunkCard";
-import type { CollectionMetadataSchema } from "@/lib/api/types";
+import type { CollectionMetadataSchema, MediaRef, RenderBlock } from "@/lib/api/types";
 import { renderMetadataSummary } from "@/lib/metadata/render";
 import { chunkDetailFixture, questionResult, subQuestionResult } from "../fixtures/search";
 
@@ -34,6 +34,35 @@ const metadataSchema: CollectionMetadataSchema = {
     },
   ],
 };
+
+const renderBlocksWithMathAndCode: RenderBlock[] = [
+  {
+    type: "paragraph",
+    runs: [
+      { type: "text", text: "Solve " },
+      { type: "math", latex: "x^2" },
+      { type: "text", text: " using dynamic programming." },
+    ],
+  },
+  { type: "code", code: "def solve():\n    return 1", language: "python" },
+];
+
+const directMedia: MediaRef[] = [
+  {
+    media_id: "image_1",
+    kind: "image",
+    object_key: "chunks/image_1.png",
+    access_url: "https://example.test/image_1.png",
+    relation: "direct",
+  },
+  {
+    media_id: "image_2",
+    kind: "image",
+    object_key: "chunks/image_2.png",
+    access_url: "https://example.test/image_2.png",
+    relation: "direct",
+  },
+];
 
 describe("ChunkCard", () => {
   test("compact mode shows metadata line and excerpt", () => {
@@ -152,6 +181,165 @@ describe("ChunkCard", () => {
     );
 
     expect(screen.getByText("Paper 5 / No / 2022")).toBeInTheDocument();
+  });
+
+  test("compact mode renders render_blocks with KaTeX and code indicator", () => {
+    const { container } = render(
+      <ChunkCard
+        mode="compact"
+        chunk={{
+          chunk_id: questionResult.chunk_id,
+          chunk_level: questionResult.chunk_level,
+          parent_chunk_id: null,
+          sub_question_label: null,
+          text: "plain fallback text",
+          metadata: questionResult.metadata,
+          media: [],
+          render_blocks: renderBlocksWithMathAndCode,
+        }}
+      />,
+    );
+
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(screen.getByText(/Contains code/i)).toBeInTheDocument();
+    expect(screen.queryByText(/plain fallback text/i)).not.toBeInTheDocument();
+  });
+
+  test("compact mode renders fallback text and metadata indicators when render_blocks is missing", () => {
+    render(
+      <ChunkCard
+        mode="compact"
+        chunk={{
+          chunk_id: questionResult.chunk_id,
+          chunk_level: questionResult.chunk_level,
+          parent_chunk_id: null,
+          sub_question_label: null,
+          text: "fallback with media metadata",
+          metadata: { has_code: true, has_table: true, has_figure: true },
+          media: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/fallback with media metadata/i)).toBeInTheDocument();
+    expect(screen.getByText(/Contains code/i)).toBeInTheDocument();
+    expect(screen.getByText(/Contains table/i)).toBeInTheDocument();
+    expect(screen.getByText(/Contains figure/i)).toBeInTheDocument();
+  });
+
+  test("compact mode treats empty render_blocks as fallback for metadata indicators", () => {
+    render(
+      <ChunkCard
+        mode="compact"
+        chunk={{
+          chunk_id: questionResult.chunk_id,
+          chunk_level: questionResult.chunk_level,
+          parent_chunk_id: null,
+          sub_question_label: null,
+          text: "fallback for empty blocks",
+          metadata: { has_table: true },
+          media: [],
+          render_blocks: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/fallback for empty blocks/i)).toBeInTheDocument();
+    expect(screen.getByText(/Contains table/i)).toBeInTheDocument();
+  });
+
+  test("full mode dedupes MediaList items already referenced by render blocks", () => {
+    render(
+      <ChunkCard
+        mode="full"
+        chunk={{
+          chunk_id: chunkDetailFixture.chunk_id,
+          chunk_level: chunkDetailFixture.chunk_level,
+          parent_chunk_id: chunkDetailFixture.parent_chunk_id,
+          sub_question_label: chunkDetailFixture.sub_question_label,
+          text: "fallback body",
+          metadata: chunkDetailFixture.metadata,
+          media: directMedia,
+          render_blocks: [
+            { type: "paragraph", runs: [{ type: "text", text: "Body before image." }] },
+            { type: "image", media_id: "image_1" },
+          ],
+        }}
+        parent={null}
+      />,
+    );
+
+    expect(screen.getAllByRole("img")).toHaveLength(2);
+    expect(screen.getByRole("img", { name: "Question media 1" })).toHaveAttribute(
+      "src",
+      "https://example.test/image_2.png",
+    );
+  });
+
+  test("full mode renders parent render_blocks instead of parent fallback text", () => {
+    render(
+      <ChunkCard
+        mode="full"
+        chunk={{
+          chunk_id: chunkDetailFixture.chunk_id,
+          chunk_level: chunkDetailFixture.chunk_level,
+          parent_chunk_id: chunkDetailFixture.parent_chunk_id,
+          sub_question_label: chunkDetailFixture.sub_question_label,
+          text: "child body",
+          metadata: chunkDetailFixture.metadata,
+          media: [],
+          render_blocks: null,
+        }}
+        parent={{
+          text: "plain parent fallback",
+          metadata: {},
+          render_blocks: [
+            { type: "paragraph", runs: [{ type: "text", text: "Structured parent context" }] },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/Structured parent context/i)).toBeInTheDocument();
+    expect(screen.queryByText(/plain parent fallback/i)).not.toBeInTheDocument();
+  });
+
+  test("full mode resolves parent image blocks from chunk media without duplicating MediaList", () => {
+    render(
+      <ChunkCard
+        mode="full"
+        chunk={{
+          chunk_id: chunkDetailFixture.chunk_id,
+          chunk_level: chunkDetailFixture.chunk_level,
+          parent_chunk_id: chunkDetailFixture.parent_chunk_id,
+          sub_question_label: chunkDetailFixture.sub_question_label,
+          text: "child body",
+          metadata: chunkDetailFixture.metadata,
+          media: [
+            {
+              media_id: "image_parent",
+              kind: "image",
+              object_key: "chunks/image_parent.png",
+              access_url: "https://example.test/image_parent.png",
+              relation: "inherited_shared",
+            },
+          ],
+          render_blocks: [{ type: "paragraph", runs: [{ type: "text", text: "Child body." }] }],
+        }}
+        parent={{
+          text: "parent fallback",
+          metadata: {},
+          render_blocks: [{ type: "image", media_id: "image_parent" }],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Question figure 1" })).toHaveAttribute(
+      "src",
+      "https://example.test/image_parent.png",
+    );
+    expect(screen.queryByText(/Image unavailable/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
   });
 });
 

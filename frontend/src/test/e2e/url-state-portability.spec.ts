@@ -48,6 +48,7 @@ const algorithmsSearchResponse: SearchResponse = {
         question_label: "Question 1",
       },
       media: [],
+      render_blocks: null,
     },
     {
       chunk_id: "chunk-2",
@@ -62,6 +63,7 @@ const algorithmsSearchResponse: SearchResponse = {
         question_label: "Question 2",
       },
       media: [],
+      render_blocks: null,
     },
   ],
 };
@@ -81,6 +83,7 @@ const chunkDetails: Record<string, ChunkDetail> = {
     media: [],
     collection: "public-demo",
     parent: null,
+    render_blocks: null,
   },
   "chunk-2": {
     chunk_id: "chunk-2",
@@ -96,6 +99,7 @@ const chunkDetails: Record<string, ChunkDetail> = {
     media: [],
     collection: "public-demo",
     parent: null,
+    render_blocks: null,
   },
 };
 

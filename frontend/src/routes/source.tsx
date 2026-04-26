@@ -67,8 +67,17 @@ export function SourceRoute() {
               text: data.text,
               metadata: data.metadata,
               media: data.media,
+              render_blocks: data.render_blocks,
             }}
-            parent={data.parent}
+            parent={
+              data.parent
+                ? {
+                    text: data.parent.text,
+                    metadata: data.parent.metadata,
+                    render_blocks: data.parent.render_blocks,
+                  }
+                : null
+            }
           />
         ) : null}
       </main>

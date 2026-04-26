@@ -9,6 +9,7 @@ export const questionResult: SearchResult = {
   score: 0.88,
   metadata: { year: 2022, paper_label: "Paper 5", question_label: "Question 3", has_figure: true },
   media: [],
+  render_blocks: null,
 };
 
 export const subQuestionResult: SearchResult = {
@@ -20,6 +21,7 @@ export const subQuestionResult: SearchResult = {
   score: 0.84,
   metadata: { year: 2022, paper_label: "Paper 5", question_label: "Question 3", has_figure: true },
   media: [],
+  render_blocks: null,
 };
 
 export const chunkDetailFixture: ChunkDetail = {
@@ -39,7 +41,9 @@ export const chunkDetailFixture: ChunkDetail = {
       question_label: "Question 3",
       has_figure: true,
     },
+    render_blocks: null,
   },
+  render_blocks: null,
 };
 
 export const studySource: StudySource = {
@@ -51,4 +55,5 @@ export const studySource: StudySource = {
   excerpt: "Give an amortized analysis of successive insertions…",
   metadata: { year: 2022, paper_label: "Paper 5", question_label: "Question 3", has_figure: true },
   why_cited: "Canonical accounting-method setup on dynamic arrays.",
+  excerpt_blocks: null,
 };
