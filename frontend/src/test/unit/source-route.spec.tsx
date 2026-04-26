@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/errors";
+import type { RenderBlock } from "@/lib/api/types";
 import { SourceRoute } from "@/routes/source";
 
 import { cambridgeAccessible } from "../fixtures/collections";
@@ -88,6 +89,59 @@ describe("SourceRoute", () => {
     expect(screen.getByText(/Parent question/i)).toBeInTheDocument();
     expect(screen.getByText(/Give an amortized analysis/i)).toBeInTheDocument();
     expect(screen.getByText(/halves on underflow/i)).toBeInTheDocument();
+  });
+
+  test("passes child and parent render_blocks through to the full ChunkCard", () => {
+    const childBlocks: RenderBlock[] = [
+      {
+        type: "paragraph",
+        runs: [
+          { type: "text", text: "Structured child prompt with " },
+          { type: "math", latex: "x^2" },
+          { type: "text", text: "." },
+        ],
+      },
+      { type: "code", code: "def answer():\n    return 42", language: "python" },
+      {
+        type: "table",
+        rows: [
+          ["Case", "Cost"],
+          ["overflow", "O(1) amortized"],
+        ],
+        media_id: null,
+      },
+    ];
+    const parentBlocks: RenderBlock[] = [
+      {
+        type: "paragraph",
+        runs: [{ type: "text", text: "Structured parent question text" }],
+      },
+    ];
+
+    setChunkState({
+      data: {
+        ...chunkDetailFixture,
+        text: "CHILD FALLBACK SHOULD NOT RENDER",
+        render_blocks: childBlocks,
+        parent: chunkDetailFixture.parent
+          ? {
+              ...chunkDetailFixture.parent,
+              text: "PARENT FALLBACK SHOULD NOT RENDER",
+              render_blocks: parentBlocks,
+            }
+          : null,
+      },
+    });
+
+    const { container } = renderSource();
+
+    expect(screen.getByText("Structured parent question text")).toBeInTheDocument();
+    expect(screen.getByText(/Structured child prompt with/i)).toBeInTheDocument();
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(screen.getByText(/def answer\(\):\s+return 42/)).toBeInTheDocument();
+    expect(screen.getByText("overflow")).toBeInTheDocument();
+    expect(screen.queryByText("CHILD FALLBACK SHOULD NOT RENDER")).not.toBeInTheDocument();
+    expect(screen.queryByText("PARENT FALLBACK SHOULD NOT RENDER")).not.toBeInTheDocument();
   });
 
   test("404 errors show source not found and navigate back to questions", async () => {
