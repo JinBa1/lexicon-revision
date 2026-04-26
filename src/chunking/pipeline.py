@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import json
 import logging
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from src.chunking.cambridge_content_list_parser import CambridgeContentListParser
+from pydantic import TypeAdapter
+from src.chunking.cambridge_content_list_parser import (
+    CambridgeContentListParser,
+    LogicalSegment,
+    _insert_label_prefix,
+)
 from src.chunking.models import Chunk, MediaRef, ParsedQuestion, make_chunk_id
+from src.rendering.blocks import RenderBlock, flatten_render_blocks
 
 logger = logging.getLogger(__name__)
+RENDER_BLOCKS_ADAPTER = TypeAdapter(list[RenderBlock])
 
 
 def run_pipeline(
@@ -36,7 +44,9 @@ def run_pipeline(
         downloader_meta = metadata.get(filename, {})
 
         try:
-            parsed_questions = parser.parse(str(cl_path))
+            parsed_questions, question_segments = parser.parse_with_segments(
+                str(cl_path)
+            )
         except Exception:
             logger.exception("Failed to process %s", cl_path.name)
             continue
@@ -45,8 +55,13 @@ def run_pipeline(
             logger.warning("No questions parsed from %s - skipping", cl_path.name)
             continue
 
-        for pq in parsed_questions:
-            chunks = _build_chunks(pq, downloader_meta, filename, university)
+        for question_index, pq in enumerate(parsed_questions):
+            segments = (
+                question_segments[question_index]
+                if question_index < len(question_segments)
+                else []
+            )
+            chunks = _build_chunks(pq, downloader_meta, filename, university, segments)
             _attach_media_refs(pq, chunks, cl_path.parent)
             all_chunks.extend(chunks)
             parsed_count += 1
@@ -81,6 +96,7 @@ def _build_chunks(
     downloader_meta: dict[str, Any],
     filename: str,
     university: str,
+    logical_segments: list[LogicalSegment] | None = None,
 ) -> list[Chunk]:
     year = parsed_question.year or downloader_meta.get("year")
     paper = parsed_question.paper or downloader_meta.get("paper")
@@ -88,12 +104,34 @@ def _build_chunks(
     topic = downloader_meta.get("topic") or parsed_question.topic
     author = downloader_meta.get("author") or parsed_question.author
 
-    question_text_parts = [parsed_question.preamble.strip()]
-    if parsed_question.sub_questions:
-        question_text_parts.extend(
-            f"({sq.label}) {sq.text}" for sq in parsed_question.sub_questions
-        )
-    question_text = "\n\n".join(part for part in question_text_parts if part).strip()
+    render_blocks_by_label = {
+        segment.label: segment.blocks
+        for segment in logical_segments or []
+        if segment.label is not None
+    }
+    preamble_render_blocks: list[dict[str, Any]] = []
+    for segment in logical_segments or []:
+        if segment.label is None:
+            preamble_render_blocks.extend(segment.blocks)
+
+    question_render_blocks = deepcopy(preamble_render_blocks)
+    for sq in parsed_question.sub_questions:
+        sub_blocks = deepcopy(render_blocks_by_label.get(sq.label, []))
+        if sub_blocks:
+            _insert_label_prefix(sub_blocks, sq.label)
+            question_render_blocks.extend(sub_blocks)
+
+    if question_render_blocks:
+        question_text = _flatten_validated_render_blocks(question_render_blocks).strip()
+    else:
+        question_text_parts = [parsed_question.preamble.strip()]
+        if parsed_question.sub_questions:
+            question_text_parts.extend(
+                f"({sq.label}) {sq.text}" for sq in parsed_question.sub_questions
+            )
+        question_text = "\n\n".join(
+            part for part in question_text_parts if part
+        ).strip()
 
     if year and paper and question_number:
         question_id = make_chunk_id(university, year, paper, question_number)
@@ -120,6 +158,7 @@ def _build_chunks(
         media=[],
         source_pdf=filename,
         warnings=list(parsed_question.warnings),
+        render_blocks=question_render_blocks,
     )
 
     chunks = [question_chunk]
@@ -130,12 +169,19 @@ def _build_chunks(
         else:
             sub_id = f"{question_id}-{sq.label}"
 
+        sub_render_blocks = deepcopy(render_blocks_by_label.get(sq.label, []))
+        sub_text = (
+            _flatten_validated_render_blocks(sub_render_blocks).strip()
+            if sub_render_blocks
+            else sq.text
+        )
+
         chunks.append(
             Chunk(
                 id=sub_id,
                 chunk_level="sub_question",
                 parent_chunk_id=question_id,
-                text=sq.text,
+                text=sub_text,
                 year=year,
                 paper=paper,
                 question_number=question_number,
@@ -151,10 +197,15 @@ def _build_chunks(
                 media=[],
                 source_pdf=filename,
                 warnings=[],
+                render_blocks=sub_render_blocks,
             )
         )
 
     return chunks
+
+
+def _flatten_validated_render_blocks(render_blocks: list[dict[str, Any]]) -> str:
+    return flatten_render_blocks(RENDER_BLOCKS_ADAPTER.validate_python(render_blocks))
 
 
 def _attach_media_refs(
