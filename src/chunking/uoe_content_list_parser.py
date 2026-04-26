@@ -283,6 +283,9 @@ class UOEContentListParser(BaseParser):
         # Filter out skip types
         blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
 
+        # Strip repeating headers/footers before any other processing
+        blocks = self._strip_repeating_headers_footers(blocks)
+
         # Extract cover metadata and locate first Question N block
         cover_meta, first_q_idx = self._extract_cover_metadata(blocks)
 
@@ -328,6 +331,7 @@ class UOEContentListParser(BaseParser):
             blocks: list[dict[str, Any]] = json.load(f)
 
         blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
+        blocks = self._strip_repeating_headers_footers(blocks)
         _, first_q_idx = self._extract_cover_metadata(blocks)
         post_cover_blocks = blocks[first_q_idx:]
 
@@ -404,6 +408,35 @@ class UOEContentListParser(BaseParser):
             "course_title": course_title,
             "year": year,
         }, i
+
+    def _strip_repeating_headers_footers(
+        self,
+        content_blocks: list[dict],
+        min_pages: int = 3,
+        max_line_length: int = 120,
+    ) -> list[dict]:
+        """Drop text blocks that appear on min_pages or more distinct pages.
+
+        This removes running headers/footers that MinerU preserves as blocks.
+        """
+        from collections import defaultdict
+
+        # Build map: normalized_text -> set of page_idx values seen
+        text_pages: dict[str, set[int]] = defaultdict(set)
+        for block in content_blocks:
+            text = (block.get("text") or "").strip()
+            page_idx = block.get("page_idx")
+            if text and len(text) <= max_line_length and page_idx is not None:
+                text_pages[text].add(page_idx)
+
+        # Any text appearing on >= min_pages distinct pages is a repeating element
+        repeating = {
+            text for text, pages in text_pages.items() if len(pages) >= min_pages
+        }
+
+        return [
+            b for b in content_blocks if (b.get("text") or "").strip() not in repeating
+        ]
 
     def _detect_content_flags(self, blocks: list[dict]) -> tuple[bool, bool, bool]:
         """Detect has_code, has_figure, has_table from block types."""
