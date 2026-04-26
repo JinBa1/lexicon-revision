@@ -43,4 +43,21 @@ describe("buildBlockIndicators", () => {
       { kind: "figure" },
     ]);
   });
+
+  it("dedupes indicators by kind while preserving first-seen order", () => {
+    const blocks: RenderBlock[] = [
+      { type: "image", media_id: "image_1" },
+      { type: "code", code: "x", language: null },
+      { type: "table", rows: [], media_id: null },
+      { type: "image", media_id: "image_2" },
+      { type: "code", code: "y", language: null },
+      { type: "table", rows: [["z"]], media_id: "table_1" },
+    ];
+
+    expect(buildBlockIndicators(blocks)).toEqual([
+      { kind: "figure" },
+      { kind: "code" },
+      { kind: "table" },
+    ]);
+  });
 });

@@ -39,6 +39,50 @@ describe("<RenderBlocks> full mode", () => {
     expect(screen.getByText("just text")).toBeInTheDocument();
   });
 
+  it("uses distinct ordinal image labels and ignores matching table media refs", () => {
+    render(
+      <RenderBlocks
+        blocks={[
+          { type: "image", media_id: "shared_id" },
+          { type: "image", media_id: "image_2" },
+        ]}
+        mode="full"
+        media={[
+          {
+            media_id: "shared_id",
+            kind: "table",
+            object_key: "chunks/table_1.csv",
+            access_url: "https://example.test/table_1.csv",
+            relation: "direct",
+          },
+          {
+            media_id: "shared_id",
+            kind: "image",
+            object_key: "chunks/image_1.png",
+            access_url: "https://example.test/image_1.png",
+            relation: "direct",
+          },
+          {
+            media_id: "image_2",
+            kind: "image",
+            object_key: "chunks/image_2.png",
+            access_url: "https://example.test/image_2.png",
+            relation: "direct",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Question figure 1" })).toHaveAttribute(
+      "src",
+      "https://example.test/image_1.png",
+    );
+    expect(screen.getByRole("img", { name: "Question figure 2" })).toHaveAttribute(
+      "src",
+      "https://example.test/image_2.png",
+    );
+  });
+
   it("renders nothing when blocks is null and no fallback", () => {
     const { container } = render(<RenderBlocks blocks={null} mode="full" />);
 

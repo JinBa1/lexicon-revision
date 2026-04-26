@@ -16,11 +16,18 @@ export type BlockIndicator = { kind: "figure" | "table" | "code" };
 
 export function buildBlockIndicators(blocks: RenderBlock[]): BlockIndicator[] {
   const out: BlockIndicator[] = [];
+  const seen = new Set<BlockIndicator["kind"]>();
 
   for (const block of blocks) {
-    if (block.type === "code") out.push({ kind: "code" });
-    else if (block.type === "table") out.push({ kind: "table" });
-    else if (block.type === "image") out.push({ kind: "figure" });
+    let kind: BlockIndicator["kind"] | null = null;
+    if (block.type === "code") kind = "code";
+    else if (block.type === "table") kind = "table";
+    else if (block.type === "image") kind = "figure";
+
+    if (kind && !seen.has(kind)) {
+      seen.add(kind);
+      out.push({ kind });
+    }
   }
 
   return out;

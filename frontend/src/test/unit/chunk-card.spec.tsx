@@ -334,7 +334,7 @@ describe("ChunkCard", () => {
       />,
     );
 
-    expect(screen.getByRole("img", { name: "Question figure" })).toHaveAttribute(
+    expect(screen.getByRole("img", { name: "Question figure 1" })).toHaveAttribute(
       "src",
       "https://example.test/image_parent.png",
     );
