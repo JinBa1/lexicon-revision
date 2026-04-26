@@ -123,17 +123,25 @@ describe("PatternsList", () => {
 });
 
 describe("LimitationsBlock", () => {
-  test("renders limitations when present and nothing when empty", () => {
-    const { container, rerender } = render(
-      <LimitationsBlock limitations={["Only three sources were retrieved."]} />,
+  test("renders nothing when empty", () => {
+    const { container } = render(<LimitationsBlock limitations={[]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test("renders limitations in a bordered callout", () => {
+    render(
+      <LimitationsBlock
+        limitations={["Only three sources were retrieved.", "The answer may omit later papers."]}
+      />,
     );
+
+    const callout = screen.getByRole("complementary", { name: /limitations/i });
 
     expect(screen.getByText("Limitations")).toBeInTheDocument();
     expect(screen.getByText("Only three sources were retrieved.")).toBeInTheDocument();
-
-    rerender(<LimitationsBlock limitations={[]} />);
-
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText("The answer may omit later papers.")).toBeInTheDocument();
+    expect(callout).toHaveClass("border-l-4", "border-claret");
   });
 });
 
