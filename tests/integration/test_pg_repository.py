@@ -105,6 +105,29 @@ def test_index_repository_indexes_fixture_chunks() -> None:
 
     assert len(results) == 3
     assert all(result.chunk_id.startswith("cam-") for result in results)
+    first_chunk = chunks[0]
+    with engine.connect() as conn:
+        stored_render_blocks = conn.execute(
+            text(
+                """
+                select ch.render_blocks
+                from chunks ch
+                join collections co on co.id = ch.collection_id
+                where co.name = 'fixture-pg'
+                  and ch.chunk_id = :chunk_id
+                """
+            ),
+            {"chunk_id": first_chunk.id},
+        ).scalar_one()
+    assert stored_render_blocks == first_chunk.render_blocks
+
+    detail = search_repo.get_chunk_by_id(
+        collection_name="fixture-pg",
+        chunk_id=first_chunk.id,
+    )
+    assert detail is not None
+    assert detail.render_blocks == first_chunk.render_blocks
+    assert results[0].render_blocks is not None
 
 
 def test_index_repository_rejects_dimension_mismatch() -> None:

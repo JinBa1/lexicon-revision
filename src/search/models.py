@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from src.metadata_schema.models import FilterCondition
+from src.rendering.blocks import RenderBlock
 
 
 class MediaRefResponse(BaseModel):
@@ -23,6 +24,7 @@ class SearchResult(BaseModel):
     score: float
     metadata: dict[str, Any]
     media: list[MediaRefResponse]
+    render_blocks: list[RenderBlock] | None = None
 
 
 class SearchResponse(BaseModel):
@@ -47,6 +49,7 @@ class ChunkParentContext(BaseModel):
 
     text: str
     metadata: dict[str, Any]
+    render_blocks: list[RenderBlock] | None = None
 
 
 class ChunkDetailResponse(BaseModel):
@@ -58,6 +61,7 @@ class ChunkDetailResponse(BaseModel):
     sub_question_label: str | None
     text: str
     metadata: dict[str, Any]
+    render_blocks: list[RenderBlock] | None = None
     media: list[MediaRefResponse]
     collection: str
     parent: ChunkParentContext | None

@@ -143,6 +143,41 @@ def test_pg_search_service_returns_search_response() -> None:
     assert telemetry.rerank is None
 
 
+def test_pg_search_service_includes_render_blocks_from_rows() -> None:
+    render_blocks = [{"type": "paragraph", "runs": [{"type": "text", "text": "body"}]}]
+    repo = _Repo()
+    repo.search = Mock(
+        return_value=[
+            PgChunkRow(
+                chunk_id="cam-1",
+                chunk_level="question",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="body",
+                score=0.9,
+                metadata={},
+                render_blocks=render_blocks,
+            )
+        ]
+    )
+    service = PgSearchService(
+        repository=repo,
+        embedding_model=_Embedder(),
+        embedding_dimension=2,
+        reranker=None,
+    )
+
+    response = service.search(
+        "q",
+        collection="fixture",
+        filters=[],
+        limit=3,
+        rerank=False,
+    )
+
+    assert response.results[0].model_dump(mode="json")["render_blocks"] == render_blocks
+
+
 def test_pg_search_service_uses_default_collection_constant() -> None:
     repo = _Repo()
     service = PgSearchService(

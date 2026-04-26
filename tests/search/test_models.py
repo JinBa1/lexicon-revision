@@ -66,6 +66,39 @@ def test_search_result_with_media():
     assert result.media[0].access_url is not None
 
 
+def test_search_result_accepts_render_blocks_and_serializes_legacy_null() -> None:
+    result = SearchResult(
+        chunk_id="cam-2023-p2-q5",
+        chunk_level="question",
+        parent_chunk_id=None,
+        sub_question_label=None,
+        text="Consider the following BST...",
+        score=0.87,
+        metadata={},
+        media=[],
+        render_blocks=None,
+    )
+    payload = result.model_dump(mode="json")
+    assert payload["render_blocks"] is None
+
+    result_with_blocks = SearchResult(
+        chunk_id="cam-2023-p2-q5",
+        chunk_level="question",
+        parent_chunk_id=None,
+        sub_question_label=None,
+        text="Consider the following BST...",
+        score=0.87,
+        metadata={},
+        media=[],
+        render_blocks=[
+            {"type": "paragraph", "runs": [{"type": "text", "text": "Consider"}]}
+        ],
+    )
+    assert result_with_blocks.model_dump(mode="json")["render_blocks"] == [
+        {"type": "paragraph", "runs": [{"type": "text", "text": "Consider"}]}
+    ]
+
+
 def test_search_result_sub_question():
     """Sub-question results surface label and parent linkage."""
     result = SearchResult(
