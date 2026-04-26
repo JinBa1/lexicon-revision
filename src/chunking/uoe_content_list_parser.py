@@ -11,6 +11,11 @@ from src.chunking.base_parser import BaseParser
 from src.chunking.models import ParsedMediaBlock, ParsedQuestion, SubQuestion
 from src.rendering.blocks import split_inline_math
 
+# ---------------------------------------------------------------------------
+# Cambridge-origin regex constants (kept as dead code — referenced nowhere in
+# the UOE flow but harmless and avoids breaking any future cross-imports).
+# ---------------------------------------------------------------------------
+
 HEADER_RE = re.compile(
     r"COMPUTER SCIENCE TRIPOS\s+Part\s+([A-Z]+)\s*[–·\-]\s*(\d{4})\s*[–·\-]\s*"
     r"Paper\s+(\d+)"
@@ -33,9 +38,28 @@ MARKS_RE = re.compile(r"\[\s*(\d+)\s+marks?\s*\]")
 
 # Block types to skip entirely
 SKIP_TYPES = {"page_number"}
-MINERU_BULLET_PREFIX_RE = re.compile(r"^\s*\u0088\s*")
+MINERU_BULLET_PREFIX_RE = re.compile(r"^\s*\s*")
 NUMERIC_LIST_RE = re.compile(r"^\s*\d+\.\s+")
 ROMAN_LABEL_RE = re.compile(r"^\s*\([ivxlcdm]+\)\s+", re.IGNORECASE)
+
+# ---------------------------------------------------------------------------
+# UOE-specific regex constants
+# ---------------------------------------------------------------------------
+
+UOE_COURSE_CODE_RE = re.compile(r"\b([A-Z]{3,4}\d{5})\b")
+UOE_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+UOE_QUESTION_MARKER_RE = re.compile(r"^\s*Question\s+(\d+)\s*$")
+UOE_COVER_BOILERPLATE_TOKENS = (
+    "Date",
+    "Time",
+    "Duration",
+    "Instructions",
+    "Special Instructions",
+    "Special Items Permitted",
+    "Calculator",
+    "Convener",
+    "External Examiner",
+)
 
 
 @dataclass
@@ -259,30 +283,31 @@ class UOEContentListParser(BaseParser):
         # Filter out skip types
         blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
 
-        header = self._parse_header(blocks)
-        question_info = self._parse_question_line(blocks)
+        # Extract cover metadata and locate first Question N block
+        cover_meta, first_q_idx = self._extract_cover_metadata(blocks)
+
+        # Build warnings for missing cover fields
+        if not cover_meta.get("course_code"):
+            warnings.append("uoe_course_code_missing")
+        if not cover_meta.get("course_title"):
+            warnings.append("uoe_course_title_missing")
+        if not cover_meta.get("year"):
+            warnings.append("uoe_year_missing")
+
+        # Slice post-cover blocks (body)
+        post_cover_blocks = blocks[first_q_idx:]
         has_code, has_figure, has_table = self._detect_content_flags(blocks)
-
-        if header is None:
-            warnings.append("header_parse_failed")
-        if question_info is None:
-            warnings.append("question_line_parse_failed")
-
-        # Find body blocks (everything after the question line, excluding header)
-        body_blocks = self._extract_body_blocks(blocks, question_info)
-        media_blocks = self._extract_media_blocks(body_blocks)
-        preamble, sub_questions = self._split_sub_questions(body_blocks)
+        media_blocks = self._extract_media_blocks(post_cover_blocks)
+        preamble, sub_questions = self._split_sub_questions(post_cover_blocks)
 
         return [
             ParsedQuestion(
-                tripos_part=header["tripos_part"] if header else None,
-                year=header["year"] if header else None,
-                paper=header["paper"] if header else None,
-                question_number=(
-                    question_info["question_number"] if question_info else None
-                ),
-                topic=question_info["topic"] if question_info else None,
-                author=question_info["author"] if question_info else None,
+                tripos_part=cover_meta.get("course_code"),
+                year=cover_meta.get("year"),
+                paper=None,
+                question_number=None,
+                topic=cover_meta.get("course_title"),
+                author=None,
                 preamble=preamble,
                 sub_questions=sub_questions,
                 total_marks=self._compute_total_marks(sub_questions),
@@ -303,50 +328,82 @@ class UOEContentListParser(BaseParser):
             blocks: list[dict[str, Any]] = json.load(f)
 
         blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
-        question_info = self._parse_question_line(blocks)
-        body_blocks = self._extract_body_blocks(blocks, question_info)
+        _, first_q_idx = self._extract_cover_metadata(blocks)
+        post_cover_blocks = blocks[first_q_idx:]
 
-        return parsed_questions, [self._split_into_logical_segments(body_blocks)]
+        return parsed_questions, [self._split_into_logical_segments(post_cover_blocks)]
 
-    def _parse_header(self, blocks: list[dict]) -> dict[str, str | int] | None:
-        """Find and parse the header block (usually at the end)."""
-        for block in blocks:
-            if block.get("type") == "header":
-                text = block.get("text", "").strip()
-                match = HEADER_RE.search(text)
-                if match:
-                    return {
-                        "tripos_part": f"Part {match.group(1)}",
-                        "year": int(match.group(2)),
-                        "paper": int(match.group(3)),
-                    }
-        # Fallback: search all text blocks too
-        for block in blocks:
-            text = block.get("text", "").strip()
-            match = HEADER_RE.search(text)
-            if match:
-                return {
-                    "tripos_part": f"Part {match.group(1)}",
-                    "year": int(match.group(2)),
-                    "paper": int(match.group(3)),
-                }
-        return None
+    def _extract_cover_metadata(self, content_blocks: list[dict]) -> tuple[dict, int]:
+        """Walk blocks until first 'Question 1' marker.
 
-    def _parse_question_line(self, blocks: list[dict]) -> dict[str, str | int] | None:
-        """Find the question line: 'N Topic (author)'."""
-        for i, block in enumerate(blocks):
-            if block.get("type") not in ("text",):
+        Returns (metadata_dict, first_question_index).
+        metadata_dict keys: course_code, course_title, year.
+        If no Question 1 found, first_question_index == len(content_blocks).
+        """
+        course_code: str | None = None
+        course_title: str | None = None
+        year: int | None = None
+
+        boilerplate_lower = tuple(t.lower() for t in UOE_COVER_BOILERPLATE_TOKENS)
+
+        for i, block in enumerate(content_blocks):
+            text_raw = block.get("text", "") or ""
+            text = text_raw.strip()
+
+            # Check for Question N marker — stop here
+            if UOE_QUESTION_MARKER_RE.match(text):
+                break
+
+            block_type = block.get("type")
+            # Only scan text blocks for metadata
+            if block_type != "text":
                 continue
-            text = block.get("text", "").strip()
-            match = QUESTION_LINE_RE.match(text)
-            if match:
-                return {
-                    "question_number": int(match.group("number")),
-                    "topic": match.group("topic").strip(),
-                    "author": match.group("author"),
-                    "block_index": i,
-                }
-        return None
+
+            # Course code: MECE10017 style
+            if course_code is None:
+                cm = UOE_COURSE_CODE_RE.search(text)
+                if cm:
+                    course_code = cm.group(1)
+
+            # Year: first 4-digit year 20xx
+            if year is None:
+                ym = UOE_YEAR_RE.search(text)
+                if ym:
+                    year = int(ym.group(1))
+
+            # Course title: non-boilerplate, meaningful length
+            if course_title is None and text:
+                text_lower = text.lower()
+                is_boilerplate = any(
+                    text_lower.startswith(token) for token in boilerplate_lower
+                )
+                is_code_line = bool(UOE_COURSE_CODE_RE.fullmatch(text.replace(" ", "")))
+                looks_like_title = (
+                    not is_boilerplate
+                    and not is_code_line
+                    and len(text) >= 10
+                    and len(text) <= 160
+                    and not re.fullmatch(r"[\d/:\- ]+", text)
+                    and text
+                    not in ("SCHOOL OF ENGINEERING", "THE UNIVERSITY of EDINBURGH")
+                )
+                if looks_like_title:
+                    words = text.split()
+                    if len(words) >= 3:
+                        course_title = text
+        else:
+            # No Question N found
+            return {
+                "course_code": course_code,
+                "course_title": course_title,
+                "year": year,
+            }, len(content_blocks)
+
+        return {
+            "course_code": course_code,
+            "course_title": course_title,
+            "year": year,
+        }, i
 
     def _detect_content_flags(self, blocks: list[dict]) -> tuple[bool, bool, bool]:
         """Detect has_code, has_figure, has_table from block types."""
@@ -362,16 +419,6 @@ class UOEContentListParser(BaseParser):
             elif block_type == "table":
                 has_table = True
         return has_code, has_figure, has_table
-
-    def _extract_body_blocks(
-        self, blocks: list[dict], question_info: dict | None
-    ) -> list[dict]:
-        """Get body blocks: after question line, excluding header."""
-        if question_info is not None:
-            start = question_info["block_index"] + 1
-        else:
-            start = 0
-        return [b for b in blocks[start:] if b.get("type") != "header"]
 
     def _extract_block_text(self, block: dict) -> str:
         """Extract text content from a block."""
@@ -393,36 +440,23 @@ class UOEContentListParser(BaseParser):
     def _split_sub_questions(
         self, body_blocks: list[dict]
     ) -> tuple[str, list[SubQuestion]]:
-        """Split body into preamble and sub-questions.
-
-        Only single-letter (a)-(z) labels are top-level sub-questions,
-        and only when they follow sequential alphabetical order.
-        Nested labels like (i), (ii), (A), (B) stay inside their parent.
-        """
-        # Flatten all body blocks into text segments, each tagged with
-        # whether it starts a new top-level sub-question candidate
+        """Split body into preamble and sub-questions (Cambridge logic)."""
         segments = self._flatten_to_segments(body_blocks)
 
         if not segments:
             return "", []
 
-        # Collect candidate sub-question positions
-        candidates: list[tuple[int, str]] = []  # (segment_index, label)
+        candidates: list[tuple[int, str]] = []
         for i, (text, label) in enumerate(segments):
             if label is not None:
                 candidates.append((i, label))
 
-        # Filter to only sequential top-level labels:
-        # Start from (a), then expect (b), (c), ... in order.
-        # Any label that breaks sequence is nested.
         sub_starts = self._filter_sequential_labels(candidates)
 
         if not sub_starts:
-            # No sub-questions found
             all_text = "\n".join(text for text, _ in segments).strip()
             return all_text, []
 
-        # Everything before the first sub-question is preamble
         preamble_parts = [text for text, _ in segments[: sub_starts[0][0]]]
         preamble = "\n".join(preamble_parts).strip()
 
@@ -436,7 +470,6 @@ class UOEContentListParser(BaseParser):
             sub_parts = [text for text, _ in segments[start_seg:end_seg]]
             sub_text = "\n".join(sub_parts).strip()
 
-            # Remove the leading (label) from the text
             sub_text = self._strip_top_level_label_prefix(sub_text)
 
             marks = self._extract_marks(sub_text)
@@ -480,12 +513,7 @@ class UOEContentListParser(BaseParser):
     def _flatten_to_segments(
         self, body_blocks: list[dict]
     ) -> list[tuple[str, str | None]]:
-        """Flatten blocks into (text, top_level_label_or_None) segments.
-
-        Each segment is a logical line of text. List items are split into
-        separate segments. Only (a)-(z) single-letter labels are detected
-        as top-level sub-question starts.
-        """
+        """Flatten blocks into (text, top_level_label_or_None) segments."""
         segments: list[tuple[str, str | None]] = []
 
         for block in body_blocks:
@@ -683,12 +711,7 @@ class UOEContentListParser(BaseParser):
     def _filter_sequential_labels(
         self, candidates: list[tuple[int, str]]
     ) -> list[tuple[int, str]]:
-        """Filter candidates to only include sequentially ordered labels.
-
-        Expects labels to follow alphabetical order starting from 'a'.
-        Labels that break the sequence (like 'i' after 'b') are treated
-        as nested and excluded.
-        """
+        """Filter candidates to only include sequentially ordered labels."""
         if not candidates:
             return []
 
@@ -703,13 +726,7 @@ class UOEContentListParser(BaseParser):
         return result
 
     def _detect_top_level_label(self, text: str) -> str | None:
-        """Detect a single-letter sub-question token at the start of text.
-
-        This helper is intentionally low-level: it returns any matching
-        lowercase label token, including noisy forms such as ``(i)``.
-        Sequential filtering in ``_filter_sequential_labels`` decides whether
-        a detected token is actually treated as a top-level sub-question.
-        """
+        """Detect a single-letter sub-question token at the start of text."""
         match = SUB_QUESTION_RE.match(text)
         if match:
             return match.group(1)
