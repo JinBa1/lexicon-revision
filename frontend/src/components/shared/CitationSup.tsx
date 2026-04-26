@@ -11,20 +11,19 @@ export const CitationSup = forwardRef<
   }
 >(function CitationSup({ label, targetChunkId, onActivate, className }, ref) {
   return (
-    <sup>
-      <button
-        ref={ref}
-        type="button"
-        onClick={() => onActivate(targetChunkId)}
-        className={cn(
-          "inline-block px-0.5 text-[0.7em] font-display text-claret underline decoration-rule-soft underline-offset-2 hover:decoration-claret",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-claret",
-          className,
-        )}
-        aria-label={`Citation ${label}, view source ${targetChunkId}`}
-      >
-        {label}
-      </button>
-    </sup>
+    <button
+      ref={ref}
+      type="button"
+      onClick={() => onActivate(targetChunkId)}
+      aria-label={`Jump to source ${label}`}
+      className={cn(
+        "mx-0.5 inline-flex items-center justify-center rounded-sm px-1.5 py-0.5",
+        "bg-claret font-ui text-[10px] text-paper-raised transition-colors hover:bg-claret/90",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-claret focus-visible:ring-offset-1 focus-visible:ring-offset-paper",
+        className,
+      )}
+    >
+      [{label}]
+    </button>
   );
 });

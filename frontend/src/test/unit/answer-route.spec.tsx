@@ -287,7 +287,7 @@ describe("AnswerRoute", () => {
         screen.getByText("Dynamic tables are usually handled with a potential argument."),
       ).toBeInTheDocument();
       expect(screen.getByText("Dynamic table resizing")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /citation 1, view source chunk-1/i }));
+      expect(screen.getByRole("button", { name: /jump to source 1/i }));
       expect(screen.getByText("1 · 2022 / (b)")).toBeInTheDocument();
       expect(screen.getByText(/Why cited: It asks for the same amortized-analysis pattern/i));
       expect(
@@ -310,7 +310,7 @@ describe("AnswerRoute", () => {
 
     renderAnswer();
 
-    await userEvent.click(screen.getByRole("button", { name: /citation 1, view source chunk-1/i }));
+    await userEvent.click(screen.getByRole("button", { name: /jump to source 1/i }));
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
     expect(animate).toHaveBeenCalledWith(

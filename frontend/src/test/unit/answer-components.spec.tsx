@@ -113,12 +113,10 @@ describe("PatternsList", () => {
 
     expect(screen.getByText("Patterns")).toBeInTheDocument();
     expect(screen.getByText("Dynamic tables")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /citation 1, view source chunk-1/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /jump to source 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /missing/i })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /citation 3, view source chunk-3/i }));
+    await userEvent.click(screen.getByRole("button", { name: /jump to source 3/i }));
 
     expect(onCitationActivate).toHaveBeenCalledWith("chunk-3");
   });
