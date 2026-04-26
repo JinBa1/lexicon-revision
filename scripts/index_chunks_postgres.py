@@ -89,6 +89,12 @@ def parse_args() -> argparse.Namespace:
         help="University code used in chunk IDs (default: cam)",
     )
     parser.add_argument(
+        "--parser",
+        default="cambridge",
+        choices=["cambridge", "uoe"],
+        help="Content-list parser to use (default: cambridge)",
+    )
+    parser.add_argument(
         "--recreate-collection",
         action="store_true",
         help="Delete and recreate the collection if it exists",
@@ -105,12 +111,14 @@ def index_collection_postgres(
     metadata_path: str | None = None,
     metadata_schema_path: str | None = None,
     university: str = "cam",
+    parser_name: str = "cambridge",
     recreate_collection: bool = False,
 ) -> None:
     chunks = run_pipeline(
         mineru_output_dir=mineru_output_dir,
         metadata_path=metadata_path,
         university=university,
+        parser=parser_name,
     )
     if not chunks:
         logger.warning(
@@ -199,6 +207,7 @@ def main() -> None:
                 metadata_path=args.metadata,
                 metadata_schema_path=args.metadata_schema,
                 university=args.university,
+                parser_name=args.parser,
                 recreate_collection=args.recreate_collection,
             )
         finally:
