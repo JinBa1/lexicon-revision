@@ -243,7 +243,7 @@ describe("QuestionsRoute", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("focus=cam-2022-p5-q3-b");
 
-    await userEvent.click(screen.getByRole("button", { name: "Back to results" }));
+    await userEvent.click(screen.getByRole("button", { name: "← Back to results" }));
 
     expect(screen.getByTestId("location")).not.toHaveTextContent("focus=");
   });

@@ -235,9 +235,9 @@ export function QuestionsRoute() {
       </p>
       {focus !== null ? (
         <div className="fixed inset-0 z-30 overflow-y-auto bg-paper lg:hidden">
-          <div className="sticky top-0 border-b border-rule bg-paper-raised p-3">
-            <Button variant="secondary" onClick={() => setFocus(null)}>
-              Back to results
+          <div className="sticky top-0 z-10 border-b border-rule bg-paper-raised p-3 shadow-sm">
+            <Button variant="secondary" onClick={() => setFocus(null)} className="h-12 px-4">
+              ← Back to results
             </Button>
           </div>
           <DetailPanel
