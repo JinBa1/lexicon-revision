@@ -43,6 +43,7 @@ const source: StudySource = {
     question_label: "Question 3",
   },
   why_cited: "Shows the exact dynamic-table variant discussed in the answer.",
+  excerpt_blocks: null,
 };
 
 const metadataSchema: CollectionMetadataSchema = {

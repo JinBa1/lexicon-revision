@@ -71,6 +71,7 @@ const searchResponse: SearchResponse = {
         question_label: "Question 1",
       },
       media: [],
+      render_blocks: null,
     },
     {
       chunk_id: "chunk-2",
@@ -85,6 +86,7 @@ const searchResponse: SearchResponse = {
         question_label: "Question 2",
       },
       media: [],
+      render_blocks: null,
     },
   ],
 };
@@ -103,6 +105,7 @@ const focusedChunk: ChunkDetail = {
   media: [],
   collection: "public-demo",
   parent: null,
+  render_blocks: null,
 };
 
 const chunkDetails: Record<string, ChunkDetail> = {
@@ -127,7 +130,9 @@ const chunkDetails: Record<string, ChunkDetail> = {
         paper_label: "Algorithms",
         question_label: "Question 1",
       },
+      render_blocks: null,
     },
+    render_blocks: null,
   },
 };
 
@@ -164,6 +169,7 @@ const studyResponse: StudyResponse = {
         question_label: "Question 1",
       },
       why_cited: "It directly asks for the graph traversal comparison.",
+      excerpt_blocks: null,
     },
   ],
   retrieval: {

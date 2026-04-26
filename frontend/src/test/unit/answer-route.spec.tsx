@@ -76,6 +76,7 @@ function studyResponse(status: StudyAnswerStatus = "ok"): StudyResponse {
         excerpt: "A question about table doubling and halving on underflow.",
         metadata: { year: 2022, module_title: "Algorithms" },
         why_cited: "It asks for the same amortized-analysis pattern.",
+        excerpt_blocks: null,
       },
     ],
     retrieval: {

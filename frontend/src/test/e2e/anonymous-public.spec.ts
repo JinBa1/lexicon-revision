@@ -48,6 +48,7 @@ const searchResponse: SearchResponse = {
         question_label: "Question 4",
       },
       media: [],
+      render_blocks: null,
     },
     {
       chunk_id: "chunk-2",
@@ -62,6 +63,7 @@ const searchResponse: SearchResponse = {
         question_label: "Question 2",
       },
       media: [],
+      render_blocks: null,
     },
   ],
 };
@@ -80,6 +82,7 @@ const chunkDetailResponse: ChunkDetail = {
   media: [],
   collection: "public-demo",
   parent: null,
+  render_blocks: null,
 };
 
 test("anonymous user can pick a public collection and search for matching questions", async ({

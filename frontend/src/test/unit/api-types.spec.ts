@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { ApiError, isApiError } from "@/lib/api/errors";
+import type { RenderBlock, SearchResult } from "@/lib/api/types";
 
 describe("ApiError", () => {
   test("carries status, code, and detail", () => {
@@ -46,5 +47,31 @@ describe("ApiError", () => {
 
     expect(err.detail).toEqual(detail);
     expect(err.message).toBe("forbidden");
+  });
+});
+
+describe("api types", () => {
+  test("RenderBlock discriminator narrows correctly", () => {
+    const block: RenderBlock = { type: "equation", latex: "x" };
+
+    if (block.type === "equation") {
+      expect(block.latex).toBe("x");
+    }
+  });
+
+  test("SearchResult.render_blocks is RenderBlock[] | null", () => {
+    const result: SearchResult = {
+      chunk_id: "x",
+      chunk_level: "question",
+      parent_chunk_id: null,
+      sub_question_label: null,
+      text: "",
+      score: 0,
+      metadata: {},
+      media: [],
+      render_blocks: null,
+    };
+
+    expect(result.render_blocks).toBeNull();
   });
 });
