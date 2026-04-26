@@ -288,8 +288,12 @@ describe("AnswerRoute", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Dynamic table resizing")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /jump to source 1/i }));
-      expect(screen.getByText("1 · 2022 / (b)")).toBeInTheDocument();
-      expect(screen.getByText(/Why cited: It asks for the same amortized-analysis pattern/i));
+      expect(screen.getByText("Year: 2022")).toBeInTheDocument();
+      expect(screen.getByText("Part (b)")).toBeInTheDocument();
+      expect(screen.getByText("Why cited")).toBeInTheDocument();
+      expect(
+        screen.getByText("It asks for the same amortized-analysis pattern."),
+      ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: /Retrieve matching questions instead/i }),
       ).toHaveAttribute("href", "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020");
@@ -298,7 +302,12 @@ describe("AnswerRoute", () => {
 
   test("citation click scrolls and animates the matching source", async () => {
     const scrollIntoView = vi.fn();
-    const animate = vi.fn();
+    const animate = vi.fn(() => ({ finished: Promise.resolve() }) as unknown as Animation);
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate");
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: scrollIntoView,
@@ -307,15 +316,36 @@ describe("AnswerRoute", () => {
       configurable: true,
       value: animate,
     });
+    const addClass = vi.spyOn(DOMTokenList.prototype, "add");
 
-    renderAnswer();
+    try {
+      renderAnswer();
 
-    await userEvent.click(screen.getByRole("button", { name: /jump to source 1/i }));
+      await userEvent.click(screen.getByRole("button", { name: /jump to source 1/i }));
+      const sourceCard = screen
+        .getByText("A question about table doubling and halving on underflow.")
+        .closest("li");
 
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
-    expect(animate).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ boxShadow: "0 0 0 2px #7E2E2E" })]),
-      expect.objectContaining({ duration: 900, easing: "ease-out" }),
-    );
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      expect(addClass).toHaveBeenCalledWith("citation-highlighted");
+      expect(animate).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ boxShadow: "0 0 0 2px #7E2E2E" })]),
+        expect.objectContaining({ duration: 900, easing: "ease-out" }),
+      );
+      await Promise.resolve();
+      expect(sourceCard).not.toHaveClass("citation-highlighted");
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+      } else {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+      if (originalAnimate) {
+        Object.defineProperty(HTMLElement.prototype, "animate", originalAnimate);
+      } else {
+        delete (HTMLElement.prototype as { animate?: unknown }).animate;
+      }
+      addClass.mockRestore();
+    }
   });
 });

@@ -95,11 +95,23 @@ function AnswerContent({
     const el = sourceRefs.current.get(chunkId);
     if (!el) return;
 
+    const duration = 900;
+    const removeHighlight = () => el.classList.remove("citation-highlighted");
+
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.animate?.([{ boxShadow: "0 0 0 2px #7E2E2E" }, { boxShadow: "0 0 0 0 transparent" }], {
-      duration: 900,
-      easing: "ease-out",
-    });
+    el.classList.add("citation-highlighted");
+    const animation = el.animate?.(
+      [{ boxShadow: "0 0 0 2px #7E2E2E" }, { boxShadow: "0 0 0 0 transparent" }],
+      {
+        duration,
+        easing: "ease-out",
+      },
+    );
+    if (animation) {
+      void animation.finished.finally(removeHighlight);
+      return;
+    }
+    window.setTimeout(removeHighlight, duration);
   }, []);
 
   const hasQuery = query.trim().length > 0;

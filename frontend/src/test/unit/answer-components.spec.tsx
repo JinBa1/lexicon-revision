@@ -41,6 +41,7 @@ const source: StudySource = {
     module_title: "Algorithms",
     paper_label: "Paper 5",
     question_label: "Question 3",
+    year: 2024,
   },
   why_cited: "Shows the exact dynamic-table variant discussed in the answer.",
   excerpt_blocks: null,
@@ -63,6 +64,14 @@ const metadataSchema: CollectionMetadataSchema = {
       type: "string",
       operators: ["eq"],
       exposed: false,
+      source: null,
+    },
+    {
+      key: "year",
+      label: "Year",
+      type: "integer",
+      operators: ["eq", "gte", "lte"],
+      exposed: true,
       source: null,
     },
     {
@@ -251,7 +260,7 @@ describe("SourcesGrid", () => {
     expect(screen.getByText(source.excerpt)).toBeInTheDocument();
   });
 
-  test("falls back to generic metadata when no schema is provided", () => {
+  test("renders only the sub-question metadata chip when no schema is provided", () => {
     const registerRef = vi.fn();
 
     render(
@@ -265,14 +274,13 @@ describe("SourcesGrid", () => {
       </MemoryRouter>,
     );
 
-    expect(
-      screen.getByText(
-        "1 · module title: Algorithms / paper label: Paper 5 / question label: Question 3 / (b)",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Part (b)")).toBeInTheDocument();
+    expect(screen.queryByText(/module title:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/paper label:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/question label:/i)).not.toBeInTheDocument();
   });
 
-  test("renders source metadata in schema order using only exposed fields", () => {
+  test("renders source metadata as schema-ordered chips using only exposed fields", () => {
     const registerRef = vi.fn();
 
     render(
@@ -287,11 +295,14 @@ describe("SourcesGrid", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("1 · Question 3 / Paper 5 / (b)")).toBeInTheDocument();
+    expect(screen.getByText("Part (b)")).toBeInTheDocument();
+    expect(screen.getByText("Question: Question 3")).toBeInTheDocument();
+    expect(screen.getByText("Year: 2024")).toBeInTheDocument();
+    expect(screen.getByText("Paper: Paper 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Question 3 \/ 2024 \/ Paper 5/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Algorithms/)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/Why cited: Shows the exact dynamic-table variant/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Why cited")).toBeInTheDocument();
+    expect(screen.getByText(source.why_cited as string)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view source/i })).toHaveAttribute(
       "href",
       "/c/cam-cs-tripos/source/cam-2022-p5-q3-b",
