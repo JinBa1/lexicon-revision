@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.storage import (
     build_object_storage,
+    conversion_run_id_from_stem,
     discover_converted_paper_artifacts,
     load_object_storage_settings,
     upload_converted_paper_artifacts,
@@ -106,7 +107,7 @@ def upload_batch_artifacts(
             manifest = upload_converted_paper_artifacts(
                 storage=storage,
                 artifacts=discovered,
-                conversion_run_id=f"run-{pdf_path.stem}",
+                conversion_run_id=conversion_run_id_from_stem(pdf_path.stem),
                 mineru_version=mineru_version,
             )
             discovered.manifest_local_path.write_text(

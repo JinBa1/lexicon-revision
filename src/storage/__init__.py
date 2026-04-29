@@ -22,7 +22,12 @@ from src.storage.conversion import (
     local_manifest_path,
     upload_converted_paper_artifacts,
 )
-from src.storage.keys import mineru_artifact_key, sha256_blob_key, validate_key
+from src.storage.keys import (
+    conversion_run_id_from_stem,
+    mineru_artifact_key,
+    sha256_blob_key,
+    validate_key,
+)
 from src.storage.local import LocalObjectStorage, validate_local_presigned_url
 from src.storage.manifest import ArtifactManifest, ManifestArtifact
 
@@ -43,6 +48,7 @@ __all__ = [
     "S3StorageConfig",
     "StoredObject",
     "ConvertedPaperArtifacts",
+    "conversion_run_id_from_stem",
     "discover_converted_paper_artifacts",
     "build_object_storage",
     "load_local_manifests",

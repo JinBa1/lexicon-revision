@@ -8,6 +8,7 @@ from src.storage.base import InvalidKeyError
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _RUN_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 _EXT_RE = re.compile(r"[a-z0-9]+")
+_RUN_ID_SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
 def validate_key(key: str) -> None:
@@ -37,6 +38,16 @@ def sha256_blob_key(*, sha256_hex: str, extension: str) -> str:
     key = f"blobs/sha256/{prefix}/{group}/{sha256_hex}.{extension}"
     validate_key(key)
     return key
+
+
+def conversion_run_id_from_stem(stem: str) -> str:
+    slug = _RUN_ID_SLUG_RE.sub("-", stem.lower()).strip("-")
+    if not slug:
+        raise InvalidKeyError(stem)
+    run_id = f"run-{slug}"
+    if _RUN_ID_RE.fullmatch(run_id) is None:
+        raise InvalidKeyError(stem)
+    return run_id
 
 
 def mineru_artifact_key(
