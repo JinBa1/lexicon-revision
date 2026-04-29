@@ -14,7 +14,7 @@
 
 ## Commits
 
-- Backend commit SHA: `a2f988fcf684fa566f71a8814159b5e08d6cb278`
+- Backend commit SHA: `4881bd0c797acf96e8688cd4c93eccf900a50dc5`
 - Frontend commit SHA: `e85f461f987492b1d7421c62dde730e4a2abf664`
 
 ## Auth Mode
@@ -33,6 +33,7 @@
 | Frontend typecheck | Pass | `corepack pnpm typecheck`. |
 | Frontend lint | Pass | `corepack pnpm lint`. |
 | Frontend format check | Pass | `corepack pnpm format:check` -> all matched files use Prettier style. |
+| Local UOE parser smoke | Pass for footer cleanup | `conda run -n rag-exam python -c "...run_pipeline('data/uoe_mineru_output/engineering', university='uoe', parser='uoe')..."` -> `119` chunks, `98` sub-question chunks, `77` chunks with `marks`, `63` chunks with `total_marks`, `0` `END OF PAPER` hits, `0` `Please turn over` hits. |
 
 ## Smoke Results
 
@@ -44,6 +45,7 @@
 | Frontend does not render Cambridge `Tripos Part` label for UOE | Covered by automated unit tests | `filters-popover.spec.tsx` and `chunk-card.spec.tsx`. |
 | Locked collection rows do not expose filters | Covered by automated unit test | `filters-popover.spec.tsx` uses locked UOE fixture with `metadata_schema: null`. |
 | UOE chunk cards render metadata labels from schema | Covered by automated unit test | `chunk-card.spec.tsx`. |
+| UOE local footer cleanup | Covered by local parser smoke | Footer phrase counts were zero on ignored local UOE data. |
 | Manual anonymous/Edinburgh/manual-override/search/source browser smoke | Not run | No running local/staging app or real/stubbed browser identity context was available in this session. |
 
 ## Known Gaps
