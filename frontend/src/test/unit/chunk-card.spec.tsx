@@ -3,6 +3,7 @@ import { describe, expect, it, test } from "vitest";
 import { ChunkCard } from "@/components/shared/ChunkCard";
 import type { CollectionMetadataSchema, MediaRef, RenderBlock } from "@/lib/api/types";
 import { renderMetadataSummary } from "@/lib/metadata/render";
+import { edinburghAccessible } from "../fixtures/collections";
 import { chunkDetailFixture, questionResult, subQuestionResult } from "../fixtures/search";
 
 const metadataSchema: CollectionMetadataSchema = {
@@ -181,6 +182,37 @@ describe("ChunkCard", () => {
     // M20b: meta chips replace the slash-joined summary line
     expect(screen.getByText("Year: 2022")).toBeInTheDocument();
     expect(screen.getByText("Has figure: false")).toBeInTheDocument();
+  });
+
+  test("compact mode renders UOE metadata labels from schema", () => {
+    render(
+      <ChunkCard
+        mode="compact"
+        chunk={{
+          chunk_id: "uoe-2019-p2019937-q1-a",
+          chunk_level: "sub_question",
+          parent_chunk_id: "uoe-2019-p2019937-q1",
+          sub_question_label: "a",
+          text: "Explain a synthetic engineering trade-off.",
+          metadata: {
+            year: 2019,
+            course_code: "MECE10017",
+            course_title: "DESIGN OF SURGICAL TOOLS AND IMPLANTED MEDICAL DEVICES MSC",
+            question_number: 1,
+            marks: 6,
+            has_figure: false,
+          },
+          media: [],
+        }}
+        metadataSchema={edinburghAccessible.metadata_schema}
+      />,
+    );
+
+    expect(screen.getByText("Course Code: MECE10017")).toBeInTheDocument();
+    expect(
+      screen.getByText("Course Title: DESIGN OF SURGICAL TOOLS AND IMPLANTED MEDICAL DEVICES MSC"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Tripos Part/)).not.toBeInTheDocument();
   });
 
   test("compact mode renders render_blocks with KaTeX and code indicator", () => {
