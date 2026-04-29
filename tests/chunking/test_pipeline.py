@@ -20,6 +20,7 @@ from src.chunking.pipeline import run_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "mineru_fixtures")
+UOE_MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "uoe_mineru_fixtures")
 
 
 def _media_refs(chunk: Chunk) -> list:
@@ -238,6 +239,63 @@ def test_pipeline_unmatched_owner_hint_stays_question_only(monkeypatch, tmp_path
     assert question_ref.relation == "direct"
     assert question_ref.owner_level == "question"
     assert question_ref.owner_label is None
+
+
+def test_pipeline_uoe_parser_preserves_native_metadata_and_media() -> None:
+    chunks = run_pipeline(
+        mineru_output_dir=UOE_MINERU_FIXTURES,
+        university="uoe",
+        parser="uoe",
+    )
+
+    ids = [chunk.id for chunk in chunks]
+    assert len(ids) == len(set(ids))
+    assert {chunk.chunk_level for chunk in chunks} == {"question", "sub_question"}
+
+    question = next(chunk for chunk in chunks if chunk.id == "uoe-2019-p2019937-q1")
+    sub_a = next(chunk for chunk in chunks if chunk.id == "uoe-2019-p2019937-q1-a")
+    sub_b = next(chunk for chunk in chunks if chunk.id == "uoe-2019-p2019937-q1-b")
+
+    assert question.metadata == {
+        "course_code": "MECE10017",
+        "course_title": "DESIGN OF SURGICAL TOOLS AND IMPLANTED MEDICAL DEVICES MSC",
+        "document_id": "2019937",
+    }
+    assert sub_a.metadata == question.metadata
+    assert sub_b.metadata == question.metadata
+    assert sub_a.marks == 6
+    assert sub_b.marks == 4
+    assert "(i) first nested point" in sub_b.text
+    assert "(4)" not in sub_b.text
+    assert "Please turn over" not in question.text
+    assert "END OF PAPER" not in "\n".join(chunk.text for chunk in chunks)
+
+    expected_image_path = str(
+        (
+            Path(UOE_MINERU_FIXTURES)
+            / "2019937_MECE10017"
+            / "hybrid_auto"
+            / "images"
+            / "fig_001.png"
+        ).resolve()
+    )
+    question_refs = [
+        ref for ref in _media_refs(question) if ref.file_path == expected_image_path
+    ]
+    sub_b_refs = [
+        ref for ref in _media_refs(sub_b) if ref.file_path == expected_image_path
+    ]
+    sub_a_refs = [
+        ref for ref in _media_refs(sub_a) if ref.file_path == expected_image_path
+    ]
+
+    assert len(question_refs) == 1
+    assert len(sub_b_refs) == 1
+    assert len(sub_a_refs) == 0
+    assert question_refs[0].relation == "visible_from_child"
+    assert sub_b_refs[0].relation == "direct"
+    assert sub_b_refs[0].owner_level == "sub_question"
+    assert sub_b_refs[0].owner_label == "b"
 
 
 def test_pipeline_shared_media_is_visible_from_question_and_children():

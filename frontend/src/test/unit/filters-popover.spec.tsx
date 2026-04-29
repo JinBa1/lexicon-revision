@@ -5,6 +5,7 @@ import { describe, expect, test, vi } from "vitest";
 import { FiltersPopover } from "@/components/filters/FiltersPopover";
 import { FiltersChip } from "@/components/hero/FiltersChip";
 import type { CollectionMetadataSchema, FilterCondition } from "@/lib/api/types";
+import { edinburghAccessible, edinburghLocked } from "../fixtures/collections";
 
 const schema = {
   version: 1,
@@ -82,6 +83,35 @@ describe("FiltersPopover", () => {
     expect(screen.getByRole("textbox", { name: "Difficulty" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Has solution" })).toBeInTheDocument();
     expect(screen.queryByText("Internal code")).not.toBeInTheDocument();
+  });
+
+  test("renders UOE course metadata labels without Cambridge labels", () => {
+    render(
+      <FiltersPopover
+        schema={edinburghAccessible.metadata_schema}
+        value={[]}
+        onChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Course Code" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Course Title" })).toBeInTheDocument();
+    expect(screen.queryByText("Tripos Part")).not.toBeInTheDocument();
+  });
+
+  test("locked UOE collection rows do not expose filters", () => {
+    render(
+      <FiltersPopover
+        schema={edinburghLocked.metadata_schema}
+        value={[]}
+        onChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("No filters available for this collection.")).toBeInTheDocument();
+    expect(screen.queryByText("Course Code")).not.toBeInTheDocument();
   });
 
   test("updates number range, boolean, and text filters as ordered filter conditions", async () => {

@@ -5,9 +5,9 @@ from pathlib import Path
 from pydantic import TypeAdapter
 from src.chunking.cambridge_content_list_parser import (
     CambridgeContentListParser,
-    LogicalSegment,
     _strip_label_from_runs,
 )
+from src.chunking.mineru_segments import LogicalSegment
 from src.chunking.models import ParsedQuestion, SubQuestion
 from src.chunking.pipeline import _build_chunks, run_pipeline
 from src.rendering.blocks import RenderBlock, flatten_render_blocks

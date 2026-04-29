@@ -73,6 +73,43 @@ def test_upload_batch_artifacts_writes_local_manifest_and_storage_objects(
     assert manifest_path.read_text(encoding="utf-8") == manifest.to_json() + "\n"
 
 
+def test_upload_batch_artifacts_sanitizes_uoe_run_id(tmp_path: Path) -> None:
+    pdf_path, output_dir = _write_converted_paper_fixture(
+        tmp_path,
+        stem="2019937_MECE10017",
+    )
+    storage = LocalObjectStorage(root=tmp_path / "store", dev_presign_secret=SECRET)
+
+    manifests = convert_papers.upload_batch_artifacts(
+        pdf_paths=[pdf_path],
+        output_dir=output_dir,
+        storage=storage,
+        mineru_version="mineru-cli",
+    )
+
+    assert len(manifests) == 1
+    manifest = manifests[0]
+    assert manifest.conversion_run_id == "run-2019937-mece10017"
+    assert {artifact.key for artifact in manifest.artifacts} == {
+        "artifacts/mineru/run-2019937-mece10017/content_list.json",
+        "artifacts/mineru/run-2019937-mece10017/document.md",
+        "artifacts/mineru/run-2019937-mece10017/images/fig_a.png",
+    }
+
+    manifest_path = (
+        output_dir
+        / "2019937_MECE10017"
+        / "hybrid_auto"
+        / "2019937_MECE10017_artifact_manifest.json"
+    )
+    assert (
+        ArtifactManifest.from_json(
+            manifest_path.read_text(encoding="utf-8")
+        ).conversion_run_id
+        == "run-2019937-mece10017"
+    )
+
+
 def test_upload_batch_artifacts_continues_after_one_pdf_failure(
     tmp_path: Path,
     monkeypatch,

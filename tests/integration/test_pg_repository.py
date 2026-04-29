@@ -36,6 +36,24 @@ def _schema():
     return load_collection_schema(default_schema_path("cam-cs-tripos-fixture"))
 
 
+def _seed_community(engine, *, community_id: str = "edinburgh") -> str:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                insert into communities (id, name, slug)
+                values (:id, :name, :slug)
+                """
+            ),
+            {
+                "id": community_id,
+                "name": community_id.title(),
+                "slug": community_id,
+            },
+        )
+    return community_id
+
+
 def _schema_with_field(*, key: str, field_type: str) -> CollectionMetadataSchema:
     return CollectionMetadataSchema.model_validate(
         {
@@ -332,6 +350,109 @@ def test_index_repository_persists_collection_schema_and_chunk_metadata() -> Non
     assert collection_row.metadata_schema == metadata_schema.model_dump(mode="json")
     assert "year" in chunk_row.metadata
     assert "source_pdf" not in chunk_row.metadata
+
+
+def test_index_repository_creates_private_collection_when_community_provided() -> None:
+    engine = _engine()
+    community_id = _seed_community(engine)
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("uoe-mece10017")
+
+    repo.index_chunks(
+        collection_name="uoe-mece10017",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+        community_id=community_id,
+    )
+
+    with engine.connect() as conn:
+        stored_community_id = conn.execute(
+            text(
+                """
+                select community_id
+                from collections
+                where name = 'uoe-mece10017'
+                """
+            )
+        ).scalar_one()
+
+    assert stored_community_id == "edinburgh"
+
+
+def test_index_repository_updates_existing_public_collection_to_private() -> None:
+    engine = _engine()
+    community_id = _seed_community(engine)
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("uoe-mece10017")
+    repo.index_chunks(
+        collection_name="uoe-mece10017",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+    )
+
+    repo.index_chunks(
+        collection_name="uoe-mece10017",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+        community_id=community_id,
+    )
+
+    with engine.connect() as conn:
+        stored_community_id = conn.execute(
+            text(
+                """
+                select community_id
+                from collections
+                where name = 'uoe-mece10017'
+                """
+            )
+        ).scalar_one()
+
+    assert stored_community_id == "edinburgh"
+
+
+def test_index_repository_rejects_moving_private_collection_between_communities() -> (
+    None
+):
+    engine = _engine()
+    _seed_community(engine, community_id="edinburgh")
+    _seed_community(engine, community_id="cambridge")
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("uoe-mece10017")
+    repo.index_chunks(
+        collection_name="uoe-mece10017",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+        community_id="edinburgh",
+    )
+
+    with pytest.raises(ValueError, match="different community_id"):
+        repo.index_chunks(
+            collection_name="uoe-mece10017",
+            chunks=chunks,
+            vectors=_vectors(len(chunks), 8),
+            metadata_schema=_schema(),
+            community_id="cambridge",
+        )
 
 
 def test_search_repository_returns_metadata_from_canonical_storage() -> None:

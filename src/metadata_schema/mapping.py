@@ -14,14 +14,18 @@ def build_chunk_metadata(
     for field in schema.fields:
         if field.source is None:
             continue
-        attr_name = field.source.removeprefix("chunk.")
-        try:
-            value = getattr(chunk, attr_name)
-        except AttributeError as exc:
-            raise ValueError(
-                "schema field "
-                f"{field.key} references unknown chunk source {field.source}"
-            ) from exc
+        if field.source.startswith("chunk.metadata."):
+            metadata_key = field.source.removeprefix("chunk.metadata.")
+            value = chunk.metadata.get(metadata_key)
+        else:
+            attr_name = field.source.removeprefix("chunk.")
+            try:
+                value = getattr(chunk, attr_name)
+            except AttributeError as exc:
+                raise ValueError(
+                    "schema field "
+                    f"{field.key} references unknown chunk source {field.source}"
+                ) from exc
         if value is None:
             continue
         _validate_value_type(field.key, field.type, value)

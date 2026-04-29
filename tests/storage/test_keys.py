@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 from src.storage.base import InvalidKeyError
-from src.storage.keys import mineru_artifact_key, sha256_blob_key, validate_key
+from src.storage.keys import (
+    conversion_run_id_from_stem,
+    mineru_artifact_key,
+    sha256_blob_key,
+    validate_key,
+)
 
 
 def test_sha256_blob_key_shape() -> None:
@@ -79,6 +84,38 @@ def test_mineru_artifact_key_rejects_bad_run_id() -> None:
         mineru_artifact_key(conversion_run_id="Run Id", kind="markdown", filename="")
     with pytest.raises(InvalidKeyError):
         mineru_artifact_key(conversion_run_id="", kind="markdown", filename="")
+
+
+def test_conversion_run_id_slug_preserves_existing_cambridge_shape() -> None:
+    assert conversion_run_id_from_stem("y2025p1q7") == "run-y2025p1q7"
+
+
+def test_conversion_run_id_slug_accepts_uoe_uppercase_underscore_stem() -> None:
+    run_id = conversion_run_id_from_stem("2019937_MECE10017")
+
+    assert run_id == "run-2019937-mece10017"
+    assert (
+        mineru_artifact_key(
+            conversion_run_id=run_id,
+            kind="manifest",
+            filename="",
+        )
+        == "artifacts/mineru/run-2019937-mece10017/manifest.json"
+    )
+
+
+def test_conversion_run_id_slug_collapses_bad_separators() -> None:
+    assert conversion_run_id_from_stem("  ABC__123  ") == "run-abc-123"
+
+
+def test_conversion_run_id_slug_rejects_empty_slug() -> None:
+    with pytest.raises(InvalidKeyError):
+        conversion_run_id_from_stem("___")
+
+
+def test_conversion_run_id_slug_rejects_overlong_stem() -> None:
+    with pytest.raises(InvalidKeyError):
+        conversion_run_id_from_stem("a" * 65)
 
 
 def test_validate_key_accepts_normal_keys() -> None:
