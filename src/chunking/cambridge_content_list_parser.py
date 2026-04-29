@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any
 
 from src.chunking.base_parser import BaseParser
+from src.chunking.mineru_segments import LogicalSegment, insert_label_prefix
 from src.chunking.models import ParsedMediaBlock, ParsedQuestion, SubQuestion
 from src.rendering.blocks import split_inline_math
 
@@ -36,12 +36,6 @@ SKIP_TYPES = {"page_number"}
 MINERU_BULLET_PREFIX_RE = re.compile(r"^\s*\u0088\s*")
 NUMERIC_LIST_RE = re.compile(r"^\s*\d+\.\s+")
 ROMAN_LABEL_RE = re.compile(r"^\s*\([ivxlcdm]+\)\s+", re.IGNORECASE)
-
-
-@dataclass
-class LogicalSegment:
-    label: str | None
-    blocks: list[dict[str, Any]]
 
 
 class _TableHTMLParser(HTMLParser):
@@ -218,28 +212,7 @@ def _strip_label_from_runs(runs: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _insert_label_prefix(blocks: list[dict[str, Any]], label: str) -> None:
-    prefix = f"({label}) "
-    for block in blocks:
-        if block.get("type") == "paragraph":
-            if _insert_prefix_into_runs(block.get("runs", []), prefix):
-                return
-        elif block.get("type") == "list":
-            for item in block.get("items", []):
-                if _insert_prefix_into_runs(item, prefix):
-                    return
-    blocks.insert(0, {"type": "paragraph", "runs": [{"type": "text", "text": prefix}]})
-
-
-def _insert_prefix_into_runs(runs: list[dict[str, Any]], prefix: str) -> bool:
-    for run in runs:
-        if run.get("type") == "text":
-            run["text"] = f"{prefix}{run.get('text', '')}"
-            return True
-    if runs:
-        runs.insert(0, {"type": "text", "text": prefix})
-        return True
-    return False
+_insert_label_prefix = insert_label_prefix
 
 
 class CambridgeContentListParser(BaseParser):

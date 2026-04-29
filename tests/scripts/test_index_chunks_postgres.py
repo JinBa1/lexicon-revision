@@ -17,12 +17,14 @@ from src.search.providers.base import EmbeddingResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "mineru_fixtures")
+UOE_MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "uoe_mineru_fixtures")
 
 
 class _FakeEmbedder:
     model_id = "fake-embed-v1"
 
     def embed_documents(self, texts: list[str]) -> EmbeddingResult:
+        self.last_texts = texts
         return EmbeddingResult(
             vectors=[[0.0, 0.0] for _ in texts],
             model_id=self.model_id,
@@ -56,6 +58,32 @@ def _fixture_copy_with_manifests(tmp_path: Path) -> str:
             json.dumps(manifest),
             encoding="utf-8",
         )
+    return str(fixture_copy)
+
+
+def _uoe_fixture_copy_with_manifest(tmp_path: Path) -> str:
+    fixture_copy = tmp_path / "uoe_mineru_fixtures"
+    shutil.copytree(UOE_MINERU_FIXTURES, fixture_copy)
+    stem = "2019937_MECE10017"
+    manifest = {
+        "conversion_run_id": "run-2019937-mece10017",
+        "paper_id": stem,
+        "source_pdf_key": "blobs/sha256/aa/aa/" + "a" * 64 + ".pdf",
+        "mineru_version": "test-mineru",
+        "created_at": "2026-04-18T12:00:00+00:00",
+        "artifacts": [
+            {
+                "kind": "image",
+                "key": "artifacts/mineru/run-2019937-mece10017/images/fig_001.png",
+                "content_type": "image/png",
+                "sha256_hex": "b" * 64,
+                "size_bytes": 3,
+            }
+        ],
+    }
+    (fixture_copy / stem / "hybrid_auto" / f"{stem}_artifact_manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
     return str(fixture_copy)
 
 
@@ -394,3 +422,81 @@ def test_index_collection_postgres_passes_configured_community(
     assert calls["chunk_count"] == calls["vector_count"]
     assert calls["metadata_schema"]["fields"][0]["key"] == "year"
     assert calls["community_id"] == "edinburgh"
+
+
+def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fixture_dir = _uoe_fixture_copy_with_manifest(tmp_path)
+    media_dir = tmp_path / "media"
+    calls: dict[str, object] = {}
+    embedder = _FakeEmbedder()
+
+    class _FakeRepo:
+        def __init__(
+            self,
+            *,
+            engine,
+            embedding_model_id: str,
+            embedding_dimension: int,
+        ) -> None:
+            del engine, embedding_model_id, embedding_dimension
+
+        def recreate_collection(self, collection_name: str) -> None:
+            calls["recreated"] = collection_name
+
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+            community_id: str | None,
+        ) -> None:
+            calls["indexed_collection"] = collection_name
+            calls["chunks"] = chunks
+            calls["vector_count"] = len(vectors)
+            calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
+            calls["community_id"] = community_id
+
+    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
+        str(media_dir),
+    )
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: None,
+    )
+
+    index_collection_postgres(
+        mineru_output_dir=fixture_dir,
+        collection_name="uoe-mece10017",
+        engine=object(),
+        embedding_model=embedder,
+        embedding_dimension=2,
+        university="uoe",
+        parser_name="uoe",
+    )
+
+    chunks = calls["chunks"]
+    sidecar_path = media_dir / "uoe-mece10017_media_map.json"
+    media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    schema_keys = {field["key"] for field in calls["metadata_schema"]["fields"]}
+
+    assert calls["indexed_collection"] == "uoe-mece10017"
+    assert calls["community_id"] == "edinburgh"
+    assert len(chunks) == calls["vector_count"]
+    assert {"course_code", "course_title", "document_id"}.issubset(schema_keys)
+    assert any("Course Code: MECE10017" in text for text in embedder.last_texts)
+    assert any(
+        "Course Title: DESIGN OF SURGICAL TOOLS AND IMPLANTED MEDICAL DEVICES MSC"
+        in text
+        for text in embedder.last_texts
+    )
+    sample_ref = next(iter(media_map.values()))[0]
+    assert sample_ref["object_key"].startswith(
+        "artifacts/mineru/run-2019937-mece10017/"
+    )

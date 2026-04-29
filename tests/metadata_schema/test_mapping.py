@@ -78,3 +78,68 @@ def test_build_chunk_metadata_rejects_type_mismatch() -> None:
 
     with pytest.raises(ValueError, match="topic"):
         build_chunk_metadata(chunk, _schema())
+
+
+def test_build_chunk_metadata_reads_generic_metadata_source() -> None:
+    schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "course_code",
+                    "label": "Course Code",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.metadata.course_code",
+                }
+            ],
+        }
+    )
+    chunk = _chunk()
+    chunk.metadata = {"course_code": "MECE10017"}
+
+    assert build_chunk_metadata(chunk, schema) == {"course_code": "MECE10017"}
+
+
+def test_build_chunk_metadata_omits_missing_generic_metadata_source() -> None:
+    schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "course_code",
+                    "label": "Course Code",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.metadata.course_code",
+                }
+            ],
+        }
+    )
+
+    assert build_chunk_metadata(_chunk(), schema) == {}
+
+
+def test_build_chunk_metadata_rejects_generic_metadata_type_mismatch() -> None:
+    schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "course_code",
+                    "label": "Course Code",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.metadata.course_code",
+                }
+            ],
+        }
+    )
+    chunk = _chunk()
+    chunk.metadata = {"course_code": 10017}
+
+    with pytest.raises(ValueError, match="course_code"):
+        build_chunk_metadata(chunk, schema)

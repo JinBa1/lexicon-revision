@@ -1,0 +1,16 @@
+[
+  {"type": "text", "text": "THE UNIVERSITY of EDINBURGH", "page_idx": 0},
+  {"type": "text", "text": "SCHOOL OF ENGINEERING", "page_idx": 0},
+  {"type": "text", "text": "DESIGN OF SURGICAL TOOLS AND IMPLANTED MEDICAL DEVICES MSC", "page_idx": 0},
+  {"type": "text", "text": "MECE10017", "page_idx": 0},
+  {"type": "text", "text": "May 2019", "page_idx": 0},
+  {"type": "text", "text": "Question 1", "page_idx": 1},
+  {"type": "text", "text": "a) Explain a synthetic engineering trade-off. (6)", "page_idx": 1},
+  {"type": "text", "text": "b) Discuss the following synthetic observations:", "page_idx": 1},
+  {"type": "image", "img_path": "images/fig_001.png", "page_idx": 1, "bbox": [10, 20, 30, 40]},
+  {"type": "text", "text": "(i) first nested point; (ii) second nested point. (4)", "page_idx": 1},
+  {"type": "text", "text": "Please turn over", "page_idx": 1},
+  {"type": "text", "text": "Question 2", "page_idx": 2},
+  {"type": "text", "text": "a) Give one synthetic design constraint. (5)", "page_idx": 2},
+  {"type": "text", "text": "END OF PAPER", "page_idx": 2}
+]

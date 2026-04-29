@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
 from src.chunking.base_parser import BaseParser
+from src.chunking.mineru_segments import LogicalSegment, insert_label_prefix
 from src.chunking.models import ParsedMediaBlock, ParsedQuestion, SubQuestion
 from src.rendering.blocks import split_inline_math
 
@@ -61,6 +61,10 @@ UOE_COVER_BOILERPLATE_TOKENS = (
     "Convener",
     "External Examiner",
 )
+UOE_NON_CONTENT_PHRASES = {
+    "please turn over",
+    "end of paper",
+}
 
 UOE_MARKS_TRAILING_RE = re.compile(r"\((\d+)\)\s*$")
 UOE_FILENAME_PAPER_RE = re.compile(r"^(\d+)_")
@@ -68,12 +72,6 @@ UOE_FILENAME_PAPER_RE = re.compile(r"^(\d+)_")
 # UOE sub-question label: bare letter followed by ) and whitespace, e.g. "a) "
 UOE_SUB_QUESTION_RE = re.compile(r"^\s*([a-z])\)\s+")
 UOE_SUB_QUESTION_PREFIX_RE = re.compile(r"^\s*[a-z]\)\s*")
-
-
-@dataclass
-class LogicalSegment:
-    label: str | None
-    blocks: list[dict[str, Any]]
 
 
 class _TableHTMLParser(HTMLParser):
@@ -250,28 +248,7 @@ def _strip_label_from_runs(runs: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _insert_label_prefix(blocks: list[dict[str, Any]], label: str) -> None:
-    prefix = f"({label}) "
-    for block in blocks:
-        if block.get("type") == "paragraph":
-            if _insert_prefix_into_runs(block.get("runs", []), prefix):
-                return
-        elif block.get("type") == "list":
-            for item in block.get("items", []):
-                if _insert_prefix_into_runs(item, prefix):
-                    return
-    blocks.insert(0, {"type": "paragraph", "runs": [{"type": "text", "text": prefix}]})
-
-
-def _insert_prefix_into_runs(runs: list[dict[str, Any]], prefix: str) -> bool:
-    for run in runs:
-        if run.get("type") == "text":
-            run["text"] = f"{prefix}{run.get('text', '')}"
-            return True
-    if runs:
-        runs.insert(0, {"type": "text", "text": prefix})
-        return True
-    return False
+_insert_label_prefix = insert_label_prefix
 
 
 class UOEContentListParser(BaseParser):
@@ -291,6 +268,7 @@ class UOEContentListParser(BaseParser):
 
         # Strip repeating headers/footers before any other processing
         blocks = self._strip_repeating_headers_footers(blocks)
+        blocks = self._strip_non_content_phrase_blocks(blocks)
 
         # Extract cover metadata and locate first Question N block
         cover_meta, first_q_idx = self._extract_cover_metadata(blocks)
@@ -318,14 +296,15 @@ class UOEContentListParser(BaseParser):
             has_code, has_figure, has_table = self._detect_content_flags(body_blocks)
             media_blocks = self._extract_media_blocks(body_blocks)
             preamble, sub_questions = self._split_sub_questions(body_blocks)
+            metadata = self._paper_metadata(cover_meta, paper_id)
 
             parsed_questions.append(
                 ParsedQuestion(
-                    tripos_part=cover_meta.get("course_code"),
+                    tripos_part=None,
                     year=cover_meta.get("year"),
                     paper=paper_id,
                     question_number=question_number,
-                    topic=cover_meta.get("course_title"),
+                    topic=None,
                     author=None,
                     preamble=preamble,
                     sub_questions=sub_questions,
@@ -335,10 +314,27 @@ class UOEContentListParser(BaseParser):
                     has_table=has_table,
                     media_blocks=media_blocks,
                     warnings=list(base_warnings),
+                    metadata=metadata,
                 )
             )
 
         return parsed_questions
+
+    def _paper_metadata(
+        self,
+        cover_meta: dict[str, Any],
+        paper_id: int | None,
+    ) -> dict[str, str]:
+        metadata = {
+            "course_code": cover_meta.get("course_code"),
+            "course_title": cover_meta.get("course_title"),
+            "document_id": str(paper_id) if paper_id is not None else None,
+        }
+        return {
+            key: value
+            for key, value in metadata.items()
+            if isinstance(value, str) and value
+        }
 
     def parse_with_segments(
         self, content_list_path: str
@@ -348,6 +344,7 @@ class UOEContentListParser(BaseParser):
 
         blocks = [b for b in blocks if b.get("type") not in SKIP_TYPES]
         blocks = self._strip_repeating_headers_footers(blocks)
+        blocks = self._strip_non_content_phrase_blocks(blocks)
         _, first_q_idx = self._extract_cover_metadata(blocks)
         post_cover_blocks = blocks[first_q_idx:]
         question_groups = self._split_questions(post_cover_blocks)
@@ -494,6 +491,18 @@ class UOEContentListParser(BaseParser):
             b for b in content_blocks if (b.get("text") or "").strip() not in repeating
         ]
 
+    def _strip_non_content_phrase_blocks(
+        self, content_blocks: list[dict]
+    ) -> list[dict]:
+        return [
+            block
+            for block in content_blocks
+            if not (
+                block.get("type") == "text"
+                and (block.get("text") or "").strip().lower() in UOE_NON_CONTENT_PHRASES
+            )
+        ]
+
     def _detect_content_flags(self, blocks: list[dict]) -> tuple[bool, bool, bool]:
         """Detect has_code, has_figure, has_table from block types."""
         has_code = False
@@ -562,14 +571,10 @@ class UOEContentListParser(BaseParser):
                 end_seg = len(segments)
 
             sub_parts = [text for text, _ in segments[start_seg:end_seg]]
-            sub_text = "\n".join(sub_parts).strip()
-
-            # Strip the leading UOE label prefix (e.g. "a) ")
-            sub_text = self._strip_top_level_label_prefix(sub_text)
-
-            marks = self._extract_marks(sub_text)
-            # Strip trailing (N) marks notation from displayed text
-            cleaned_text = UOE_MARKS_TRAILING_RE.sub("", sub_text).strip()
+            if sub_parts:
+                sub_parts[0] = self._strip_top_level_label_prefix(sub_parts[0])
+            marks = self._extract_marks_from_parts(sub_parts)
+            cleaned_text = "\n".join(part for part in sub_parts if part).strip()
 
             sub_questions.append(
                 SubQuestion(label=label, text=cleaned_text, marks=marks)
@@ -784,6 +789,7 @@ class UOEContentListParser(BaseParser):
         for segment in segments:
             if segment.label is not None:
                 _strip_label_from_render_blocks(segment.blocks)
+                self._strip_trailing_marks_from_render_blocks(segment.blocks)
 
         return [
             segment
@@ -838,6 +844,40 @@ class UOEContentListParser(BaseParser):
         if m:
             return int(m.group(1))
         return None
+
+    def _extract_marks_from_parts(self, parts: list[str]) -> int | None:
+        for index in range(len(parts) - 1, -1, -1):
+            marks = self._extract_marks(parts[index])
+            if marks is not None:
+                parts[index] = UOE_MARKS_TRAILING_RE.sub("", parts[index]).strip()
+                return marks
+        return None
+
+    def _strip_trailing_marks_from_render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+    ) -> None:
+        for block in reversed(blocks):
+            if block.get("type") == "paragraph":
+                if self._strip_trailing_marks_from_runs(block.get("runs", [])):
+                    return
+            elif block.get("type") == "list":
+                for item in reversed(block.get("items", [])):
+                    if self._strip_trailing_marks_from_runs(item):
+                        return
+
+    def _strip_trailing_marks_from_runs(self, runs: list[dict[str, Any]]) -> bool:
+        for run in reversed(runs):
+            if run.get("type") != "text":
+                continue
+            original = run.get("text", "")
+            if not isinstance(original, str):
+                continue
+            stripped = UOE_MARKS_TRAILING_RE.sub("", original).rstrip()
+            if stripped != original:
+                run["text"] = stripped
+                return True
+        return False
 
     def _compute_total_marks(self, sub_questions: list[SubQuestion]) -> int | None:
         if not sub_questions:

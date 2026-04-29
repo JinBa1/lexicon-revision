@@ -16,7 +16,11 @@ MetadataKey = Annotated[
 ]
 SourcePath = Annotated[
     str,
-    StringConstraints(pattern=r"^chunk\.[a-z_]+$", min_length=1, strict=True),
+    StringConstraints(
+        pattern=r"^chunk\.([a-z_]+|metadata\.[a-z][a-z0-9_]*)$",
+        min_length=1,
+        strict=True,
+    ),
 ]
 
 
@@ -44,17 +48,20 @@ class CollectionMetadataSchema(BaseModel):
             if field.key in seen:
                 raise ValueError(f"duplicate metadata field key: {field.key}")
             if field.source is not None:
-                source_name = field.source.removeprefix("chunk.")
-                source_type = _chunk_source_type(source_name)
-                if source_type is None:
-                    raise ValueError(
-                        f"invalid chunk source path for {field.key}: {field.source}"
-                    )
-                if field.type != source_type:
-                    raise ValueError(
-                        "invalid chunk source/type combination for "
-                        f"{field.key}: {field.type} does not match {field.source}"
-                    )
+                if field.source.startswith("chunk.metadata."):
+                    pass
+                else:
+                    source_name = field.source.removeprefix("chunk.")
+                    source_type = _chunk_source_type(source_name)
+                    if source_type is None:
+                        raise ValueError(
+                            f"invalid chunk source path for {field.key}: {field.source}"
+                        )
+                    if field.type != source_type:
+                        raise ValueError(
+                            "invalid chunk source/type combination for "
+                            f"{field.key}: {field.type} does not match {field.source}"
+                        )
             seen.add(field.key)
         return self
 

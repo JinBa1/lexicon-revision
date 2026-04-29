@@ -7,16 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import TypeAdapter
-from src.chunking.cambridge_content_list_parser import (
-    CambridgeContentListParser,
-    LogicalSegment,
-    _insert_label_prefix,
-)
+from src.chunking.base_parser import BaseParser
+from src.chunking.cambridge_content_list_parser import CambridgeContentListParser
+from src.chunking.mineru_segments import LogicalSegment, insert_label_prefix
 from src.chunking.models import Chunk, MediaRef, ParsedQuestion, make_chunk_id
 from src.chunking.uoe_content_list_parser import UOEContentListParser
 from src.rendering.blocks import RenderBlock, flatten_render_blocks
 
-PARSER_REGISTRY = {
+PARSER_REGISTRY: dict[str, type[BaseParser]] = {
     "cambridge": CambridgeContentListParser,
     "uoe": UOEContentListParser,
 }
@@ -129,7 +127,7 @@ def _build_chunks(
     for sq in parsed_question.sub_questions:
         sub_blocks = deepcopy(render_blocks_by_label.get(sq.label, []))
         if sub_blocks:
-            _insert_label_prefix(sub_blocks, sq.label)
+            insert_label_prefix(sub_blocks, sq.label)
             question_render_blocks.extend(sub_blocks)
 
     if question_render_blocks:
@@ -170,6 +168,7 @@ def _build_chunks(
         source_pdf=filename,
         warnings=list(parsed_question.warnings),
         render_blocks=question_render_blocks,
+        metadata=dict(parsed_question.metadata),
     )
 
     chunks = [question_chunk]
@@ -209,6 +208,7 @@ def _build_chunks(
                 source_pdf=filename,
                 warnings=[],
                 render_blocks=sub_render_blocks,
+                metadata=dict(parsed_question.metadata),
             )
         )
 

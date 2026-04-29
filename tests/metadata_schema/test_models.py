@@ -115,6 +115,45 @@ def test_collection_schema_rejects_invalid_source_paths() -> None:
         )
 
 
+def test_collection_schema_accepts_generic_metadata_source_paths() -> None:
+    schema = CollectionMetadataSchema.model_validate(
+        {
+            "version": 1,
+            "fields": [
+                {
+                    "key": "course_code",
+                    "label": "Course Code",
+                    "type": "string",
+                    "operators": ["eq"],
+                    "exposed": True,
+                    "source": "chunk.metadata.course_code",
+                }
+            ],
+        }
+    )
+
+    assert schema.field("course_code").source == "chunk.metadata.course_code"
+
+
+def test_collection_schema_rejects_malformed_metadata_source_path() -> None:
+    with pytest.raises(ValueError):
+        CollectionMetadataSchema.model_validate(
+            {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "course_code",
+                        "label": "Course Code",
+                        "type": "string",
+                        "operators": ["eq"],
+                        "exposed": True,
+                        "source": "chunk.metadata.CourseCode",
+                    }
+                ],
+            }
+        )
+
+
 def test_load_collection_schema_rejects_incompatible_source_types(
     tmp_path: Path,
 ) -> None:

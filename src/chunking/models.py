@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+MetadataScalar = int | bool | str
+
 
 @dataclass
 class SubQuestion:
@@ -58,6 +60,7 @@ class ParsedQuestion:
     has_table: bool
     media_blocks: list[ParsedMediaBlock] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    metadata: dict[str, MetadataScalar] = field(default_factory=dict)
 
 
 @dataclass
@@ -92,6 +95,7 @@ class Chunk:
     # Parse quality
     warnings: list[str] = field(default_factory=list)
     render_blocks: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, MetadataScalar] = field(default_factory=dict)
 
 
 def make_chunk_id(

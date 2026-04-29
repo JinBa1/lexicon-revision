@@ -102,6 +102,46 @@ def _json_dumps(payload) -> str:
     return json.dumps(payload)
 
 
+def _uoe_metadata_schema() -> dict:
+    return {
+        "version": 1,
+        "fields": [
+            {
+                "key": "year",
+                "label": "Year",
+                "type": "integer",
+                "operators": ["eq", "gte", "lte"],
+                "exposed": True,
+                "source": "chunk.year",
+            },
+            {
+                "key": "course_code",
+                "label": "Course Code",
+                "type": "string",
+                "operators": ["eq"],
+                "exposed": True,
+                "source": "chunk.metadata.course_code",
+            },
+            {
+                "key": "course_title",
+                "label": "Course Title",
+                "type": "string",
+                "operators": ["eq"],
+                "exposed": True,
+                "source": "chunk.metadata.course_title",
+            },
+            {
+                "key": "document_id",
+                "label": "Document ID",
+                "type": "string",
+                "operators": ["eq"],
+                "exposed": False,
+                "source": "chunk.metadata.document_id",
+            },
+        ],
+    }
+
+
 def _seed_community(engine, *, name: str, slug: str) -> str:
     community_id = str(uuid.uuid4())
     with engine.begin() as conn:
@@ -391,6 +431,52 @@ def test_list_collections_includes_metadata_schema_for_accessible_rows():
     assert len(rows) == 1
     assert isinstance(rows[0].metadata_schema, dict)
     assert rows[0].metadata_schema["version"] == 1
+
+
+def test_list_collections_keeps_uoe_private_until_edinburgh_membership() -> None:
+    engine = _engine()
+    repository = PgCollectionAccessRepository(engine=engine)
+    edinburgh_id = _seed_community(engine, name="Edinburgh", slug="edinburgh")
+    _seed_collection(
+        engine,
+        name="uoe-mece10017",
+        community_id=edinburgh_id,
+        metadata_schema=_uoe_metadata_schema(),
+    )
+
+    anonymous_rows = repository.list_collections_with_access(
+        request_identity=RequestIdentity.anonymous(),
+        resolved_user_id=None,
+        affiliation_community_id=None,
+    )
+
+    assert len(anonymous_rows) == 1
+    assert anonymous_rows[0].collection_name == "uoe-mece10017"
+    assert anonymous_rows[0].access_state == "locked_requires_signin"
+    assert anonymous_rows[0].metadata_schema is None
+
+    user_id = _seed_membership(
+        engine,
+        user_email="person@ed.ac.uk",
+        community_id=edinburgh_id,
+    )
+    edinburgh_rows = repository.list_collections_with_access(
+        request_identity=_clerk_identity("person@ed.ac.uk"),
+        resolved_user_id=user_id,
+        affiliation_community_id=edinburgh_id,
+    )
+
+    assert len(edinburgh_rows) == 1
+    assert edinburgh_rows[0].collection_name == "uoe-mece10017"
+    assert edinburgh_rows[0].access_state == "accessible"
+    assert edinburgh_rows[0].community_display_name == "Edinburgh"
+    assert edinburgh_rows[0].metadata_schema is not None
+    assert {field["key"] for field in edinburgh_rows[0].metadata_schema["fields"]} == {
+        "year",
+        "course_code",
+        "course_title",
+        "document_id",
+    }
 
 
 def test_list_collections_derives_display_name_from_collection_name():
