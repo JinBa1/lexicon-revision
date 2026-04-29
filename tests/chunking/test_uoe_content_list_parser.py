@@ -63,6 +63,26 @@ def test_uoe_parser_strips_footer_phrases_from_text() -> None:
     assert "END OF PAPER" not in all_text
 
 
+def test_uoe_render_blocks_strip_mineru_bullet_prefix() -> None:
+    blocks = UOEContentListParser()._mineru_block_to_render_blocks(
+        {"type": "list", "list_items": ["\u0088 Bullet with $x$."]}
+    )
+
+    assert blocks == [
+        {
+            "type": "list",
+            "marker": "bullet",
+            "items": [
+                [
+                    {"type": "text", "text": "Bullet with "},
+                    {"type": "math", "latex": "x"},
+                    {"type": "text", "text": "."},
+                ]
+            ],
+        }
+    ]
+
+
 def test_uoe_parser_strips_footer_blocks_and_punctuated_turn_over(
     tmp_path: Path,
 ) -> None:

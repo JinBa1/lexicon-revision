@@ -38,5 +38,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DELETE FROM community_email_domains WHERE id = 'edinburgh-ed-ac-uk';")
+    op.execute(
+        "DELETE FROM community_email_domains "
+        "WHERE community_id = 'edinburgh' AND domain = 'ed.ac.uk';"
+    )
     op.execute("DELETE FROM communities WHERE id = 'edinburgh';")

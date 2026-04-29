@@ -19,17 +19,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from src.storage import (
+from src.storage import (  # noqa: E402
     build_object_storage,
     conversion_run_id_from_stem,
     discover_converted_paper_artifacts,
     load_object_storage_settings,
     upload_converted_paper_artifacts,
 )
-from src.storage.base import ObjectStorage
-from src.storage.manifest import ArtifactManifest
+from src.storage.base import ObjectStorage  # noqa: E402
+from src.storage.manifest import ArtifactManifest  # noqa: E402
 
 logger = logging.getLogger(__name__)
 MINERU_VERSION = "mineru-cli"

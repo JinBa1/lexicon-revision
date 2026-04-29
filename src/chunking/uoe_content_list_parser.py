@@ -8,38 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from src.chunking.base_parser import BaseParser
-from src.chunking.mineru_segments import LogicalSegment, insert_label_prefix
+from src.chunking.mineru_segments import LogicalSegment
 from src.chunking.models import ParsedMediaBlock, ParsedQuestion, SubQuestion
 from src.rendering.blocks import split_inline_math
 
-# ---------------------------------------------------------------------------
-# Cambridge-origin regex constants (kept as dead code — referenced nowhere in
-# the UOE flow but harmless and avoids breaking any future cross-imports).
-# ---------------------------------------------------------------------------
-
-HEADER_RE = re.compile(
-    r"COMPUTER SCIENCE TRIPOS\s+Part\s+([A-Z]+)\s*[–·\-]\s*(\d{4})\s*[–·\-]\s*"
-    r"Paper\s+(\d+)"
-)
-
-QUESTION_LINE_RE = re.compile(
-    r"^(?P<number>\d+)\s+(?P<topic>.+?)\s+\(\s*(?P<author>[A-Za-z0-9+]+)\s*\)\s*$"
-)
-
-
-def _sub_question_token_pattern(capture_label: bool) -> str:
-    label = r"([a-z])" if capture_label else r"[a-z]"
-    return rf"\(\s*{label}\s*\)"
-
-
-SUB_QUESTION_RE = re.compile(rf"^{_sub_question_token_pattern(True)}\s+")
-SUB_QUESTION_PREFIX_RE = re.compile(rf"^{_sub_question_token_pattern(False)}\s*")
-
-MARKS_RE = re.compile(r"\[\s*(\d+)\s+marks?\s*\]")
-
 # Block types to skip entirely
 SKIP_TYPES = {"page_number"}
-MINERU_BULLET_PREFIX_RE = re.compile(r"^\s*\s*")
+MINERU_BULLET_PREFIX_RE = re.compile(r"^\s*\u0088\s*")
 NUMERIC_LIST_RE = re.compile(r"^\s*\d+\.\s+")
 ROMAN_LABEL_RE = re.compile(r"^\s*\([ivxlcdm]+\)\s+", re.IGNORECASE)
 
@@ -247,9 +222,6 @@ def _strip_label_from_runs(runs: list[dict[str, Any]]) -> bool:
             run["text"] = stripped
             return True
     return False
-
-
-_insert_label_prefix = insert_label_prefix
 
 
 class UOEContentListParser(BaseParser):
