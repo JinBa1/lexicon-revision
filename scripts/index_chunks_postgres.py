@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 from sqlalchemy import Engine  # noqa: E402
 from src.chunking.models import Chunk  # noqa: E402
 from src.chunking.pipeline import run_pipeline  # noqa: E402
+from src.collection_config import load_collection_config  # noqa: E402
 from src.db.config import create_database_engine, load_database_settings  # noqa: E402
 from src.db.metadata_indexes import ensure_metadata_indexes  # noqa: E402
 from src.metadata_schema import (  # noqa: E402
@@ -84,6 +85,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to the collection metadata schema JSON file",
     )
     parser.add_argument(
+        "--collection-config",
+        default=None,
+        help="Path to the collection config JSON file",
+    )
+    parser.add_argument(
         "--university",
         default="cam",
         help="University code used in chunk IDs (default: cam)",
@@ -110,6 +116,7 @@ def index_collection_postgres(
     embedding_dimension: int,
     metadata_path: str | None = None,
     metadata_schema_path: str | None = None,
+    collection_config_path: str | None = None,
     university: str = "cam",
     parser_name: str = "cambridge",
     recreate_collection: bool = False,
@@ -135,6 +142,10 @@ def index_collection_postgres(
 
     schema_path = metadata_schema_path or default_schema_path(collection_name)
     metadata_schema = load_collection_schema(schema_path)
+    collection_config = load_collection_config(
+        collection_name,
+        config_path=collection_config_path,
+    )
     chunk_metadata = [build_chunk_metadata(chunk, metadata_schema) for chunk in chunks]
     embedding_inputs = [
         build_embedding_text(chunk, schema=metadata_schema, metadata=metadata)
@@ -157,6 +168,7 @@ def index_collection_postgres(
         chunks=chunks,
         vectors=vectors,
         metadata_schema=metadata_schema,
+        community_id=collection_config.community_id,
     )
     ensure_metadata_indexes(
         engine,
@@ -206,6 +218,7 @@ def main() -> None:
                 embedding_dimension=db_settings.embedding_dimension,
                 metadata_path=args.metadata,
                 metadata_schema_path=args.metadata_schema,
+                collection_config_path=args.collection_config,
                 university=args.university,
                 parser_name=args.parser,
                 recreate_collection=args.recreate_collection,

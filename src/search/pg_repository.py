@@ -15,6 +15,7 @@ from sqlalchemy import (
     delete,
     insert,
     select,
+    update,
 )
 from sqlalchemy.orm import Session
 from src.chunking.models import Chunk
@@ -122,6 +123,7 @@ class PgIndexRepository:
         chunks: list[Chunk],
         vectors: list[list[float]],
         metadata_schema: CollectionMetadataSchema,
+        community_id: str | None = None,
     ) -> None:
         if len(vectors) != len(chunks):
             raise ValueError(f"Got {len(chunks)} chunks but {len(vectors)} vectors")
@@ -144,10 +146,22 @@ class PgIndexRepository:
                         embedding_model_id=self.embedding_model_id,
                         embedding_dimension=self.embedding_dimension,
                         metadata_schema=metadata_schema_payload,
+                        community_id=community_id,
                     )
                 )
             else:
                 collection_id = str(collection_row.id)
+                _validate_collection_community(
+                    collection_name=collection_name,
+                    stored_community_id=collection_row.community_id,
+                    expected_community_id=community_id,
+                )
+                if collection_row.community_id is None and community_id is not None:
+                    session.execute(
+                        update(collections)
+                        .where(collections.c.id == collection_id)
+                        .values(community_id=community_id)
+                    )
                 _validate_collection_settings(
                     collection_name=collection_name,
                     actual_model_id=str(collection_row.embedding_model_id),
@@ -445,6 +459,7 @@ def _load_collection_row(session: Session, collection_name: str):
         collections.c.embedding_model_id,
         collections.c.embedding_dimension,
         collections.c.metadata_schema,
+        collections.c.community_id,
     ).where(collections.c.name == collection_name)
     return session.execute(stmt).first()
 
@@ -469,6 +484,22 @@ def _validate_collection_settings(
             f"{actual_dimension} but the configured query embedder expects "
             f"{expected_dimension}"
         )
+
+
+def _validate_collection_community(
+    *,
+    collection_name: str,
+    stored_community_id: str | None,
+    expected_community_id: str | None,
+) -> None:
+    if expected_community_id is None:
+        return
+    if stored_community_id is None or stored_community_id == expected_community_id:
+        return
+    raise ValueError(
+        f"Collection '{collection_name}' already belongs to a different "
+        f"community_id: {stored_community_id}"
+    )
 
 
 def _load_collection_schema(

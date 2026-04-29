@@ -115,6 +115,24 @@ def test_parse_args_supports_metadata_schema(monkeypatch) -> None:
     assert parse_args().metadata_schema.endswith(".metadata-schema.json")
 
 
+def test_parse_args_supports_collection_config(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "index_chunks_postgres.py",
+            "--input",
+            "tests/data/mineru_fixtures",
+            "--collection",
+            "fixture",
+            "--collection-config",
+            "config/collections/uoe-mece10017.collection.json",
+        ],
+    )
+
+    assert parse_args().collection_config.endswith(".collection.json")
+
+
 def test_build_embedding_text_uses_schema_rendering() -> None:
     schema = CollectionMetadataSchema.model_validate(
         {
@@ -210,11 +228,13 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
             chunks,
             vectors,
             metadata_schema: CollectionMetadataSchema,
+            community_id: str | None = None,
         ) -> None:
             calls["indexed_collection"] = collection_name
             calls["chunk_count"] = len(chunks)
             calls["vector_count"] = len(vectors)
             calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
+            calls["community_id"] = community_id
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
@@ -251,6 +271,7 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
     assert calls["indexed_collection_name"] == "cam-cs-tripos-fixture"
     assert calls["metadata_schema"] == calls["indexed_schema"]
     assert calls["metadata_schema"]["fields"][0]["key"] == "year"
+    assert calls["community_id"] is None
     assert sample_ref["object_key"].startswith("artifacts/mineru/run-")
     assert "file_path" not in sample_ref
 
@@ -283,9 +304,10 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
             chunks,
             vectors,
             metadata_schema: CollectionMetadataSchema,
+            community_id: str | None = None,
         ) -> None:
             del collection_name, chunks, vectors
-            del metadata_schema
+            del metadata_schema, community_id
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
@@ -306,3 +328,69 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
 
     assert "recreated" not in calls
     assert "indexed" not in calls
+
+
+def test_index_collection_postgres_passes_configured_community(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
+    media_dir = tmp_path / "media"
+    collection_config_path = tmp_path / "uoe-mece10017.collection.json"
+    collection_config_path.write_text(
+        '{"name": "uoe-mece10017", "community_id": "edinburgh"}',
+        encoding="utf-8",
+    )
+    calls: dict[str, object] = {}
+
+    class _FakeRepo:
+        def __init__(
+            self,
+            *,
+            engine,
+            embedding_model_id: str,
+            embedding_dimension: int,
+        ) -> None:
+            del engine, embedding_model_id, embedding_dimension
+
+        def recreate_collection(self, collection_name: str) -> None:
+            calls["recreated"] = collection_name
+
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+            community_id: str | None,
+        ) -> None:
+            calls["indexed_collection"] = collection_name
+            calls["chunk_count"] = len(chunks)
+            calls["vector_count"] = len(vectors)
+            calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
+            calls["community_id"] = community_id
+
+    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
+        str(media_dir),
+    )
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: None,
+    )
+
+    index_collection_postgres(
+        mineru_output_dir=fixture_dir,
+        collection_name="uoe-mece10017",
+        engine=object(),
+        embedding_model=_FakeEmbedder(),
+        embedding_dimension=2,
+        collection_config_path=str(collection_config_path),
+    )
+
+    assert calls["indexed_collection"] == "uoe-mece10017"
+    assert calls["chunk_count"] == calls["vector_count"]
+    assert calls["metadata_schema"]["fields"][0]["key"] == "year"
+    assert calls["community_id"] == "edinburgh"
