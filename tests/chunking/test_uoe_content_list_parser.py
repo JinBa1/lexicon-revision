@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from src.chunking.uoe_content_list_parser import UOEContentListParser
@@ -60,3 +61,33 @@ def test_uoe_parser_strips_footer_phrases_from_text() -> None:
 
     assert "Please turn over" not in all_text
     assert "END OF PAPER" not in all_text
+
+
+def test_uoe_parser_strips_footer_blocks_and_punctuated_turn_over(
+    tmp_path: Path,
+) -> None:
+    content_list = tmp_path / "2019937_MECE10017_content_list.json"
+    content_list.write_text(
+        json.dumps(
+            [
+                {"type": "text", "text": "Synthetic Course Title", "page_idx": 0},
+                {"type": "text", "text": "MECE10017", "page_idx": 0},
+                {"type": "text", "text": "May 2019", "page_idx": 0},
+                {"type": "text", "text": "Question 1", "page_idx": 1},
+                {
+                    "type": "text",
+                    "text": "a) Give one synthetic answer. (4)",
+                    "page_idx": 1,
+                },
+                {"type": "text", "text": "Please turn over. ", "page_idx": 1},
+                {"type": "footer", "text": "END OF PAPER ", "page_idx": 2},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    parsed_question = UOEContentListParser().parse(str(content_list))[0]
+
+    assert parsed_question.sub_questions[0].marks == 4
+    assert "Please turn over" not in parsed_question.sub_questions[0].text
+    assert "END OF PAPER" not in parsed_question.sub_questions[0].text

@@ -65,6 +65,7 @@ UOE_NON_CONTENT_PHRASES = {
     "please turn over",
     "end of paper",
 }
+UOE_NON_CONTENT_BLOCK_TYPES = {"text", "footer"}
 
 UOE_MARKS_TRAILING_RE = re.compile(r"\((\d+)\)\s*$")
 UOE_FILENAME_PAPER_RE = re.compile(r"^(\d+)_")
@@ -497,11 +498,14 @@ class UOEContentListParser(BaseParser):
         return [
             block
             for block in content_blocks
-            if not (
-                block.get("type") == "text"
-                and (block.get("text") or "").strip().lower() in UOE_NON_CONTENT_PHRASES
-            )
+            if not self._is_non_content_phrase_block(block)
         ]
+
+    def _is_non_content_phrase_block(self, block: dict) -> bool:
+        if block.get("type") not in UOE_NON_CONTENT_BLOCK_TYPES:
+            return False
+        text = (block.get("text") or "").strip().lower().rstrip(".")
+        return text in UOE_NON_CONTENT_PHRASES
 
     def _detect_content_flags(self, blocks: list[dict]) -> tuple[bool, bool, bool]:
         """Detect has_code, has_figure, has_table from block types."""
