@@ -18,7 +18,7 @@ from src.search.pg_repository import PgIndexRepository, PgSearchRepository
 
 pytestmark = pytest.mark.integration
 
-MINERU_FIXTURES = "tests/data/mineru_fixtures"
+MINERU_FIXTURES = "tests/fixtures/mineru/cambridge"
 
 
 def _engine():

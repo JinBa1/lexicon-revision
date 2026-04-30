@@ -9,8 +9,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 UOE_CONTENT_LIST = (
     REPO_ROOT
     / "tests"
-    / "data"
-    / "uoe_mineru_fixtures"
+    / "fixtures"
+    / "mineru"
+    / "uoe"
     / "2019937_MECE10017"
     / "hybrid_auto"
     / "2019937_MECE10017_content_list.json"

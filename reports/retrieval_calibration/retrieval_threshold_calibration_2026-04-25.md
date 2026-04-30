@@ -9,7 +9,7 @@ matches.
 
 ## Runtime Under Test
 
-- Positive eval: `docs/evals/cambridge_fixture_v1.yaml`
+- Positive eval: `evals/cambridge_fixture_v1.yaml`
 - Collection: `cam-cs-tripos-fixture`
 - Reranker target: Voyage `rerank-2.5-lite`
 - Threshold under calibration: `collections.retrieval_rerank_min_score`
@@ -52,7 +52,7 @@ technical topics, nearby-but-out-of-fixture CS topics, and nonsensical queries.
 
 - 2026-04-25T19:39:57Z: Started calibration attempt from Codex sandbox.
 - Positive eval command attempted:
-  `RERANK_ENABLED=true RERANK_PROVIDER=voyage RERANK_MODEL=rerank-2.5-lite conda run -n rag-exam python scripts/evaluate_search.py docs/evals/cambridge_fixture_v1.yaml --rerank --format json --output /tmp/rag_exam_voyage_positive_raw.json`
+  `RERANK_ENABLED=true RERANK_PROVIDER=voyage RERANK_MODEL=rerank-2.5-lite conda run -n rag-exam python scripts/evaluate_search.py evals/cambridge_fixture_v1.yaml --rerank --format json --output /tmp/rag_exam_voyage_positive_raw.json`
 - Result: blocked by sandbox network/DNS before calibration data collection.
   The failure occurred while resolving the configured Neon Postgres host,
   before query embedding or reranking.
@@ -66,7 +66,7 @@ technical topics, nearby-but-out-of-fixture CS topics, and nonsensical queries.
   host failed before collection schema lookup completed.
 - Expected Voyage requests sent by the retry: 0.
 - User-run calibration at
-  `docs/evals/calibration_runs/voyage-rerank-20260425T195510Z/` completed, but
+  `reports/retrieval_calibration/voyage-rerank-20260425T195510Z/` completed, but
   it is not a Voyage rerank calibration. The generated summary reports
   rerank model `cross-encoder/ms-marco-MiniLM-L-6-v2`, so it used the local
   CrossEncoder default. Treat those scores as local-reranker observations only.
@@ -74,7 +74,7 @@ technical topics, nearby-but-out-of-fixture CS topics, and nonsensical queries.
   no clean positive/negative score gap was found. Weakest matched positive
   score was `-10.0079`; strongest negative top score was `-9.2382`.
 - User-run calibration at
-  `docs/evals/calibration_runs/voyage-rerank-20260425T200235Z/` is the valid
+  `reports/retrieval_calibration/voyage-rerank-20260425T200235Z/` is the valid
   Voyage `rerank-2.5-lite` calibration run.
 - Voyage observation from that run: positive eval passed 12/12, weakest
   matched positive score was `0.542969`, strongest negative top score was
@@ -95,10 +95,10 @@ export RERANK_ENABLED=true
 export RERANK_PROVIDER=voyage
 export RERANK_MODEL=rerank-2.5-lite
 conda run -n rag-exam python scripts/calibrate_retrieval_threshold.py \
-  docs/evals/cambridge_fixture_v1.yaml \
+  evals/cambridge_fixture_v1.yaml \
   --rerank \
   --expect-rerank-model-id rerank-2.5-lite \
-  --output-dir docs/evals/calibration_runs/voyage-rerank-2026-04-25
+  --output-dir local/reports/retrieval-calibration/voyage-rerank-2026-04-25
 ```
 
 The runner disables existing retrieval thresholds while collecting raw scores,
@@ -117,7 +117,7 @@ then writes:
    export RERANK_PROVIDER=voyage
    export RERANK_MODEL=rerank-2.5-lite
    conda run -n rag-exam python scripts/evaluate_search.py \
-     docs/evals/cambridge_fixture_v1.yaml \
+     evals/cambridge_fixture_v1.yaml \
      --rerank \
      --format json \
      --output /tmp/rag_exam_voyage_positive_raw.json
@@ -156,7 +156,7 @@ then writes:
      where name = 'cam-cs-tripos-fixture';
    "
    conda run -n rag-exam python scripts/evaluate_search.py \
-     docs/evals/cambridge_fixture_v1.yaml \
+     evals/cambridge_fixture_v1.yaml \
      --rerank \
      --format text
    ```

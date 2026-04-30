@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "eval_path",
         type=Path,
-        help="Positive search eval YAML, e.g. docs/evals/cambridge_fixture_v1.yaml",
+        help="Positive search eval YAML, e.g. evals/cambridge_fixture_v1.yaml",
     )
     parser.add_argument(
         "--collection",
@@ -114,7 +114,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Directory for calibration_raw.json and summary.md "
-            "(default: docs/evals/calibration_runs/<timestamp>)"
+            "(default: local/reports/retrieval-calibration/<timestamp>)"
         ),
     )
     parser.add_argument(
@@ -412,7 +412,7 @@ def _load_negative_queries(args: argparse.Namespace) -> list[str]:
 
 def _default_output_dir() -> Path:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    return Path("docs/evals/calibration_runs") / timestamp
+    return Path("local/reports/retrieval-calibration") / timestamp
 
 
 def main() -> None:

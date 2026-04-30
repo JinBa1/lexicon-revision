@@ -16,8 +16,8 @@ from src.metadata_schema import CollectionMetadataSchema, build_chunk_metadata
 from src.search.providers.base import EmbeddingResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "mineru_fixtures")
-UOE_MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "uoe_mineru_fixtures")
+MINERU_FIXTURES = str(REPO_ROOT / "tests" / "fixtures" / "mineru" / "cambridge")
+UOE_MINERU_FIXTURES = str(REPO_ROOT / "tests" / "fixtures" / "mineru" / "uoe")
 
 
 class _FakeEmbedder:
@@ -94,7 +94,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
         [
             "index_chunks_postgres.py",
             "--input",
-            "tests/data/mineru_fixtures",
+            "tests/fixtures/mineru/cambridge",
             "--collection",
             "fixture",
         ],
@@ -102,7 +102,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
 
     args = parse_args()
 
-    assert args.input == "tests/data/mineru_fixtures"
+    assert args.input == "tests/fixtures/mineru/cambridge"
     assert args.collection == "fixture"
     assert args.metadata_schema is None
     assert args.recreate_collection is False
@@ -115,7 +115,7 @@ def test_parse_args_supports_recreate(monkeypatch) -> None:
         [
             "index_chunks_postgres.py",
             "--input",
-            "tests/data/mineru_fixtures",
+            "tests/fixtures/mineru/cambridge",
             "--collection",
             "fixture",
             "--recreate-collection",
@@ -132,7 +132,7 @@ def test_parse_args_supports_metadata_schema(monkeypatch) -> None:
         [
             "index_chunks_postgres.py",
             "--input",
-            "tests/data/mineru_fixtures",
+            "tests/fixtures/mineru/cambridge",
             "--collection",
             "fixture",
             "--metadata-schema",
@@ -150,7 +150,7 @@ def test_parse_args_supports_collection_config(monkeypatch) -> None:
         [
             "index_chunks_postgres.py",
             "--input",
-            "tests/data/mineru_fixtures",
+            "tests/fixtures/mineru/cambridge",
             "--collection",
             "fixture",
             "--collection-config",

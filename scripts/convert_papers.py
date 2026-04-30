@@ -4,9 +4,14 @@ Calls `mineru` once per directory of PDFs to leverage GPU batching (the pipeline
 backend streams pages from multiple documents through a single inference window).
 
 Usage:
-    python scripts/convert_papers.py data/papers/2025 data/mineru_output/
-    python scripts/convert_papers.py tests/data/ tests/data/mineru_fixtures/ --force
-    python scripts/convert_papers.py data/papers/ data/mineru_output/ \
+    python scripts/convert_papers.py \
+        local/corpora/cam-cs-tripos/source-pdfs/2025 \
+        local/corpora/cam-cs-tripos/mineru-output/
+    python scripts/convert_papers.py \
+        local/test-inputs/pdfs tests/fixtures/mineru/cambridge/ --force
+    python scripts/convert_papers.py \
+        local/corpora/cam-cs-tripos/source-pdfs/ \
+        local/corpora/cam-cs-tripos/mineru-output/ \
         --method auto --backend hybrid-auto-engine
 """
 
@@ -131,8 +136,11 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python scripts/convert_papers.py data/papers/2025 data/mineru_output/\n"
-            "  python scripts/convert_papers.py tests/data/ tests/data/mineru_fixtures/"
+            "  python scripts/convert_papers.py "
+            "local/corpora/cam-cs-tripos/source-pdfs/2025 "
+            "local/corpora/cam-cs-tripos/mineru-output/\n"
+            "  python scripts/convert_papers.py local/test-inputs/pdfs "
+            "tests/fixtures/mineru/cambridge/"
             " --force\n"
         ),
     )

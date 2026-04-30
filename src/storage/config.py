@@ -38,7 +38,7 @@ def load_object_storage_settings() -> ObjectStorageSettings:
     local: LocalStorageConfig | None = None
     s3: S3StorageConfig | None = None
     if provider == "local":
-        root = Path(os.environ.get("OBJECT_STORAGE_LOCAL_ROOT", "./data/object-store"))
+        root = Path(os.environ.get("OBJECT_STORAGE_LOCAL_ROOT", "./local/object-store"))
         base_url = os.environ.get(
             "OBJECT_STORAGE_DEV_PRESIGN_BASE_URL",
             "http://localhost:8000/_dev/object",

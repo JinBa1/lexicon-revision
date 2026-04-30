@@ -16,8 +16,8 @@ collections.retrieval_rerank_min_score=0.498
 collections.retrieval_vector_min_score=NULL
 ```
 
-This value was calibrated against
-`docs/evals/calibration_runs/voyage-rerank-20260425T200235Z/`:
+This value was calibrated against the public summary in
+`reports/retrieval_calibration/voyage-rerank-20260425T200235Z/`:
 
 - positive Cambridge fixture eval passed: 12/12
 - weakest matched positive Voyage rerank score: `0.542969`
@@ -97,7 +97,7 @@ For high-value shared corpora, use a larger calibration set:
 Run from a normal network-enabled shell:
 
 ```bash
-RUN_DIR="docs/evals/calibration_runs/voyage-rerank-$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_DIR="local/reports/retrieval-calibration/voyage-rerank-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$RUN_DIR"
 
 set -a; source .env; set +a
@@ -106,19 +106,23 @@ export RERANK_PROVIDER=voyage
 export RERANK_MODEL=rerank-2.5-lite
 
 python scripts/calibrate_retrieval_threshold.py \
-  docs/evals/cambridge_fixture_v1.yaml \
+  evals/cambridge_fixture_v1.yaml \
   --rerank \
   --expect-rerank-model-id rerank-2.5-lite \
   --output-dir "$RUN_DIR" \
   2>&1 | tee "$RUN_DIR/run.log"
 ```
 
-The runner writes:
+The runner writes local-only files by default:
 
 - `calibration_raw.json` for full score data; this file is ignored and not
   tracked
 - `summary.md` for the positive/negative score gap and suggested threshold
 - `run.log` when invoked with `tee` as shown above
+
+Copy selected `summary.md` and `run.log` files into
+`reports/retrieval_calibration/` only when they are ready to publish as
+repo evidence.
 
 After choosing a threshold, apply it to the calibrated collection row. Do not
 move it into global runtime environment.

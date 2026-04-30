@@ -19,8 +19,8 @@ from src.chunking.models import Chunk, ParsedMediaBlock, ParsedQuestion, SubQues
 from src.chunking.pipeline import run_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "mineru_fixtures")
-UOE_MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "uoe_mineru_fixtures")
+MINERU_FIXTURES = str(REPO_ROOT / "tests" / "fixtures" / "mineru" / "cambridge")
+UOE_MINERU_FIXTURES = str(REPO_ROOT / "tests" / "fixtures" / "mineru" / "uoe")
 
 
 def _media_refs(chunk: Chunk) -> list:
@@ -35,8 +35,9 @@ def _fixture_media_block(stem: str, media_type: str) -> dict:
     content_list_path = (
         REPO_ROOT
         / "tests"
-        / "data"
-        / "mineru_fixtures"
+        / "fixtures"
+        / "mineru"
+        / "cambridge"
         / stem
         / "hybrid_auto"
         / f"{stem}_content_list.json"

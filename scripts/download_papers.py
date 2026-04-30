@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data-dir",
-        default="data/papers",
+        default="local/corpora/cam-cs-tripos/source-pdfs",
         help="Directory to store downloaded PDFs and metadata.",
     )
     parser.add_argument(

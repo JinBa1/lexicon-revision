@@ -286,7 +286,7 @@ def test_parent_chunk_label_prefix_falls_back_before_equation_first_segment() ->
 def test_run_pipeline_populates_render_blocks_matching_chunk_text_for_q1(
     tmp_path,
 ) -> None:
-    src = REPO_ROOT / "tests" / "data" / "mineru_fixtures" / "y2025p1q1"
+    src = REPO_ROOT / "tests" / "fixtures" / "mineru" / "cambridge" / "y2025p1q1"
     dst = tmp_path / "y2025p1q1"
     dst.mkdir()
     (dst / "hybrid_auto").mkdir()

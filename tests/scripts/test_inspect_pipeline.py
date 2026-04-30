@@ -16,7 +16,7 @@ from scripts.inspect_pipeline import (
 from src.chunking.pipeline import run_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MINERU_FIXTURES = str(REPO_ROOT / "tests" / "data" / "mineru_fixtures")
+MINERU_FIXTURES = str(REPO_ROOT / "tests" / "fixtures" / "mineru" / "cambridge")
 
 
 def _load_chunks():

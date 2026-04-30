@@ -2,12 +2,15 @@
 
 Usage:
     python scripts/inspect_pipeline.py \
-        tests/data/mineru_fixtures data/papers/metadata.json
+        tests/fixtures/mineru/cambridge \
+        local/corpora/cam-cs-tripos/source-pdfs/metadata.json
     python scripts/inspect_pipeline.py \
-        tests/data/mineru_fixtures data/papers/metadata.json \
+        tests/fixtures/mineru/cambridge \
+        local/corpora/cam-cs-tripos/source-pdfs/metadata.json \
         --stage parser --source-pdf y2018p5q7.pdf --view full
     python scripts/inspect_pipeline.py \
-        data/mineru_output data/papers/metadata.json \
+        local/corpora/cam-cs-tripos/mineru-output \
+        local/corpora/cam-cs-tripos/source-pdfs/metadata.json \
         --year 2025 --paper 1 --question 7
 """
 
@@ -44,12 +47,15 @@ def parse_args() -> argparse.Namespace:
         epilog=(
             "Examples:\n"
             "  python scripts/inspect_pipeline.py "
-            "tests/data/mineru_fixtures data/papers/metadata.json\n"
+            "tests/fixtures/mineru/cambridge "
+            "local/corpora/cam-cs-tripos/source-pdfs/metadata.json\n"
             "  python scripts/inspect_pipeline.py "
-            "tests/data/mineru_fixtures data/papers/metadata.json "
+            "tests/fixtures/mineru/cambridge "
+            "local/corpora/cam-cs-tripos/source-pdfs/metadata.json "
             "--stage parser --source-pdf y2018p5q7.pdf --view full\n"
             "  python scripts/inspect_pipeline.py "
-            "data/mineru_output data/papers/metadata.json "
+            "local/corpora/cam-cs-tripos/mineru-output "
+            "local/corpora/cam-cs-tripos/source-pdfs/metadata.json "
             "--year 2025 --paper 1 --question 7\n"
         ),
     )

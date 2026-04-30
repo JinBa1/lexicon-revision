@@ -6,7 +6,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # --- MinerU content_list.json fixtures ---
 
-MINERU_FIXTURES = REPO_ROOT / "tests" / "data" / "mineru_fixtures"
+MINERU_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "mineru" / "cambridge"
 
 
 def _mineru_path(stem: str) -> str:

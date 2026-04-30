@@ -2,7 +2,7 @@
 
 Usage:
     python scripts/index_chunks_postgres.py \
-        --input data/mineru_output/ \
+        --input local/corpora/cam-cs-tripos/mineru-output/ \
         --collection cam-cs-tripos
 """
 

@@ -1,50 +1,23 @@
+# Python caches
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local environment and virtualenvs
 .env
-chroma_data/
-.docker/
-.vscode/
-*.pdf
+.venv/
+
+# Local generated project state
+local/
 data/
-.codex
-AGENTS.md
-CLAUDE.md
-GEMINI.md
-PLAN.md
-Project Outline.md
-docs/
-plans/
-scripts/audit-architecture.sh
-skills/
-.claude/
-.agents/
-config/study.local.yaml
-reports/study/
-config/study-profiles/
-STACK_CHOICE.md
-frontend_refs/
-.superpowers/
+chroma_data/
 
-# Allow eval specs while keeping other docs ignored by default
-!docs/
-docs/*
-!docs/evals/
-!docs/evals/**
-docs/evals/calibration_runs/**/calibration_raw.json
+# Source papers and generated PDF artifacts are not repo fixtures.
+*.pdf
 
-# Allow test fixtures (MinerU JSON output, not PDFs/debug files)
-!tests/data/
-!tests/data/mineru_fixtures/
-!tests/data/mineru_fixtures/**
-tests/data/mineru_fixtures/**/*_layout.pdf
-tests/data/mineru_fixtures/**/*_origin.pdf
-tests/data/mineru_fixtures/**/*_span.pdf
-tests/data/mineru_fixtures/**/*_middle.json
-tests/data/mineru_fixtures/**/*_model.json
-tests/data/mineru_fixtures/**/*_content_list_v2.json
-.omx/
-
-# Frontend artifacts (safe before frontend/ exists)
+# Frontend artifacts
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
@@ -54,3 +27,10 @@ frontend/test-results/
 frontend/coverage/
 frontend/.env.local
 frontend/.env.*.local
+
+# Editor and OS files
+.docker/
+.vscode/
+.idea/
+.DS_Store
+*.sw?

@@ -17,7 +17,7 @@ from src.storage.local import LocalObjectStorage
 
 pytestmark = pytest.mark.integration
 
-MINERU_FIXTURES = Path("tests/data/mineru_fixtures")
+MINERU_FIXTURES = Path("tests/fixtures/mineru/cambridge")
 
 
 class _Embedder:

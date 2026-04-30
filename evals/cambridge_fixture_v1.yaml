@@ -2,10 +2,10 @@ name: cambridge_fixture_v1
 description: >
   Curated retrieval eval over a frozen fixture corpus: Cambridge CS Tripos
   2023-2025, Papers 1-3, materialised at
-  data/eval_fixtures/cambridge_2023_2025_p1_p3/ and indexed with
+  local/corpora/cam-cs-tripos/eval-fixtures/cambridge_2023_2025_p1_p3/ and indexed with
   `python scripts/index_chunks_postgres.py --input
-  data/eval_fixtures/cambridge_2023_2025_p1_p3 --collection
-  cam-cs-tripos-fixture --metadata data/papers/metadata.json
+  local/corpora/cam-cs-tripos/eval-fixtures/cambridge_2023_2025_p1_p3 --collection
+  cam-cs-tripos-fixture --metadata local/corpora/cam-cs-tripos/source-pdfs/metadata.json
   --recreate-collection`. The indexed fixture contains 87 question-level
   chunks, 329 sub-question chunks, and 416 total retrieval rows. The
   conditional
