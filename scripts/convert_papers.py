@@ -29,6 +29,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.storage import (  # noqa: E402
+    ObjectStorageConfigError,
     build_object_storage,
     conversion_run_id_from_stem,
     discover_converted_paper_artifacts,
@@ -237,6 +238,13 @@ def main() -> None:
             )
             uploaded = len(manifests)
             logger.info("Uploaded artifacts for %d PDFs", uploaded)
+        except ObjectStorageConfigError as exc:
+            logger.warning(
+                "Storage upload skipped: %s. For local artifact upload, set "
+                "OBJECT_STORAGE_DEV_PRESIGN_SECRET and optionally "
+                "OBJECT_STORAGE_LOCAL_ROOT=./local/object-store.",
+                exc,
+            )
         except Exception:
             logger.exception(
                 "Storage upload unavailable; leaving converted outputs in place"

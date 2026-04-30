@@ -23,3 +23,10 @@ def test_load_collection_config_reads_private_community(tmp_path: Path) -> None:
 
     assert config.name == "uoe-mece10017"
     assert config.community_id == "edinburgh"
+
+
+def test_cambridge_fixture_collection_config_is_restricted_to_cambridge() -> None:
+    config = load_collection_config("cam-cs-tripos-fixture")
+
+    assert config.name == "cam-cs-tripos-fixture"
+    assert config.community_id == "cambridge"

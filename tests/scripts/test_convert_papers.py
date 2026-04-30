@@ -151,6 +151,7 @@ def test_main_continues_when_storage_is_misconfigured_after_conversion(
     pdf_path.write_bytes(b"pdf-bytes")
     info_mock = Mock()
     exception_mock = Mock()
+    warning_mock = Mock()
 
     def fake_run_mineru_batch(
         pdf_paths: list[Path],
@@ -167,6 +168,7 @@ def test_main_continues_when_storage_is_misconfigured_after_conversion(
     monkeypatch.setattr(convert_papers, "run_mineru_batch", fake_run_mineru_batch)
     monkeypatch.setattr(convert_papers.logger, "info", info_mock)
     monkeypatch.setattr(convert_papers.logger, "exception", exception_mock)
+    monkeypatch.setattr(convert_papers.logger, "warning", warning_mock)
     monkeypatch.delenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", raising=False)
     monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
     monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path / "store"))
@@ -199,9 +201,10 @@ def test_main_continues_when_storage_is_misconfigured_after_conversion(
         )
         for call in info_mock.call_args_list
     )
-    exception_mock.assert_called_once_with(
-        "Storage upload unavailable; leaving converted outputs in place"
-    )
+    warning_mock.assert_called_once()
+    assert warning_mock.call_args.args[0].startswith("Storage upload skipped:")
+    assert "OBJECT_STORAGE_DEV_PRESIGN_SECRET" in str(warning_mock.call_args.args[1])
+    exception_mock.assert_not_called()
 
 
 def test_main_uploads_only_successfully_converted_pdfs(

@@ -299,7 +299,7 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
     assert calls["indexed_collection_name"] == "cam-cs-tripos-fixture"
     assert calls["metadata_schema"] == calls["indexed_schema"]
     assert calls["metadata_schema"]["fields"][0]["key"] == "year"
-    assert calls["community_id"] is None
+    assert calls["community_id"] == "cambridge"
     assert sample_ref["object_key"].startswith("artifacts/mineru/run-")
     assert "file_path" not in sample_ref
 

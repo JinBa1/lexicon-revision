@@ -714,3 +714,45 @@ def test_alembic_0008_adds_collection_retrieval_thresholds() -> None:
         assert columns["retrieval_rerank_min_score"]["nullable"] is True
     finally:
         engine.dispose()
+
+
+def test_alembic_head_seeds_cambridge_access_community() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.connect() as conn:
+            community = conn.execute(
+                text(
+                    """
+                    select id, name, slug
+                    from communities
+                    where id = 'cambridge'
+                    """
+                )
+            ).one()
+            domain = conn.execute(
+                text(
+                    """
+                    select community_id, domain, match_mode, is_active
+                    from community_email_domains
+                    where community_id = 'cambridge'
+                      and domain = 'cam.ac.uk'
+                    """
+                )
+            ).one()
+
+        assert community == ("cambridge", "Cambridge", "cambridge")
+        assert domain == ("cambridge", "cam.ac.uk", "suffix", True)
+    finally:
+        engine.dispose()
