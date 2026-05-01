@@ -12,7 +12,14 @@ from src.runtime.limits import (
     enforce_search_limit,
     enforce_study_top_k,
 )
-from src.runtime.rate_limit import InMemoryRateLimiter
+from src.runtime.rate_limit import (
+    RATE_LIMIT_RESPONSE_HEADERS,
+    CostRateLimiter,
+    InMemoryRateLimiter,
+    RateLimitDecision,
+    RateLimitUnavailableError,
+    RedisCostRateLimiter,
+)
 from src.runtime.readiness import (
     DependencyReadinessProbe,
     ReadinessDependencies,
@@ -21,11 +28,16 @@ from src.runtime.readiness import (
 
 __all__ = [
     "AppRuntimeSettings",
-    "RequestBodyTooLargeError",
     "DependencyReadinessProbe",
+    "RATE_LIMIT_RESPONSE_HEADERS",
+    "CostRateLimiter",
     "InMemoryRateLimiter",
     "RateLimitSettings",
+    "RateLimitDecision",
+    "RateLimitUnavailableError",
     "ReadinessDependencies",
+    "RedisCostRateLimiter",
+    "RequestBodyTooLargeError",
     "allowed_cors_origins",
     "content_length_exceeds_limit",
     "enforce_query_length",
