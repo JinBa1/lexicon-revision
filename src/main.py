@@ -8,7 +8,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from inspect import isawaitable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exception_handlers import request_validation_exception_handler
@@ -41,6 +41,7 @@ from src.runtime import (
     CostRateLimiter,
     DependencyReadinessProbe,
     RateLimitDecision,
+    RateLimitEndpoint,
     RateLimitUnavailableError,
     ReadinessDependencies,
     RedisCostRateLimiter,
@@ -1157,7 +1158,7 @@ def _app_user_id(auth_context: AuthorizationContext | None) -> str | None:
 async def _enforce_cost_rate_limit(
     request: Request,
     *,
-    endpoint: str,
+    endpoint: RateLimitEndpoint,
     collection_name: str,
     auth_context: AuthorizationContext | None,
 ) -> RateLimitDecision:
@@ -1216,10 +1217,10 @@ async def _enforce_cost_rate_limit(
 def _raise_rate_limit_unavailable(
     request: Request,
     *,
-    endpoint: str,
+    endpoint: RateLimitEndpoint,
     collection_name: str,
     auth_context: AuthorizationContext | None,
-) -> RateLimitDecision:
+) -> NoReturn:
     _log_usage_best_effort(
         request,
         endpoint=endpoint,

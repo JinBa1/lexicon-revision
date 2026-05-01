@@ -361,21 +361,14 @@ def _runtime_settings(
         study_context_budget_tokens=4000,
         study_generation_max_output_tokens=1200,
         study_wall_clock_timeout_seconds=45,
-        rate_limit=RateLimitSettings(
-            redis_url="redis://localhost:6379/0",
-            key_secret="test-secret",
-            search_user="60/minute",
-            search_anon="20/minute",
-            study_user="10/hour",
-            study_anon="3/hour",
-        ),
+        rate_limit=_rate_limit_settings(),
     )
 
 
 def _rate_limit_settings() -> RateLimitSettings:
     return RateLimitSettings(
         redis_url="redis://localhost:6379/0",
-        key_secret="test-rate-limit-secret",
+        key_secret="test-secret",
         search_user="60/minute",
         search_anon="20/minute",
         study_user="10/hour",

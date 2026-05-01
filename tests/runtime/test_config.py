@@ -163,7 +163,8 @@ def test_legacy_in_memory_rate_limit_env_is_rejected(
     with pytest.raises(
         ValueError,
         match=(
-            f"{legacy_env_var}.*RATE_LIMIT_SEARCH_USER.*RATE_LIMIT_SEARCH_ANON"
+            f"{legacy_env_var}.*RATE_LIMIT_REDIS_URL.*RATE_LIMIT_KEY_SECRET"
+            ".*RATE_LIMIT_SEARCH_USER.*RATE_LIMIT_SEARCH_ANON"
             ".*RATE_LIMIT_STUDY_USER.*RATE_LIMIT_STUDY_ANON"
         ),
     ):

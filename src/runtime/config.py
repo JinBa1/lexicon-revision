@@ -183,9 +183,9 @@ def _reject_legacy_rate_limit_env() -> None:
         return
     raise ValueError(
         ", ".join(legacy_env_vars)
-        + " no longer supported; configure rate-limit policy with "
-        "RATE_LIMIT_SEARCH_USER, RATE_LIMIT_SEARCH_ANON, RATE_LIMIT_STUDY_USER, "
-        "and RATE_LIMIT_STUDY_ANON"
+        + " no longer supported; configure Redis-backed rate limiting with "
+        "RATE_LIMIT_REDIS_URL, RATE_LIMIT_KEY_SECRET, RATE_LIMIT_SEARCH_USER, "
+        "RATE_LIMIT_SEARCH_ANON, RATE_LIMIT_STUDY_USER, and RATE_LIMIT_STUDY_ANON"
     )
 
 
