@@ -37,9 +37,12 @@ from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
 from src.runtime import (
     AppRuntimeSettings,
+    CostRateLimiter,
     DependencyReadinessProbe,
-    InMemoryRateLimiter,
+    RateLimitDecision,
+    RateLimitUnavailableError,
     ReadinessDependencies,
+    RedisCostRateLimiter,
     RequestBodyTooLargeError,
     allowed_cors_origins,
     content_length_exceeds_limit,
@@ -58,6 +61,7 @@ from src.search.errors import (
     InvalidMetadataFilterError,
 )
 from src.search.factory import create_search_service
+from src.search.filtering import validate_filter_conditions
 from src.search.media_sidecar import materialize_media_refs
 from src.search.models import (
     ChunkDetailResponse,
@@ -98,6 +102,7 @@ OPERATIONS_ENDPOINTS = {
     "/supported-universities": "supported_universities",
 }
 UNKNOWN_COLLECTION_NAME = "<unknown>"
+RATE_LIMIT_CHECK_TIMEOUT_SECONDS = 5.0
 
 
 @asynccontextmanager
@@ -110,6 +115,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     planner_provider: object | None = None
     generation_provider: object | None = None
     auth_resolver: object | None = None
+    rate_limiter: CostRateLimiter | None = None
 
     try:
         runtime_settings: AppRuntimeSettings = getattr(
@@ -131,6 +137,10 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
             runtime_settings=runtime_settings,
             auth_settings=auth_settings,
         )
+        rate_limiter = getattr(app.state, "rate_limiter", None)
+        if rate_limiter is None:
+            rate_limiter = RedisCostRateLimiter(settings=runtime_settings.rate_limit)
+        app.state.rate_limiter = rate_limiter
         embedding_model = build_embedding_provider(provider_settings)
         reranker = build_rerank_provider(provider_settings)
 
@@ -156,10 +166,6 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
             study_settings
         )
         app.state.runtime_settings = runtime_settings
-        app.state.rate_limiter = InMemoryRateLimiter(
-            window_seconds=runtime_settings.rate_limit_window_seconds,
-            max_requests=runtime_settings.rate_limit_max_requests,
-        )
         app.state.usage_log_repository = PgRequestUsageLogRepository(engine=engine)
         app.state.readiness_dependencies = ReadinessDependencies(
             database_probe=lambda: _database_probe(engine),
@@ -190,6 +196,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         await _aclose_if_supported(planner_provider)
         await _aclose_if_supported(generation_provider)
+        await _aclose_if_supported(rate_limiter)
         _close_if_supported(auth_resolver)
         _close_if_supported(embedding_model)
         _close_if_supported(reranker)
@@ -250,6 +257,7 @@ def create_app(
     runtime_settings: AppRuntimeSettings | None = None,
     readiness_dependencies: ReadinessDependencies | None = None,
     usage_log_repository: PgRequestUsageLogRepository | None = None,
+    rate_limiter: CostRateLimiter | None = None,
     allow_unauthorized_test_mode: bool = False,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
@@ -266,6 +274,7 @@ def create_app(
             runtime_settings=runtime_settings,
             readiness_dependencies=readiness_dependencies,
             usage_log_repository=usage_log_repository,
+            rate_limiter=rate_limiter,
         )
         application.state.object_storage = object_storage
         application.state.access_service = access_service
@@ -285,6 +294,7 @@ def create_app(
             runtime_settings=runtime_settings,
             readiness_dependencies=readiness_dependencies,
             usage_log_repository=usage_log_repository,
+            rate_limiter=rate_limiter,
         )
 
     application.add_middleware(
@@ -371,22 +381,6 @@ def create_app(
                 request,
                 max_bytes=runtime_settings.request_body_max_bytes,
             )
-
-            rate_limiter: InMemoryRateLimiter = request.app.state.rate_limiter
-            allowed, retry_after = rate_limiter.allow(_rate_limit_key(request))
-            if not allowed:
-                _log_usage_best_effort(
-                    request,
-                    endpoint=endpoint,
-                    collection_name=_collection_name_from_request(request),
-                    outcome="rate_limited",
-                    detail={"status_code": 429},
-                )
-                return JSONResponse(
-                    status_code=429,
-                    content={"detail": "Too many requests"},
-                    headers={"Retry-After": str(retry_after)},
-                )
 
             try:
                 if endpoint == "study":
@@ -514,6 +508,17 @@ def create_app(
                     ),
                 )
 
+            _validate_metadata_filters_if_available(
+                service,
+                collection_name=payload.collection,
+                filters=payload.filters,
+            )
+            rate_limit_decision = await _enforce_cost_rate_limit(
+                request,
+                endpoint="search",
+                collection_name=payload.collection,
+                auth_context=auth_context,
+            )
             response = service.search(
                 query=payload.query,
                 collection=payload.collection,
@@ -533,6 +538,7 @@ def create_app(
                 detail={
                     "result_count": response.total,
                     "rerank": payload.rerank,
+                    **_rate_limit_usage_detail(rate_limit_decision),
                 },
             )
             return response
@@ -721,6 +727,7 @@ def create_app(
     async def study(request: Request, payload: StudyRequest) -> StudyResponse:
         service: StudyService | None = getattr(request.app.state, "study_service", None)
         auth_context: AuthorizationContext | None = None
+        rate_limit_decision: RateLimitDecision | None = None
         request.state.request_json = {
             "query": payload.query,
             "scope": {"collection": payload.scope.collection},
@@ -757,6 +764,18 @@ def create_app(
                     payload.top_k,
                     max_top_k=runtime_settings.study_top_k_max,
                 )
+                search_service: SearchBackend = request.app.state.search_service
+                _validate_metadata_filters_if_available(
+                    search_service,
+                    collection_name=payload.scope.collection,
+                    filters=payload.filters,
+                )
+                rate_limit_decision = await _enforce_cost_rate_limit(
+                    request,
+                    endpoint="study",
+                    collection_name=payload.scope.collection,
+                    auth_context=auth_context,
+                )
                 response = await service.orchestrate(
                     payload,
                     request_id=_request_id(request),
@@ -780,7 +799,10 @@ def create_app(
                 ),
                 planning=response.planning.telemetry,
                 generation=_generation_telemetry(response),
-                detail={"answer_status": response.answer_status},
+                detail={
+                    "answer_status": response.answer_status,
+                    **_rate_limit_usage_detail(rate_limit_decision),
+                },
             )
             return response
         except TimeoutError as exc:
@@ -992,12 +1014,10 @@ def _configure_runtime_state(
     runtime_settings: AppRuntimeSettings,
     readiness_dependencies: ReadinessDependencies | None,
     usage_log_repository: PgRequestUsageLogRepository | None,
+    rate_limiter: CostRateLimiter | None,
 ) -> None:
     application.state.runtime_settings = runtime_settings
-    application.state.rate_limiter = InMemoryRateLimiter(
-        window_seconds=runtime_settings.rate_limit_window_seconds,
-        max_requests=runtime_settings.rate_limit_max_requests,
-    )
+    application.state.rate_limiter = rate_limiter
     application.state.usage_log_repository = usage_log_repository
     application.state.readiness_dependencies = readiness_dependencies
     application.state.planning_provider = None
@@ -1080,12 +1100,6 @@ def _operation_endpoint(request: Request) -> str | None:
     return None
 
 
-def _rate_limit_key(request: Request) -> str:
-    if request.client is not None and request.client.host:
-        return request.client.host
-    return "unknown-client"
-
-
 def _install_body_limit_receive_wrapper(
     request: Request,
     *,
@@ -1128,6 +1142,137 @@ def _app_user_id(auth_context: AuthorizationContext | None) -> str | None:
     if auth_context is None or auth_context.identity.user is None:
         return None
     return auth_context.identity.user.user_id
+
+
+async def _enforce_cost_rate_limit(
+    request: Request,
+    *,
+    endpoint: str,
+    collection_name: str,
+    auth_context: AuthorizationContext | None,
+) -> RateLimitDecision:
+    limiter: CostRateLimiter | None = getattr(request.app.state, "rate_limiter", None)
+    if limiter is None:
+        return _raise_rate_limit_unavailable(
+            request,
+            endpoint=endpoint,
+            collection_name=collection_name,
+            auth_context=auth_context,
+        )
+    try:
+        async with asyncio.timeout(RATE_LIMIT_CHECK_TIMEOUT_SECONDS):
+            decision = await limiter.check(
+                endpoint=endpoint,
+                auth_context=auth_context,
+                fly_client_ip=request.headers.get("fly-client-ip"),
+                client_host=request.client.host if request.client is not None else None,
+            )
+    except (RateLimitUnavailableError, TimeoutError):
+        return _raise_rate_limit_unavailable(
+            request,
+            endpoint=endpoint,
+            collection_name=collection_name,
+            auth_context=auth_context,
+        )
+
+    request.state.rate_limit_decision = decision
+    if decision.allowed:
+        return decision
+
+    _log_usage_best_effort(
+        request,
+        endpoint=endpoint,
+        collection_name=collection_name,
+        outcome="rate_limited",
+        app_user_id=_app_user_id(auth_context),
+        detail={
+            "status_code": 429,
+            **_rate_limit_usage_detail(decision, include_retry=True),
+        },
+    )
+    raise HTTPException(
+        status_code=429,
+        detail={
+            "code": "rate_limited",
+            "message": "Too many requests. Try again later.",
+            "endpoint": endpoint,
+            "scope": decision.scope,
+            "retry_after_seconds": decision.retry_after_seconds,
+        },
+        headers=_rate_limit_headers(decision),
+    )
+
+
+def _raise_rate_limit_unavailable(
+    request: Request,
+    *,
+    endpoint: str,
+    collection_name: str,
+    auth_context: AuthorizationContext | None,
+) -> RateLimitDecision:
+    _log_usage_best_effort(
+        request,
+        endpoint=endpoint,
+        collection_name=collection_name,
+        outcome="service_unavailable",
+        app_user_id=_app_user_id(auth_context),
+        detail={"status_code": 503, "rate_limit_error": "unavailable"},
+    )
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "code": "rate_limit_unavailable",
+            "message": "Request limits are temporarily unavailable. Try again later.",
+        },
+    )
+
+
+def _rate_limit_headers(decision: RateLimitDecision) -> dict[str, str]:
+    headers = {
+        "X-RateLimit-Limit": str(decision.limit),
+        "X-RateLimit-Remaining": str(decision.remaining),
+        "X-RateLimit-Reset": str(decision.reset_epoch_seconds),
+    }
+    if decision.retry_after_seconds > 0:
+        headers["Retry-After"] = str(decision.retry_after_seconds)
+    return headers
+
+
+def _rate_limit_usage_detail(
+    decision: RateLimitDecision | None,
+    *,
+    include_retry: bool = False,
+) -> dict[str, object]:
+    if decision is None:
+        return {}
+    rate_limit: dict[str, object] = {
+        "policy": decision.policy,
+        "scope": decision.scope,
+        "limit": decision.limit,
+        "remaining": decision.remaining,
+        "reset_epoch_seconds": decision.reset_epoch_seconds,
+    }
+    if include_retry:
+        rate_limit["retry_after_seconds"] = decision.retry_after_seconds
+    detail: dict[str, object] = {"rate_limit": rate_limit}
+    if decision.client_host_missing:
+        detail["rate_limit_client_host_missing"] = True
+    return detail
+
+
+def _validate_metadata_filters_if_available(
+    service: object,
+    *,
+    collection_name: str,
+    filters: object,
+) -> None:
+    if not filters:
+        return
+    get_collection_schema = getattr(service, "get_collection_schema", None)
+    if not callable(get_collection_schema):
+        return
+    schema = get_collection_schema(collection_name)
+    validate_filter_conditions(filters, schema)
 
 
 def _request_latency_ms(request: Request) -> int:

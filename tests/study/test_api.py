@@ -8,8 +8,9 @@ import pytest
 from fastapi import FastAPI
 from src.access.errors import CollectionAccessDeniedError, IdentityProvisioningError
 from src.access.models import RequestIdentity
-from src.metadata_schema.models import FilterCondition
+from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.runtime.config import AppRuntimeSettings, RateLimitSettings
+from src.runtime.rate_limit import RateLimitDecision, RateLimitUnavailableError
 from src.runtime.telemetry import ProviderCallTelemetry, TokenUsage
 from src.search.errors import CollectionNotFoundError, InvalidMetadataFilterError
 from src.search.pg_service import SearchExecutionTelemetry
@@ -309,9 +310,106 @@ class FakeUsageLogRepository:
         self.records.append(record)
 
 
+class FakeCostRateLimiter:
+    def __init__(
+        self,
+        *,
+        decision: RateLimitDecision | None = None,
+        unavailable: bool = False,
+    ) -> None:
+        self.decision = decision or RateLimitDecision(
+            allowed=True,
+            endpoint="search",
+            policy="search:ip",
+            scope="ip",
+            limit=20,
+            remaining=19,
+            reset_epoch_seconds=1770000060,
+        )
+        self.unavailable = unavailable
+        self.calls: list[dict[str, object]] = []
+
+    async def check(
+        self,
+        *,
+        endpoint: str,
+        auth_context: object | None,
+        fly_client_ip: str | None,
+        client_host: str | None,
+    ) -> RateLimitDecision:
+        self.calls.append(
+            {
+                "endpoint": endpoint,
+                "auth_context": auth_context,
+                "fly_client_ip": fly_client_ip,
+                "client_host": client_host,
+            }
+        )
+        if self.unavailable:
+            raise RateLimitUnavailableError("redis unavailable")
+        if self.decision.endpoint != endpoint:
+            return RateLimitDecision(
+                allowed=self.decision.allowed,
+                endpoint=endpoint,
+                policy=f"{endpoint}:{self.decision.scope}",
+                scope=self.decision.scope,
+                limit=self.decision.limit,
+                remaining=self.decision.remaining,
+                reset_epoch_seconds=self.decision.reset_epoch_seconds,
+                retry_after_seconds=self.decision.retry_after_seconds,
+                client_host_missing=self.decision.client_host_missing,
+            )
+        return self.decision
+
+    async def health(self) -> str:
+        return "ok"
+
+    async def aclose(self) -> None:
+        return None
+
+
+class HangingCostRateLimiter(FakeCostRateLimiter):
+    async def check(
+        self,
+        *,
+        endpoint: str,
+        auth_context: object | None,
+        fly_client_ip: str | None,
+        client_host: str | None,
+    ) -> RateLimitDecision:
+        self.calls.append(
+            {
+                "endpoint": endpoint,
+                "auth_context": auth_context,
+                "fly_client_ip": fly_client_ip,
+                "client_host": client_host,
+            }
+        )
+        await asyncio.sleep(1)
+        return self.decision
+
+
 class FakeSearchService:
     def health(self):
         return "ok"
+
+
+class SchemaCapableSearchService(FakeSearchService):
+    def get_collection_schema(self, collection: str) -> CollectionMetadataSchema:
+        del collection
+        return CollectionMetadataSchema.model_validate(
+            {
+                "version": 1,
+                "fields": [
+                    {
+                        "key": "year",
+                        "label": "Year",
+                        "type": "integer",
+                        "operators": ["eq", "gte", "lte"],
+                    }
+                ],
+            }
+        )
 
 
 class InvalidFilterQueryPlanner:
@@ -378,7 +476,14 @@ def _runtime_settings(
         study_context_budget_tokens=4000,
         study_generation_max_output_tokens=1200,
         study_wall_clock_timeout_seconds=study_wall_clock_timeout_seconds,
-        rate_limit=_rate_limit_settings(),
+        rate_limit=RateLimitSettings(
+            redis_url="redis://localhost:6379/0",
+            key_secret="test-secret",
+            search_user="60/minute",
+            search_anon="20/minute",
+            study_user="10/hour",
+            study_anon="3/hour",
+        ),
     )
 
 
@@ -403,6 +508,7 @@ async def test_post_study_returns_response() -> None:
         search_service=FakeSearchService(),
         study_service=study_service,
         generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -422,6 +528,174 @@ async def test_post_study_returns_response() -> None:
     assert response.json()["schema_version"] == "study_answer_v2"
     assert "planning" in response.json()
     assert study_service.requests[0].query == "dynamic programming"
+
+
+@pytest.mark.anyio
+async def test_post_study_blocked_by_cost_limiter_returns_429_and_skips_service() -> (
+    None
+):
+    from src.main import create_app
+
+    study_service = FakeStudyService()
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(
+            decision=RateLimitDecision(
+                allowed=False,
+                endpoint="study",
+                policy="study:ip",
+                scope="ip",
+                limit=3,
+                remaining=0,
+                reset_epoch_seconds=1770000042,
+                retry_after_seconds=42,
+            )
+        ),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "dynamic programming", "scope": {"collection": "fixture"}},
+        )
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "42"
+    assert response.json()["detail"]["endpoint"] == "study"
+    assert study_service.requests == []
+    assert repository.records[0].outcome == "rate_limited"
+    assert repository.records[0].detail["rate_limit"]["policy"] == "study:ip"
+
+
+@pytest.mark.anyio
+async def test_post_study_limiter_unavailable_returns_503_and_skips_service() -> None:
+    from src.main import create_app
+
+    study_service = FakeStudyService()
+    repository = FakeUsageLogRepository()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(unavailable=True),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "dynamic programming", "scope": {"collection": "fixture"}},
+        )
+
+    assert response.status_code == 503
+    assert study_service.requests == []
+    assert repository.records[0].outcome == "service_unavailable"
+    assert repository.records[0].detail["rate_limit_error"] == "unavailable"
+
+
+@pytest.mark.anyio
+async def test_post_study_limiter_timeout_returns_503_and_skips_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.main as main_module
+
+    study_service = FakeStudyService()
+    repository = FakeUsageLogRepository()
+    monkeypatch.setattr(main_module, "RATE_LIMIT_CHECK_TIMEOUT_SECONDS", 0.01)
+    app = main_module.create_app(
+        search_service=FakeSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        usage_log_repository=repository,
+        rate_limiter=HangingCostRateLimiter(),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "dynamic programming", "scope": {"collection": "fixture"}},
+        )
+
+    assert response.status_code == 503
+    assert study_service.requests == []
+    assert repository.records[0].outcome == "service_unavailable"
+    assert repository.records[0].detail["rate_limit_error"] == "unavailable"
+
+
+@pytest.mark.anyio
+async def test_post_study_validation_failure_does_not_charge_limiter() -> None:
+    from src.main import create_app
+
+    limiter = FakeCostRateLimiter()
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        generation_provider=FakeProvider(),
+        runtime_settings=_runtime_settings(query_max_chars=10),
+        rate_limiter=limiter,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "x" * 11, "scope": {"collection": "fixture"}},
+        )
+
+    assert response.status_code == 422
+    assert limiter.calls == []
+
+
+@pytest.mark.anyio
+async def test_post_study_schema_filter_validation_skips_limiter_and_service() -> None:
+    from src.main import create_app
+
+    limiter = FakeCostRateLimiter()
+    study_service = FakeStudyService()
+    app = create_app(
+        search_service=SchemaCapableSearchService(),
+        study_service=study_service,
+        generation_provider=FakeProvider(),
+        rate_limiter=limiter,
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={
+                "query": "dynamic programming",
+                "scope": {"collection": "fixture"},
+                "filters": [{"field": "topic", "op": "eq", "value": "Trees"}],
+            },
+        )
+
+    assert response.status_code == 422
+    assert "not declared in collection metadata schema" in response.json()["detail"]
+    assert limiter.calls == []
+    assert study_service.requests == []
 
 
 @pytest.mark.anyio
@@ -520,6 +794,11 @@ async def test_post_study_public_collection_stays_anonymous_after_auth_swap(
     )
     monkeypatch.setattr(
         main_module,
+        "RedisCostRateLimiter",
+        lambda *, settings: FakeCostRateLimiter(),
+    )
+    monkeypatch.setattr(
+        main_module,
         "PgRequestUsageLogRepository",
         lambda engine: FakeUsageLogRepository(),
     )
@@ -561,6 +840,7 @@ async def test_post_study_invalid_metadata_filter_returns_422() -> None:
             settings=_study_settings(),
         ),
         generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -589,6 +869,7 @@ async def test_post_study_rejects_bad_top_k() -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -617,6 +898,7 @@ async def test_post_study_rejects_query_longer_than_runtime_limit() -> None:
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(query_max_chars=10),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -645,6 +927,7 @@ async def test_post_study_rejects_top_k_above_runtime_limit() -> None:
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(study_top_k_max=5),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -683,6 +966,7 @@ async def test_post_study_rejects_invalid_filters(bad_filters: object) -> None:
         search_service=FakeSearchService(),
         study_service=FakeStudyService(),
         generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -712,6 +996,7 @@ async def test_post_study_accepts_repeated_filter_conditions() -> None:
         search_service=FakeSearchService(),
         study_service=study_service,
         generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -752,6 +1037,7 @@ async def test_post_study_private_collection_denied_without_header() -> None:
         access_service=FakeAccessService(
             private_members={"private-fixture": {"member@example.com"}}
         ),
+        rate_limiter=FakeCostRateLimiter(),
     )
 
     async with httpx.AsyncClient(
@@ -782,6 +1068,7 @@ async def test_post_study_private_collection_allowed_for_member_header() -> None
         study_service=study_service,
         generation_provider=FakeProvider(),
         access_service=access_service,
+        rate_limiter=FakeCostRateLimiter(),
     )
 
     async with httpx.AsyncClient(
@@ -826,6 +1113,7 @@ async def test_post_study_forbidden_collection_short_circuits_before_generation(
         access_service=FakeAccessService(
             private_members={"private-fixture": {"member@example.com"}}
         ),
+        rate_limiter=FakeCostRateLimiter(),
     )
 
     async with httpx.AsyncClient(
@@ -856,6 +1144,7 @@ async def test_post_study_missing_collection_returns_404() -> None:
         study_service=study_service,
         generation_provider=FakeProvider(),
         access_service=FakeAccessService(missing_collections={"missing-fixture"}),
+        rate_limiter=FakeCostRateLimiter(),
     )
 
     async with httpx.AsyncClient(
@@ -894,6 +1183,7 @@ async def test_post_study_identity_provisioning_failure_returns_403() -> None:
         study_service=study_service,
         generation_provider=FakeProvider(),
         access_service=FailingAccessService(),
+        rate_limiter=FakeCostRateLimiter(),
     )
 
     async with httpx.AsyncClient(
@@ -952,6 +1242,11 @@ async def test_default_lifespan_cleans_up_resources_on_startup_failure(
         main_module,
         "validate_production_profile",
         lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "RedisCostRateLimiter",
+        lambda *, settings: FakeCostRateLimiter(),
     )
     monkeypatch.setattr(main_module, "build_object_storage", lambda settings: object())
     monkeypatch.setattr(main_module, "create_search_service", lambda **kwargs: object())
@@ -1079,6 +1374,7 @@ async def test_post_study_returns_503_when_service_unconfigured() -> None:
     app = create_app(
         search_service=FakeSearchService(),
         allow_unauthorized_test_mode=True,
+        rate_limiter=FakeCostRateLimiter(),
     )
 
     async with httpx.AsyncClient(
@@ -1170,6 +1466,7 @@ async def test_post_study_times_out_at_runtime_wall_clock_limit_and_logs_failure
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(study_wall_clock_timeout_seconds=0.01),
         usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -1202,6 +1499,7 @@ async def test_post_study_end_to_end_timeout_includes_pre_service_work() -> None
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(study_wall_clock_timeout_seconds=0.01),
         usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -1231,6 +1529,17 @@ async def test_post_study_logs_usage_on_success() -> None:
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(),
         usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(
+            decision=RateLimitDecision(
+                allowed=True,
+                endpoint="study",
+                policy="study:ip",
+                scope="ip",
+                limit=3,
+                remaining=2,
+                reset_epoch_seconds=1770000120,
+            )
+        ),
         allow_unauthorized_test_mode=True,
     )
 
@@ -1253,6 +1562,13 @@ async def test_post_study_logs_usage_on_success() -> None:
     assert repository.records[0].planning is not None
     assert repository.records[0].generation is not None
     assert repository.records[0].embedding is not None
+    assert repository.records[0].detail["rate_limit"] == {
+        "policy": "study:ip",
+        "scope": "ip",
+        "limit": 3,
+        "remaining": 2,
+        "reset_epoch_seconds": 1770000120,
+    }
 
 
 @pytest.mark.anyio
@@ -1267,6 +1583,7 @@ async def test_post_study_passes_request_id_to_service_and_usage_log() -> None:
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(),
         usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -1298,6 +1615,7 @@ async def test_post_study_usage_log_failure_does_not_break_success_response() ->
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(),
         usage_log_repository=FakeUsageLogRepository(fail=True),
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -1327,6 +1645,7 @@ async def test_post_study_logs_request_validation_failure_once() -> None:
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(),
         usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 
@@ -1356,6 +1675,7 @@ async def test_post_study_logs_unexpected_internal_failure() -> None:
         generation_provider=FakeProvider(),
         runtime_settings=_runtime_settings(),
         usage_log_repository=repository,
+        rate_limiter=FakeCostRateLimiter(),
         allow_unauthorized_test_mode=True,
     )
 

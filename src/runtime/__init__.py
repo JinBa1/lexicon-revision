@@ -15,7 +15,6 @@ from src.runtime.limits import (
 from src.runtime.rate_limit import (
     RATE_LIMIT_RESPONSE_HEADERS,
     CostRateLimiter,
-    InMemoryRateLimiter,
     RateLimitDecision,
     RateLimitUnavailableError,
     RedisCostRateLimiter,
@@ -31,7 +30,6 @@ __all__ = [
     "DependencyReadinessProbe",
     "RATE_LIMIT_RESPONSE_HEADERS",
     "CostRateLimiter",
-    "InMemoryRateLimiter",
     "RateLimitSettings",
     "RateLimitDecision",
     "RateLimitUnavailableError",
