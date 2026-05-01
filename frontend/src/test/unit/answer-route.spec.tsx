@@ -298,6 +298,27 @@ describe("AnswerRoute", () => {
     expect(screen.getByRole("main")).toContainElement(screen.getByRole("alert"));
   });
 
+  test("429 study errors show a Get answer rate limit message", () => {
+    setStudyState({
+      data: undefined,
+      isError: true,
+      error: new ApiError({
+        status: 429,
+        code: "rate_limited",
+        detail: {
+          code: "rate_limited",
+          message: "Too many requests. Try again later.",
+        },
+      }),
+    });
+
+    renderAnswer();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Get answer limit reached");
+    expect(screen.getByRole("alert")).toHaveTextContent("Try again later");
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
   test.each<StudyAnswerStatus>(["insufficient_evidence", "generation_failed", "retrieval_failed"])(
     "renders answer content and fallback retrieve link for %s",
     (status) => {

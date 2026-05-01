@@ -236,6 +236,27 @@ describe("QuestionsRoute", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Filters in this link aren't valid");
   });
 
+  test("429 search errors show a Find questions rate limit message", () => {
+    setSearchState({
+      data: undefined,
+      isError: true,
+      error: new ApiError({
+        status: 429,
+        code: "rate_limited",
+        detail: {
+          code: "rate_limited",
+          message: "Too many requests. Try again later.",
+        },
+      }),
+    });
+
+    renderQuestions();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Find questions limit reached");
+    expect(screen.getByRole("alert")).toHaveTextContent("Try again later");
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
   test("row click updates focus in URL and mobile panel can clear it", async () => {
     renderQuestions();
 

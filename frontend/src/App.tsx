@@ -15,19 +15,22 @@ import { SignUpRoute } from "@/routes/sign-up";
 import { SourceRoute } from "@/routes/source";
 import { UnlockRoute } from "@/routes/unlock";
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status ?? 0;
+  if (status === 401 || status === 403 || status === 404 || status === 422 || status === 429) {
+    return false;
+  }
+
+  return failureCount < 1;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: true,
       staleTime: 60_000,
-      retry: (failureCount, error: unknown) => {
-        const status = (error as { status?: number } | null)?.status ?? 0;
-        if (status === 401 || status === 403 || status === 404 || status === 422) {
-          return false;
-        }
-
-        return failureCount < 1;
-      },
+      retry: shouldRetryQuery,
     },
   },
 });
