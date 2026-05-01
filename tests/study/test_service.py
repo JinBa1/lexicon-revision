@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
-from src.runtime.config import AppRuntimeSettings
+from src.runtime.config import AppRuntimeSettings, RateLimitSettings
 from src.runtime.telemetry import HealthStatus, ProviderCallTelemetry, TokenUsage
 from src.search.models import SearchResponse, SearchResult
 from src.search.pg_service import SearchExecutionTelemetry
@@ -203,8 +203,18 @@ def runtime_settings(
         study_context_budget_tokens=study_context_budget_tokens,
         study_generation_max_output_tokens=study_generation_max_output_tokens,
         study_wall_clock_timeout_seconds=45,
-        rate_limit_window_seconds=60,
-        rate_limit_max_requests=30,
+        rate_limit=rate_limit_settings(),
+    )
+
+
+def rate_limit_settings() -> RateLimitSettings:
+    return RateLimitSettings(
+        redis_url="redis://localhost:6379/0",
+        key_secret="test-rate-limit-secret",
+        search_user="60/minute",
+        search_anon="20/minute",
+        study_user="10/hour",
+        study_anon="3/hour",
     )
 
 

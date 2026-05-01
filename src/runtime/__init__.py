@@ -1,5 +1,6 @@
 from src.runtime.config import (
     AppRuntimeSettings,
+    RateLimitSettings,
     allowed_cors_origins,
     load_app_runtime_settings,
     validate_production_profile,
@@ -23,6 +24,7 @@ __all__ = [
     "RequestBodyTooLargeError",
     "DependencyReadinessProbe",
     "InMemoryRateLimiter",
+    "RateLimitSettings",
     "ReadinessDependencies",
     "allowed_cors_origins",
     "content_length_exceeds_limit",

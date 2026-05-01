@@ -26,6 +26,12 @@ def test_dev_profile_defaults_to_localhost_cors_and_limits(
     monkeypatch.delenv("STUDY_WALL_CLOCK_TIMEOUT_SECONDS", raising=False)
     monkeypatch.delenv("RATE_LIMIT_WINDOW_SECONDS", raising=False)
     monkeypatch.delenv("RATE_LIMIT_MAX_REQUESTS", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_REDIS_URL", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_KEY_SECRET", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_SEARCH_USER", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_SEARCH_ANON", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_STUDY_USER", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_STUDY_ANON", raising=False)
 
     settings = load_app_runtime_settings()
 
@@ -43,8 +49,141 @@ def test_dev_profile_defaults_to_localhost_cors_and_limits(
     assert settings.study_context_budget_tokens == 4000
     assert settings.study_generation_max_output_tokens == 1200
     assert settings.study_wall_clock_timeout_seconds == 45
+    assert settings.rate_limit.redis_url == "redis://localhost:6379/0"
+    assert settings.rate_limit.key_secret == "dev-rate-limit-secret"
+    assert settings.rate_limit.search_user == "60/minute"
+    assert settings.rate_limit.search_anon == "20/minute"
+    assert settings.rate_limit.study_user == "10/hour"
+    assert settings.rate_limit.study_anon == "3/hour"
     assert settings.rate_limit_window_seconds == 60
     assert settings.rate_limit_max_requests == 30
+
+
+def test_rate_limit_settings_accept_rediss_and_policy_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv(
+        "RATE_LIMIT_REDIS_URL", "rediss://default:secret@example.upstash.io:6379"
+    )
+    monkeypatch.setenv("RATE_LIMIT_KEY_SECRET", "local-secret")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH_USER", "12/minute")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH_ANON", "5/minute")
+    monkeypatch.setenv("RATE_LIMIT_STUDY_USER", "4/hour")
+    monkeypatch.setenv("RATE_LIMIT_STUDY_ANON", "1/hour")
+
+    settings = load_app_runtime_settings()
+
+    assert (
+        settings.rate_limit.redis_url
+        == "rediss://default:secret@example.upstash.io:6379"
+    )
+    assert settings.rate_limit.search_user == "12/minute"
+    assert settings.rate_limit.study_anon == "1/hour"
+
+
+def test_zero_rate_limit_policy_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH_USER", "0/minute")
+
+    settings = load_app_runtime_settings()
+
+    assert settings.rate_limit.search_user == "0/minute"
+
+
+def test_legacy_in_memory_rate_limit_env_is_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("RATE_LIMIT_WINDOW_SECONDS", "90")
+    monkeypatch.setenv("RATE_LIMIT_MAX_REQUESTS", "7")
+
+    settings = load_app_runtime_settings()
+
+    assert settings.rate_limit_window_seconds == 90
+    assert settings.rate_limit_max_requests == 7
+
+
+def test_test_profile_defaults_to_local_rate_limit_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.delenv("RATE_LIMIT_WINDOW_SECONDS", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_MAX_REQUESTS", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_REDIS_URL", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_KEY_SECRET", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_SEARCH_USER", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_SEARCH_ANON", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_STUDY_USER", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_STUDY_ANON", raising=False)
+
+    settings = load_app_runtime_settings()
+
+    assert settings.environment == "test"
+    assert settings.rate_limit.redis_url == "redis://localhost:6379/0"
+    assert settings.rate_limit.key_secret == "dev-rate-limit-secret"
+    assert settings.rate_limit.search_user == "60/minute"
+    assert settings.rate_limit.search_anon == "20/minute"
+    assert settings.rate_limit.study_user == "10/hour"
+    assert settings.rate_limit.study_anon == "3/hour"
+    assert settings.rate_limit_window_seconds == 60
+    assert settings.rate_limit_max_requests == 30
+
+
+@pytest.mark.parametrize(
+    "missing_env_var",
+    [
+        "RATE_LIMIT_REDIS_URL",
+        "RATE_LIMIT_KEY_SECRET",
+        "RATE_LIMIT_SEARCH_USER",
+        "RATE_LIMIT_SEARCH_ANON",
+        "RATE_LIMIT_STUDY_USER",
+        "RATE_LIMIT_STUDY_ANON",
+    ],
+)
+def test_prod_rate_limit_settings_are_required(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_env_var: str,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "prod")
+    _set_valid_prod_rate_limit_env(monkeypatch)
+    monkeypatch.delenv(missing_env_var, raising=False)
+
+    with pytest.raises(ValueError, match=f"production requires {missing_env_var}"):
+        load_app_runtime_settings()
+
+
+def test_invalid_rate_limit_policy_fails_clearly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH_USER", "not-a-limit")
+
+    with pytest.raises(ValueError, match="RATE_LIMIT_SEARCH_USER"):
+        load_app_runtime_settings()
+
+
+def test_invalid_rate_limit_redis_scheme_fails_clearly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("RATE_LIMIT_REDIS_URL", "https://example.com")
+
+    with pytest.raises(ValueError, match="RATE_LIMIT_REDIS_URL"):
+        load_app_runtime_settings()
+
+
+def _set_valid_prod_rate_limit_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "RATE_LIMIT_REDIS_URL", "rediss://default:secret@example.upstash.io:6379"
+    )
+    monkeypatch.setenv("RATE_LIMIT_KEY_SECRET", "prod-secret")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH_USER", "60/minute")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH_ANON", "20/minute")
+    monkeypatch.setenv("RATE_LIMIT_STUDY_USER", "10/hour")
+    monkeypatch.setenv("RATE_LIMIT_STUDY_ANON", "3/hour")
 
 
 def test_prod_profile_defaults_to_no_cors_when_unset(
@@ -52,6 +191,7 @@ def test_prod_profile_defaults_to_no_cors_when_unset(
 ) -> None:
     monkeypatch.setenv("APP_ENV", "prod")
     monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+    _set_valid_prod_rate_limit_env(monkeypatch)
 
     settings = load_app_runtime_settings()
 
@@ -62,6 +202,7 @@ def test_prod_profile_defaults_to_no_cors_when_unset(
 def test_runtime_settings_do_not_expose_global_retrieval_thresholds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("RETRIEVAL_VECTOR_MIN_SCORE", "0.72")
     monkeypatch.setenv("RETRIEVAL_RERANK_MIN_SCORE", "0.18")
 
@@ -83,6 +224,7 @@ def test_production_profile_validation_rejects_local_runtime_shapes(
     monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
     monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path))
     monkeypatch.setenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", "devsecret")
+    _set_valid_prod_rate_limit_env(monkeypatch)
 
     runtime_settings = load_app_runtime_settings()
     retrieval_settings = load_retrieval_provider_settings()
