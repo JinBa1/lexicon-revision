@@ -36,6 +36,7 @@ from src.access.models import (
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
 from src.runtime import (
+    RATE_LIMIT_RESPONSE_HEADERS,
     AppRuntimeSettings,
     CostRateLimiter,
     DependencyReadinessProbe,
@@ -174,6 +175,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
             planning_provider=planner_provider,
             generation_provider=generation_provider,
             object_storage=object_storage,
+            rate_limiter=rate_limiter,
         )
         app.state.planning_provider = planner_provider
         app.state.generation_provider = generation_provider
@@ -303,6 +305,7 @@ def create_app(
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=RATE_LIMIT_RESPONSE_HEADERS,
     )
 
     @application.exception_handler(RequestValidationError)
@@ -992,6 +995,13 @@ def create_app(
                 _health_probe(deps.object_storage),
             ),
         ]
+        if deps.rate_limiter is not None:
+            probes.append(
+                DependencyReadinessProbe(
+                    "rate_limiter",
+                    _health_probe(deps.rate_limiter),
+                )
+            )
         if deps.rerank_provider is not None:
             probes.append(
                 DependencyReadinessProbe(

@@ -23,6 +23,7 @@ class ReadinessDependencies:
     planning_provider: object
     generation_provider: object
     object_storage: object
+    rate_limiter: object | None = None
 
 
 async def _run_probe(check: ReadinessCheck) -> HealthStatus:

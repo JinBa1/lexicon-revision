@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 from src.runtime.config import (
+    AppRuntimeSettings,
+    RateLimitSettings,
     allowed_cors_origins,
     load_app_runtime_settings,
     validate_production_profile,
@@ -91,6 +94,63 @@ def test_zero_rate_limit_policy_is_allowed(
     settings = load_app_runtime_settings()
 
     assert settings.rate_limit.search_user == "0/minute"
+
+
+def test_rate_limit_response_headers_are_exported_for_cors() -> None:
+    from src.runtime.rate_limit import RATE_LIMIT_RESPONSE_HEADERS
+
+    assert RATE_LIMIT_RESPONSE_HEADERS == [
+        "Retry-After",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    ]
+
+
+@pytest.mark.anyio
+async def test_cors_exposes_rate_limit_response_headers() -> None:
+    from src.main import create_app
+
+    app = create_app(
+        runtime_settings=AppRuntimeSettings(
+            environment="test",
+            enable_dev_routes=False,
+            cors_allowed_origins=["https://frontend.example"],
+            request_body_max_bytes=131072,
+            query_max_chars=2000,
+            search_limit_max=50,
+            study_top_k_max=20,
+            study_context_budget_tokens=4000,
+            study_generation_max_output_tokens=1200,
+            study_wall_clock_timeout_seconds=45,
+            rate_limit=RateLimitSettings(
+                redis_url="redis://localhost:6379/0",
+                key_secret="test-secret",
+                search_user="60/minute",
+                search_anon="20/minute",
+                study_user="10/hour",
+                study_anon="3/hour",
+            ),
+        )
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get(
+            "/healthz",
+            headers={"Origin": "https://frontend.example"},
+        )
+
+    exposed_headers = {
+        header.strip()
+        for header in response.headers["access-control-expose-headers"].split(",")
+    }
+    assert "Retry-After" in exposed_headers
+    assert "X-RateLimit-Limit" in exposed_headers
+    assert "X-RateLimit-Remaining" in exposed_headers
+    assert "X-RateLimit-Reset" in exposed_headers
 
 
 def test_legacy_in_memory_rate_limit_env_is_preserved(

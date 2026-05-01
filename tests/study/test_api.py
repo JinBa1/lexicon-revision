@@ -1350,6 +1350,7 @@ async def test_readyz_checks_planning_and_generation_providers_separately() -> N
             planning_provider=planning,
             generation_provider=generation,
             object_storage=SyncHealthProvider(),
+            rate_limiter=SyncHealthProvider(),
         ),
         runtime_settings=_runtime_settings(),
         allow_unauthorized_test_mode=True,
@@ -1408,6 +1409,7 @@ async def test_readyz_returns_503_when_planning_provider_unhealthy() -> None:
             planning_provider=BrokenHealthProvider(),
             generation_provider=SyncHealthProvider(),
             object_storage=SyncHealthProvider(),
+            rate_limiter=SyncHealthProvider(),
         ),
         runtime_settings=_runtime_settings(),
         allow_unauthorized_test_mode=True,
@@ -1421,6 +1423,38 @@ async def test_readyz_returns_503_when_planning_provider_unhealthy() -> None:
 
     assert response.status_code == 503
     assert response.json()["detail"]["status"] == "error"
+
+
+@pytest.mark.anyio
+async def test_readyz_returns_503_when_rate_limiter_unhealthy() -> None:
+    from src.main import create_app
+    from src.runtime.readiness import ReadinessDependencies
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=FakeStudyService(),
+        readiness_dependencies=ReadinessDependencies(
+            database_probe=lambda: "ok",
+            embedding_provider=SyncHealthProvider(),
+            rerank_provider=None,
+            planning_provider=SyncHealthProvider(),
+            generation_provider=SyncHealthProvider(),
+            object_storage=SyncHealthProvider(),
+            rate_limiter=BrokenHealthProvider(),
+        ),
+        runtime_settings=_runtime_settings(),
+        rate_limiter=FakeCostRateLimiter(),
+        allow_unauthorized_test_mode=True,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["checks"]["rate_limiter"] == "error"
 
 
 @pytest.mark.anyio
@@ -1438,6 +1472,7 @@ async def test_readyz_returns_503_when_dependency_is_miswired() -> None:
             planning_provider=SyncHealthProvider(),
             generation_provider=SyncHealthProvider(),
             object_storage=SyncHealthProvider(),
+            rate_limiter=SyncHealthProvider(),
         ),
         runtime_settings=_runtime_settings(),
         allow_unauthorized_test_mode=True,
