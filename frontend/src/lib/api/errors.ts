@@ -33,3 +33,23 @@ export class ApiError extends Error {
 export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
+
+export function isRateLimitBackoffError(error: unknown): boolean {
+  if (!isApiError(error)) {
+    return false;
+  }
+  if (error.status === 429) {
+    return true;
+  }
+  if (error.status !== 503) {
+    return false;
+  }
+
+  const { detail } = error;
+  return (
+    detail !== null &&
+    typeof detail === "object" &&
+    !Array.isArray(detail) &&
+    detail.code === "rate_limit_unavailable"
+  );
+}

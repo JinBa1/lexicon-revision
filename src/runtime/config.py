@@ -30,7 +30,7 @@ class RateLimitSettings:
     study_anon: str
 
 
-@dataclass(frozen=True, init=False)
+@dataclass(frozen=True)
 class AppRuntimeSettings:
     environment: Environment
     enable_dev_routes: bool
@@ -43,73 +43,6 @@ class AppRuntimeSettings:
     study_generation_max_output_tokens: int
     study_wall_clock_timeout_seconds: float
     rate_limit: RateLimitSettings
-    _legacy_rate_limit_window_seconds: int
-    _legacy_rate_limit_max_requests: int
-
-    def __init__(
-        self,
-        *,
-        environment: Environment,
-        enable_dev_routes: bool,
-        cors_allowed_origins: list[str],
-        request_body_max_bytes: int,
-        query_max_chars: int,
-        search_limit_max: int,
-        study_top_k_max: int,
-        study_context_budget_tokens: int,
-        study_generation_max_output_tokens: int,
-        study_wall_clock_timeout_seconds: float,
-        rate_limit: RateLimitSettings,
-        rate_limit_window_seconds: int = 60,
-        rate_limit_max_requests: int = 30,
-    ) -> None:
-        object.__setattr__(self, "environment", environment)
-        object.__setattr__(self, "enable_dev_routes", enable_dev_routes)
-        object.__setattr__(self, "cors_allowed_origins", cors_allowed_origins)
-        object.__setattr__(self, "request_body_max_bytes", request_body_max_bytes)
-        object.__setattr__(self, "query_max_chars", query_max_chars)
-        object.__setattr__(self, "search_limit_max", search_limit_max)
-        object.__setattr__(self, "study_top_k_max", study_top_k_max)
-        object.__setattr__(
-            self,
-            "study_context_budget_tokens",
-            study_context_budget_tokens,
-        )
-        object.__setattr__(
-            self,
-            "study_generation_max_output_tokens",
-            study_generation_max_output_tokens,
-        )
-        object.__setattr__(
-            self,
-            "study_wall_clock_timeout_seconds",
-            study_wall_clock_timeout_seconds,
-        )
-        object.__setattr__(
-            self,
-            "rate_limit",
-            rate_limit,
-        )
-        object.__setattr__(
-            self,
-            "_legacy_rate_limit_window_seconds",
-            rate_limit_window_seconds,
-        )
-        object.__setattr__(
-            self,
-            "_legacy_rate_limit_max_requests",
-            rate_limit_max_requests,
-        )
-
-    @property
-    def rate_limit_window_seconds(self) -> int:
-        # Temporary compatibility for pre-Redis route limiter wiring.
-        return self._legacy_rate_limit_window_seconds
-
-    @property
-    def rate_limit_max_requests(self) -> int:
-        # Temporary compatibility for pre-Redis route limiter wiring.
-        return self._legacy_rate_limit_max_requests
 
 
 def load_app_runtime_settings() -> AppRuntimeSettings:
@@ -117,6 +50,7 @@ def load_app_runtime_settings() -> AppRuntimeSettings:
     if environment_raw not in ("dev", "test", "prod"):
         raise ValueError(f"Invalid APP_ENV: {environment_raw}")
     environment: Environment = environment_raw
+    _reject_legacy_rate_limit_env()
 
     return AppRuntimeSettings(
         environment=environment,
@@ -160,16 +94,6 @@ def load_app_runtime_settings() -> AppRuntimeSettings:
             env_var="STUDY_WALL_CLOCK_TIMEOUT_SECONDS",
         ),
         rate_limit=_load_rate_limit_settings(environment),
-        rate_limit_window_seconds=_parse_int(
-            os.environ.get("RATE_LIMIT_WINDOW_SECONDS"),
-            default=60,
-            env_var="RATE_LIMIT_WINDOW_SECONDS",
-        ),
-        rate_limit_max_requests=_parse_int(
-            os.environ.get("RATE_LIMIT_MAX_REQUESTS"),
-            default=30,
-            env_var="RATE_LIMIT_MAX_REQUESTS",
-        ),
     )
 
 
@@ -247,6 +171,22 @@ def _parse_float(value: str | None, *, default: float, env_var: str) -> float:
     if parsed <= 0:
         raise ValueError(f"{env_var} must be positive")
     return parsed
+
+
+def _reject_legacy_rate_limit_env() -> None:
+    legacy_env_vars = [
+        env_var
+        for env_var in ("RATE_LIMIT_WINDOW_SECONDS", "RATE_LIMIT_MAX_REQUESTS")
+        if os.environ.get(env_var) is not None
+    ]
+    if not legacy_env_vars:
+        return
+    raise ValueError(
+        ", ".join(legacy_env_vars)
+        + " no longer supported; configure rate-limit policy with "
+        "RATE_LIMIT_SEARCH_USER, RATE_LIMIT_SEARCH_ANON, RATE_LIMIT_STUDY_USER, "
+        "and RATE_LIMIT_STUDY_ANON"
+    )
 
 
 def _load_rate_limit_settings(environment: Environment) -> RateLimitSettings:

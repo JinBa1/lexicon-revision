@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 
 import pytest
@@ -60,6 +62,12 @@ class FakeStorage:
 
     async def aclose(self) -> None:
         self.closed = True
+
+
+class FakeHangingStorage:
+    async def check(self) -> bool:
+        await asyncio.sleep(60)
+        return True
 
 
 class FakeSyncCloseStorage:
@@ -289,6 +297,24 @@ async def test_redis_cost_rate_limiter_health_and_close_delegate_to_storage() ->
     assert await limiter.health() == "ok"
     await limiter.aclose()
     assert storage.closed is True
+
+
+@pytest.mark.anyio
+async def test_redis_cost_rate_limiter_health_times_out_hanging_storage() -> None:
+    limiter = RedisCostRateLimiter(
+        settings=_settings(),
+        storage=FakeHangingStorage(),
+        strategy=FakeStrategy(
+            allowed=True,
+            stats=FakeWindowStats(remaining=1, reset_time=1770000042.0),
+        ),
+        health_timeout_seconds=0.01,
+    )
+
+    started_at = time.perf_counter()
+
+    assert await limiter.health() == "error"
+    assert time.perf_counter() - started_at < 0.5
 
 
 @pytest.mark.anyio

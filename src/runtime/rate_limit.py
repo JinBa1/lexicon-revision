@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import math
@@ -25,6 +26,7 @@ RATE_LIMIT_RESPONSE_HEADERS = [
     "X-RateLimit-Remaining",
     "X-RateLimit-Reset",
 ]
+RATE_LIMIT_HEALTH_TIMEOUT_SECONDS = 2.0
 
 
 class RateLimitUnavailableError(Exception):
@@ -87,10 +89,12 @@ class RedisCostRateLimiter:
         storage: Any | None = None,
         strategy: Any | None = None,
         clock: Callable[[], float] = time.time,
+        health_timeout_seconds: float = RATE_LIMIT_HEALTH_TIMEOUT_SECONDS,
     ) -> None:
         self._settings = settings
         self._namespace = namespace
         self._clock = clock
+        self._health_timeout_seconds = health_timeout_seconds
         self._storage = storage or storage_from_string(
             _limits_async_redis_uri(settings.redis_url)
         )
@@ -165,9 +169,10 @@ class RedisCostRateLimiter:
         if not callable(check):
             return "error"
         try:
-            result = check()
-            if isawaitable(result):
-                result = await result
+            async with asyncio.timeout(self._health_timeout_seconds):
+                result = check()
+                if isawaitable(result):
+                    result = await result
         except Exception:
             return "error"
         return "ok" if result else "error"

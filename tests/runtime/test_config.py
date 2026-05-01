@@ -27,8 +27,6 @@ def test_dev_profile_defaults_to_localhost_cors_and_limits(
     monkeypatch.delenv("STUDY_CONTEXT_BUDGET_TOKENS", raising=False)
     monkeypatch.delenv("STUDY_GENERATION_MAX_OUTPUT_TOKENS", raising=False)
     monkeypatch.delenv("STUDY_WALL_CLOCK_TIMEOUT_SECONDS", raising=False)
-    monkeypatch.delenv("RATE_LIMIT_WINDOW_SECONDS", raising=False)
-    monkeypatch.delenv("RATE_LIMIT_MAX_REQUESTS", raising=False)
     monkeypatch.delenv("RATE_LIMIT_REDIS_URL", raising=False)
     monkeypatch.delenv("RATE_LIMIT_KEY_SECRET", raising=False)
     monkeypatch.delenv("RATE_LIMIT_SEARCH_USER", raising=False)
@@ -58,8 +56,6 @@ def test_dev_profile_defaults_to_localhost_cors_and_limits(
     assert settings.rate_limit.search_anon == "20/minute"
     assert settings.rate_limit.study_user == "10/hour"
     assert settings.rate_limit.study_anon == "3/hour"
-    assert settings.rate_limit_window_seconds == 60
-    assert settings.rate_limit_max_requests == 30
 
 
 def test_rate_limit_settings_accept_rediss_and_policy_env(
@@ -153,25 +149,31 @@ async def test_cors_exposes_rate_limit_response_headers() -> None:
     assert "X-RateLimit-Reset" in exposed_headers
 
 
-def test_legacy_in_memory_rate_limit_env_is_preserved(
+@pytest.mark.parametrize(
+    "legacy_env_var",
+    ["RATE_LIMIT_WINDOW_SECONDS", "RATE_LIMIT_MAX_REQUESTS"],
+)
+def test_legacy_in_memory_rate_limit_env_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
+    legacy_env_var: str,
 ) -> None:
     monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("RATE_LIMIT_WINDOW_SECONDS", "90")
-    monkeypatch.setenv("RATE_LIMIT_MAX_REQUESTS", "7")
+    monkeypatch.setenv(legacy_env_var, "7")
 
-    settings = load_app_runtime_settings()
-
-    assert settings.rate_limit_window_seconds == 90
-    assert settings.rate_limit_max_requests == 7
+    with pytest.raises(
+        ValueError,
+        match=(
+            f"{legacy_env_var}.*RATE_LIMIT_SEARCH_USER.*RATE_LIMIT_SEARCH_ANON"
+            ".*RATE_LIMIT_STUDY_USER.*RATE_LIMIT_STUDY_ANON"
+        ),
+    ):
+        load_app_runtime_settings()
 
 
 def test_test_profile_defaults_to_local_rate_limit_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.delenv("RATE_LIMIT_WINDOW_SECONDS", raising=False)
-    monkeypatch.delenv("RATE_LIMIT_MAX_REQUESTS", raising=False)
     monkeypatch.delenv("RATE_LIMIT_REDIS_URL", raising=False)
     monkeypatch.delenv("RATE_LIMIT_KEY_SECRET", raising=False)
     monkeypatch.delenv("RATE_LIMIT_SEARCH_USER", raising=False)
@@ -188,8 +190,6 @@ def test_test_profile_defaults_to_local_rate_limit_settings(
     assert settings.rate_limit.search_anon == "20/minute"
     assert settings.rate_limit.study_user == "10/hour"
     assert settings.rate_limit.study_anon == "3/hour"
-    assert settings.rate_limit_window_seconds == 60
-    assert settings.rate_limit_max_requests == 30
 
 
 @pytest.mark.parametrize(
