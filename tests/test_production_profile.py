@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 from src.access.models import RequestIdentity
-from src.runtime.config import AppRuntimeSettings
+from src.runtime.config import AppRuntimeSettings, RateLimitSettings
 
 
 @pytest.mark.anyio
@@ -51,8 +51,14 @@ async def test_new_endpoints_respond_to_cors_preflight() -> None:
         study_context_budget_tokens=4000,
         study_generation_max_output_tokens=1200,
         study_wall_clock_timeout_seconds=45,
-        rate_limit_window_seconds=60,
-        rate_limit_max_requests=30,
+        rate_limit=RateLimitSettings(
+            redis_url="rediss://default:secret@example.upstash.io:6379",
+            key_secret="prod-secret",
+            search_user="60/minute",
+            search_anon="20/minute",
+            study_user="10/hour",
+            study_anon="3/hour",
+        ),
     )
 
     app = create_app(

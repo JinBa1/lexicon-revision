@@ -140,6 +140,17 @@ export function QuestionsRoute() {
       );
     }
 
+    if (search.error.status === 429) {
+      return (
+        <QuestionsShell header={header}>
+          <ErrorState
+            title="Find questions limit reached"
+            detail="Too many Find questions requests. Try again later."
+          />
+        </QuestionsShell>
+      );
+    }
+
     if (search.error.status === 403) {
       return (
         <QuestionsShell header={header}>

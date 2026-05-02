@@ -189,6 +189,20 @@ function AnswerContent({
     );
   }
 
+  if (isError && isApiError(error) && error.status === 429) {
+    return (
+      <>
+        {header}
+        <AnswerMain>
+          <ErrorState
+            title="Get answer limit reached"
+            detail="Too many Get answer requests. Try again later."
+          />
+        </AnswerMain>
+      </>
+    );
+  }
+
   return (
     <>
       {header}

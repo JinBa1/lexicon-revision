@@ -14,20 +14,41 @@ import { SignInRoute } from "@/routes/sign-in";
 import { SignUpRoute } from "@/routes/sign-up";
 import { SourceRoute } from "@/routes/source";
 import { UnlockRoute } from "@/routes/unlock";
+import { isRateLimitBackoffError } from "@/lib/api/errors";
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (isRateLimitBackoffError(error)) {
+    return false;
+  }
+
+  const status = (error as { status?: number } | null)?.status ?? 0;
+  if (status === 401 || status === 403 || status === 404 || status === 422) {
+    return false;
+  }
+
+  return failureCount < 1;
+}
+
+type QueryWithError = {
+  state: {
+    error: unknown;
+  };
+};
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function shouldAutoRefetchQuery(query: QueryWithError): boolean {
+  return !isRateLimitBackoffError(query.state.error);
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: shouldAutoRefetchQuery,
+      refetchOnReconnect: shouldAutoRefetchQuery,
+      refetchOnMount: shouldAutoRefetchQuery,
       staleTime: 60_000,
-      retry: (failureCount, error: unknown) => {
-        const status = (error as { status?: number } | null)?.status ?? 0;
-        if (status === 401 || status === 403 || status === 404 || status === 422) {
-          return false;
-        }
-
-        return failureCount < 1;
-      },
+      retry: shouldRetryQuery,
     },
   },
 });

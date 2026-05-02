@@ -1,5 +1,6 @@
 from src.runtime.config import (
     AppRuntimeSettings,
+    RateLimitSettings,
     allowed_cors_origins,
     load_app_runtime_settings,
     validate_production_profile,
@@ -11,7 +12,14 @@ from src.runtime.limits import (
     enforce_search_limit,
     enforce_study_top_k,
 )
-from src.runtime.rate_limit import InMemoryRateLimiter
+from src.runtime.rate_limit import (
+    RATE_LIMIT_RESPONSE_HEADERS,
+    CostRateLimiter,
+    RateLimitDecision,
+    RateLimitEndpoint,
+    RateLimitUnavailableError,
+    RedisCostRateLimiter,
+)
 from src.runtime.readiness import (
     DependencyReadinessProbe,
     ReadinessDependencies,
@@ -20,10 +28,16 @@ from src.runtime.readiness import (
 
 __all__ = [
     "AppRuntimeSettings",
-    "RequestBodyTooLargeError",
     "DependencyReadinessProbe",
-    "InMemoryRateLimiter",
+    "RATE_LIMIT_RESPONSE_HEADERS",
+    "CostRateLimiter",
+    "RateLimitSettings",
+    "RateLimitDecision",
+    "RateLimitEndpoint",
+    "RateLimitUnavailableError",
     "ReadinessDependencies",
+    "RedisCostRateLimiter",
+    "RequestBodyTooLargeError",
     "allowed_cors_origins",
     "content_length_exceeds_limit",
     "enforce_query_length",
