@@ -43,7 +43,6 @@ class RateLimitIdentity:
 @dataclass(frozen=True)
 class RateLimitPolicy:
     name: str
-    raw: str
     item: Any
 
     @property
@@ -103,17 +102,13 @@ class RedisCostRateLimiter:
             tuple[RateLimitEndpoint, RateLimitScope], RateLimitPolicy
         ] = {
             ("search", "user"): RateLimitPolicy(
-                "search:user", settings.search_user, parse(settings.search_user)
+                "search:user", parse(settings.search_user)
             ),
-            ("search", "ip"): RateLimitPolicy(
-                "search:ip", settings.search_anon, parse(settings.search_anon)
-            ),
+            ("search", "ip"): RateLimitPolicy("search:ip", parse(settings.search_anon)),
             ("study", "user"): RateLimitPolicy(
-                "study:user", settings.study_user, parse(settings.study_user)
+                "study:user", parse(settings.study_user)
             ),
-            ("study", "ip"): RateLimitPolicy(
-                "study:ip", settings.study_anon, parse(settings.study_anon)
-            ),
+            ("study", "ip"): RateLimitPolicy("study:ip", parse(settings.study_anon)),
         }
 
     async def check(
