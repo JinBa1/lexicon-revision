@@ -42,7 +42,7 @@ describe("TopNav", () => {
   test("shows a sign-in link for anonymous users", () => {
     renderTopNav();
 
-    expect(screen.getByRole("link", { name: "The Tripos Archive" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toHaveAttribute("href", "/");
     const signInLink = screen.getByRole("link", { name: /sign in/i });
     expect(signInLink).toHaveAttribute("href", "/sign-in");
     expect(within(signInLink).queryByRole("button", { name: /sign in/i })).toBeNull();
@@ -70,6 +70,7 @@ describe("Footer", () => {
     );
     expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getByText("LEXICON REVISION")).toBeInTheDocument();
     expect(screen.getByText("Read the question. Then ask yours.")).toBeInTheDocument();
     expect(screen.getByText("abcdef1")).toBeInTheDocument();
   });

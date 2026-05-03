@@ -45,7 +45,7 @@ describe("App router", () => {
 
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "The Tripos Archive" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }),
     ).toBeInTheDocument();
