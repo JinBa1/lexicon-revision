@@ -127,4 +127,27 @@ describe("ScopeRow", () => {
     expect(filtersButton).toHaveClass("min-h-14", "h-full");
     expect(filtersButton.parentElement).toHaveClass("self-stretch");
   });
+
+  test("result-unified chrome renders the labelled collection box, filters, and action split", () => {
+    render(
+      <ScopeRow
+        chrome="result-unified"
+        activeCollection={collection}
+        filters={filters}
+        onFiltersChange={() => {}}
+        onOpenScope={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("hero-action-row")).toHaveClass("justify-between");
+    expect(screen.getByText("Current Collection")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toHaveClass(
+      "md:w-[360px]",
+      "min-h-14",
+    );
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toHaveClass("min-h-14");
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find questions" })).toBeInTheDocument();
+  });
 });

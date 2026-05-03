@@ -264,10 +264,12 @@ export function QuestionsRoute() {
 
 function QuestionsShell({ header, children }: { header: ReactNode; children: ReactNode }) {
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
+    <>
       {header}
-      <div className="mt-5">{children}</div>
-    </main>
+      <main className="mx-auto max-w-6xl px-6 pb-8 pt-1">
+        <div className="mt-5">{children}</div>
+      </main>
+    </>
   );
 }
 

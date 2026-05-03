@@ -9,10 +9,11 @@ import { ScopeRequiredHelper } from "./ScopeRequiredHelper";
 import { ScopeRow } from "./ScopeRow";
 
 export type HeroSubmitAction = "questions" | "answer";
+export type HeroChrome = "default" | "landing-unified" | "result-unified";
 
 export type HeroProps = {
   mode: "landing" | "header-echo";
-  chrome?: "default" | "landing-unified";
+  chrome?: HeroChrome;
   activeCollection: CollectionListItem | null;
   query: string;
   filters: FilterCondition[];
@@ -72,12 +73,14 @@ export function Hero(props: HeroProps) {
     [activeCollection, onQueryChange, onScopeMissing, onSubmit],
   );
 
+  const isUnified = chrome === "landing-unified" || chrome === "result-unified";
   const isLandingUnified = chrome === "landing-unified";
+  const isResultUnified = chrome === "result-unified";
 
   const queryInput = (
     <QueryInput
       size={mode === "landing" ? "lg" : "md"}
-      chrome={isLandingUnified ? "landing-unified" : "default"}
+      chrome={isUnified ? chrome : "default"}
       value={query}
       onChange={(event) => onQueryChange(event.currentTarget.value)}
       onKeyDown={onInputKeyDown}
@@ -91,7 +94,7 @@ export function Hero(props: HeroProps) {
       onFiltersChange={onFiltersChange}
       onOpenScope={onOpenScope}
       onSubmit={attemptSubmit}
-      chrome={isLandingUnified ? "landing-unified" : "default"}
+      chrome={isUnified ? chrome : "default"}
     />
   );
 
@@ -122,11 +125,13 @@ export function Hero(props: HeroProps) {
       className={cn(
         isLandingUnified
           ? "flex flex-col gap-5 px-5 py-6 sm:px-9 sm:py-8"
-          : "rounded-md border border-rule bg-paper-raised",
-        !isLandingUnified && (mode === "landing" ? "p-5" : "p-3"),
+          : isResultUnified
+            ? "flex flex-col gap-4 p-5 sm:p-6"
+            : "rounded-md border border-rule bg-paper-raised",
+        !isUnified && (mode === "landing" ? "p-5" : "p-3"),
       )}
     >
-      {isLandingUnified ? (
+      {isUnified ? (
         <>
           {scopeRow}
           {queryInput}

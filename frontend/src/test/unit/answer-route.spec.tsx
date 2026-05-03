@@ -240,15 +240,15 @@ describe("AnswerRoute", () => {
     renderAnswer("/c/cam-cs-tripos/answer?q=dynamic");
     const initialStudyCalls = mockUseStudy.mock.calls.length;
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
 
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos/answer?q=dynamic");
     expect(mockUseStudy).toHaveBeenCalledTimes(initialStudyCalls);
 
     await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(screen.getByRole("button", { name: "+ Filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos/answer?q=dynamic");
     expect(mockUseStudy).toHaveBeenCalledTimes(initialStudyCalls);
 
@@ -262,6 +262,18 @@ describe("AnswerRoute", () => {
       expect.objectContaining({
         filters: [{ field: "year", op: "gte", value: 2021 }],
       }),
+    );
+  });
+
+  test("shared header can switch from answer to questions with draft filters", async () => {
+    renderAnswer("/c/cam-cs-tripos/answer?q=dynamic");
+
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    await userEvent.type(screen.getByLabelText("Year from"), "2021");
+    await userEvent.click(screen.getByRole("button", { name: "Find questions" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2021",
     );
   });
 

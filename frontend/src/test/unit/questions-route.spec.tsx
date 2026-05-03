@@ -119,17 +119,17 @@ describe("QuestionsRoute", () => {
     renderQuestions("/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3");
     const initialSearchCalls = mockUseSearch.mock.calls.length;
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
 
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3",
     );
     expect(mockUseSearch).toHaveBeenCalledTimes(initialSearchCalls);
 
     await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(screen.getByRole("button", { name: "+ Filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/c/cam-cs-tripos/questions?q=dynamic&focus=cam-2022-p5-q3",
     );

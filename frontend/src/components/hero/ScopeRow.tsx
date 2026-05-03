@@ -17,9 +17,10 @@ export function ScopeRow({
   onFiltersChange: (next: FilterCondition[]) => void;
   onOpenScope: () => void;
   onSubmit: (action: "questions" | "answer") => void;
-  chrome?: "default" | "landing-unified";
+  chrome?: "default" | "landing-unified" | "result-unified";
 }) {
-  if (chrome === "landing-unified") {
+  if (chrome === "landing-unified" || chrome === "result-unified") {
+    const isResultUnified = chrome === "result-unified";
     const scopeLabel = activeCollection ? activeCollection.display_name : "Pick a collection";
 
     return (
@@ -32,7 +33,10 @@ export function ScopeRow({
             type="button"
             onClick={onOpenScope}
             aria-label={scopeLabel}
-            className="flex min-h-14 w-full min-w-0 items-center gap-3 rounded border border-rule bg-[#FDFBF5] px-4 py-3 text-left transition-colors hover:border-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claret focus-visible:ring-offset-2 focus-visible:ring-offset-paper md:w-[380px]"
+            className={cn(
+              "flex min-h-14 w-full min-w-0 items-center gap-3 rounded border border-rule bg-[#FDFBF5] px-4 py-3 text-left transition-colors hover:border-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claret focus-visible:ring-offset-2 focus-visible:ring-offset-paper",
+              isResultUnified ? "md:w-[360px]" : "md:w-[380px]",
+            )}
           >
             <span aria-hidden className="text-lg text-ink-muted">
               🏛
@@ -52,7 +56,7 @@ export function ScopeRow({
               schema={activeCollection.metadata_schema}
               value={filters}
               onChange={onFiltersChange}
-              chrome="landing-unified"
+              chrome={chrome}
             />
           ) : null}
         </div>
@@ -61,7 +65,7 @@ export function ScopeRow({
           <ActionPair
             onFindQuestions={() => onSubmit("questions")}
             onGetAnswer={() => onSubmit("answer")}
-            chrome="landing-unified"
+            chrome={chrome}
           />
         </div>
       </div>

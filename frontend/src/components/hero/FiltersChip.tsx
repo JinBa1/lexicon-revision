@@ -14,29 +14,26 @@ export function FiltersChip({
   schema: CollectionMetadataSchema | null;
   value: FilterCondition[];
   onChange: (next: FilterCondition[]) => void;
-  chrome?: "default" | "landing-unified";
+  chrome?: "default" | "landing-unified" | "result-unified";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const count = value.length;
-  const label =
-    chrome === "landing-unified"
-      ? count > 0
-        ? `Filters (${count})`
-        : "Filters"
-      : count > 0
-        ? `+ Filters (${count})`
-        : "+ Filters";
+  const isUnified = chrome === "landing-unified" || chrome === "result-unified";
+  const label = isUnified
+    ? count > 0
+      ? `Filters (${count})`
+      : "Filters"
+    : count > 0
+      ? `+ Filters (${count})`
+      : "+ Filters";
 
   return (
-    <div
-      ref={rootRef}
-      className={cn("relative", chrome === "landing-unified" && "flex self-stretch")}
-    >
+    <div ref={rootRef} className={cn("relative", isUnified && "flex self-stretch")}>
       <Chip
         variant="ghost"
         className={
-          chrome === "landing-unified"
+          isUnified
             ? "h-full min-h-14 rounded border-rule bg-white px-5 font-display text-base font-semibold text-ink"
             : undefined
         }
@@ -44,7 +41,7 @@ export function FiltersChip({
         aria-haspopup
         aria-expanded={open}
       >
-        {chrome === "landing-unified" ? <span aria-hidden>⚙</span> : null}
+        {isUnified ? <span aria-hidden>⚙</span> : null}
         {label}
       </Chip>
       {open ? (

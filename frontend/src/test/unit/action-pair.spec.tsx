@@ -39,4 +39,20 @@ describe("ActionPair", () => {
     expect(answerIcon).toHaveTextContent("📄");
     expect(questionsIcon).toHaveTextContent("🔍");
   });
+
+  test("result-unified chrome uses the compact mockup button scale", () => {
+    render(
+      <ActionPair chrome="result-unified" onFindQuestions={() => {}} onGetAnswer={() => {}} />,
+    );
+
+    const answer = screen.getByRole("button", { name: "Get answer with sources" });
+    const questions = screen.getByRole("button", { name: "Find questions" });
+
+    expect(answer).toHaveClass(
+      "min-h-14",
+      "text-[16px]",
+      "shadow-[0_2px_8px_rgba(126,46,46,0.18)]",
+    );
+    expect(questions).toHaveClass("min-h-14", "text-[16px]", "bg-white");
+  });
 });

@@ -55,4 +55,15 @@ describe("QueryInput", () => {
     expect(input).toHaveClass("text-xl", "italic");
     expect(wrapper?.querySelector('[aria-hidden="true"]')).toHaveTextContent("✦");
   });
+
+  test("result-unified chrome uses the compact bordered query style", () => {
+    render(<QueryInput chrome="result-unified" value="amortized analysis" onChange={() => {}} />);
+
+    const input = screen.getByLabelText("Query");
+    const shell = input.parentElement;
+
+    expect(input).toHaveClass("text-[18px]");
+    expect(shell).toHaveClass("rounded", "px-5", "py-4");
+    expect(shell).not.toHaveClass("py-5");
+  });
 });
