@@ -309,6 +309,13 @@ test.describe("critical axe accessibility", () => {
     await assertNoCriticalAxeViolations(page);
   });
 
+  test("has no critical axe violations on /privacy", async ({ page }) => {
+    await page.goto("/privacy");
+    await expect(page.getByRole("heading", { name: "Privacy notice" })).toBeVisible();
+
+    await assertNoCriticalAxeViolations(page);
+  });
+
   test("has no critical axe violations on /unlock/private-demo", async ({ page }) => {
     await page.goto("/unlock/private-demo");
     await expect(

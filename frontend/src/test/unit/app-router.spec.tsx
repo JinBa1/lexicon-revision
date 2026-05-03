@@ -73,6 +73,13 @@ describe("App router", () => {
     expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
   });
 
+  test("renders the privacy notice route", () => {
+    renderAppAt("/privacy");
+
+    expect(screen.getByRole("heading", { name: "Privacy notice" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Controller and contact" })).toBeInTheDocument();
+  });
+
   test("renders not found content instead of redirecting unknown routes", () => {
     renderAppAt("/missing-route");
 

@@ -69,6 +69,7 @@ describe("Footer", () => {
       "/sign-up",
     );
     expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(screen.getByText("Read the question. Then ask yours.")).toBeInTheDocument();
     expect(screen.getByText("abcdef1")).toBeInTheDocument();
   });
