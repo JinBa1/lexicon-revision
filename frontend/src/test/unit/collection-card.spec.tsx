@@ -27,7 +27,7 @@ describe("CollectionCard", () => {
       ),
     );
     expect(screen.getByText("Cambridge CS Tripos")).toBeInTheDocument();
-    expect(screen.getByText(/744 papers/)).toBeInTheDocument();
+    expect(screen.getByText("Cambridge · 744 papers · 2018–25")).toBeInTheDocument();
     expect(screen.getByRole("button")).toHaveClass("flex-row");
   });
 
@@ -126,6 +126,9 @@ describe("CollectionCard", () => {
       "aria-label",
       expect.stringContaining("Unavailable to your account"),
     );
-    expect(screen.getAllByText("Unavailable to your account")).toHaveLength(1);
+    expect(screen.getByText("Unavailable to your account")).toBeInTheDocument();
+    expect(screen.queryByText(/310 papers/)).toBeNull();
+    expect(screen.queryByText(/2019–25/)).toBeNull();
+    expect(screen.queryByText(/verified by email/i)).toBeNull();
   });
 });

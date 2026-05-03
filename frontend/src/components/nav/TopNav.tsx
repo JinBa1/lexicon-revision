@@ -18,13 +18,13 @@ export function TopNav() {
         <nav aria-label="Primary" className="flex items-center gap-5 font-ui">
           <Link
             to="/sign-up"
-            className="hidden text-[11px] font-medium uppercase tracking-wider text-ink-muted transition-colors hover:text-claret md:inline"
+            className="hidden text-xs font-medium tracking-normal text-ink-muted transition-colors hover:text-claret md:inline"
           >
-            Supported universities
+            Supported Universities
           </Link>
           <Link
             to="/about"
-            className="hidden text-[11px] font-medium uppercase tracking-wider text-ink-muted transition-colors hover:text-claret md:inline"
+            className="hidden text-xs font-medium tracking-normal text-ink-muted transition-colors hover:text-claret md:inline"
           >
             About
           </Link>

@@ -245,7 +245,7 @@ test("collection-home filters stay open and remain draft-only until explicit sea
 
   await page.goto("/c/public-demo?q=algorithms");
 
-  const filtersButton = page.getByRole("button", { name: "+ Filters" });
+  const filtersButton = page.getByRole("button", { name: "Filters" });
   await filtersButton.click();
 
   await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
@@ -253,7 +253,7 @@ test("collection-home filters stay open and remain draft-only until explicit sea
 
   await page.getByLabel("Year from").fill("2021");
 
-  await expect(filtersButton).toHaveText("+ Filters (1)");
+  await expect(page.getByRole("button", { name: "Filters (1)" })).toBeVisible();
   await expect(page).toHaveURL(/\/c\/public-demo\?q=algorithms$/);
   expect(searchRequests).toBe(0);
 

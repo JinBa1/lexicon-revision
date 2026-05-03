@@ -76,6 +76,12 @@ describe("LandingRoute", () => {
     const { container } = renderLanding();
 
     expect(screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }));
+    const workflow = screen.getByRole("region", { name: "Search workflow" });
+    expect(workflow).toHaveClass("overflow-visible", "border", "bg-paper-raised");
+    expect(workflow).not.toHaveClass("overflow-hidden");
+    expect(screen.getByText("Select the archive to search")).toBeInTheDocument();
+    expect(screen.getByText("Enter what you want to learn")).toBeInTheDocument();
+    expect(screen.getByText("Choose your next step")).toBeInTheDocument();
     expect(screen.queryByText(/Pick a collection below to enable search/i)).toBeNull();
     expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
@@ -83,6 +89,16 @@ describe("LandingRoute", () => {
       "#collections",
     );
     expect(document.getElementById("collections")).toBeInTheDocument();
+    expect(screen.getByText("PAST-PAPER REVISION")).toBeInTheDocument();
+    expect(screen.queryByText(/est\. 2026/i)).toBeNull();
+    expect(container.querySelector("h1 br")).toBeNull();
+    expect(screen.getByRole("button", { name: "Pick a collection" })).toHaveClass("min-h-14");
+    expect(screen.getByRole("button", { name: "Pick a collection" })).not.toHaveTextContent("▾");
+    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toHaveClass(
+      "bg-claret",
+    );
+    expect(screen.getByRole("button", { name: "Find questions" })).toHaveClass("bg-white");
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 

@@ -56,6 +56,13 @@ describe("HelperExamples", () => {
     expect(screen.getByText("Try")).toBeInTheDocument();
     expect(screen.queryByText("Or ask")).not.toBeInTheDocument();
   });
+
+  test("landing-unified example pills use roman text and keep the examples label", () => {
+    render(<HelperExamples chrome="landing-unified" onPick={() => {}} />);
+
+    expect(screen.getByText("Try examples")).toHaveClass("uppercase");
+    expect(screen.getByRole("button", { name: "binary search" })).not.toHaveClass("italic");
+  });
 });
 
 describe("ScopeRequiredHelper", () => {

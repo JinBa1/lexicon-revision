@@ -15,13 +15,14 @@ export function CollectionsGrid({
   onPickLocked: (collection: CollectionListItem) => void;
 }) {
   return (
-    <section className="mt-10 border-t border-rule/50 pt-8">
-      <div className="mb-4">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
+    <section className="mt-14">
+      <div className="mb-7 flex items-center gap-5">
+        <h2 className="font-ui text-xs font-bold uppercase tracking-[0.2em] text-ink">
           Collections
         </h2>
+        <div data-testid="collections-header-rule" className="h-px flex-1 bg-rule-soft" />
       </div>
-      <div data-collection-rows className="flex flex-col gap-3">
+      <div data-collection-rows className="flex flex-col gap-3.5">
         {collections.map((collection) => (
           <CollectionCard
             key={collection.name}

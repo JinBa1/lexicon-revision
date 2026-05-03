@@ -68,9 +68,9 @@ describe("App router", () => {
     renderAppAt("/c/cam-cs-tripos");
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Cambridge CS Tripos" }),
+      screen.getByRole("heading", { level: 1, name: /Read the question\.\s*Then ask yours\./i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toBeInTheDocument();
   });
 
   test("renders the privacy notice route", () => {

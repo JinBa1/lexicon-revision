@@ -299,4 +299,17 @@ describe("FiltersChip", () => {
     await user.click(screen.getByRole("button", { name: "Outside" }));
     expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
   });
+
+  test("landing-unified chip keeps the popover attached while allowing full-height alignment", async () => {
+    const user = userEvent.setup();
+
+    render(<FiltersChip chrome="landing-unified" schema={schema} value={[]} onChange={() => {}} />);
+
+    const chip = screen.getByRole("button", { name: "Filters" });
+    await user.click(chip);
+
+    expect(chip).toHaveClass("h-full", "min-h-14");
+    expect(chip.parentElement).toHaveClass("relative", "self-stretch");
+    expect(screen.getByRole("dialog", { name: "Filters" })).toHaveClass("absolute", "z-10");
+  });
 });

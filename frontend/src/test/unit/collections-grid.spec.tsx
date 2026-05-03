@@ -45,6 +45,9 @@ describe("CollectionsGrid", () => {
     const rowSurface = section?.querySelector("[data-collection-rows]");
 
     expect(screen.getAllByRole("button")).toHaveLength(3);
+    expect(section?.querySelector('[data-testid="collections-header-rule"]')).toHaveClass(
+      "bg-rule-soft",
+    );
     expect(rowSurface).toHaveClass("flex", "flex-col");
     expect(rowSurface?.className).not.toMatch(/grid-cols/);
   });

@@ -34,19 +34,36 @@ export function CollectionCard({
       aria-label={ariaLabel}
       aria-pressed={isActive}
       className={cn(
-        "flex w-full flex-row items-center justify-between gap-4 rounded-sm border border-l-4 px-4 py-3 text-left transition-colors",
-        "hover:bg-paper",
+        "flex w-full flex-row items-center gap-5 rounded border border-l-4 px-4 py-4 text-left transition-colors sm:px-6",
+        "hover:border-claret hover:bg-paper-raised",
         isActive
           ? "selectable-selected"
           : cn(
-              "border-l-transparent",
+              "border-rule border-l-transparent",
               locked ? "border-rule bg-paper-lock opacity-90" : "border-rule bg-paper-raised",
             ),
       )}
     >
-      <div className="min-w-0">
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-rule",
+          isActive && "border-claret",
+        )}
+      >
+        <span className={cn("h-2.5 w-2.5 rounded-full bg-claret", isActive ? "block" : "hidden")} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div
+          className={cn(
+            "font-ui text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted",
+            locked && !isActive && "text-claret",
+          )}
+        >
+          {buildMetaLine(collection, locked)}
+        </div>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h3 className="font-display text-[15px] font-semibold text-ink">
+          <h3 className="font-display text-xl font-semibold leading-tight text-ink">
             {collection.display_name}
           </h3>
           {isActive ? (
@@ -55,26 +72,22 @@ export function CollectionCard({
             </span>
           ) : null}
         </div>
-        <div
-          className="mt-1 font-display text-xs uppercase tracking-wide text-ink-muted"
-          style={{ fontVariant: "small-caps" }}
-        >
-          {buildAccessLine(collection, locked)}
-        </div>
       </div>
-      <div className="shrink-0 text-right">
-        <div className="font-display text-sm font-semibold text-ink">
-          {collection.paper_count} papers
-        </div>
-        <div className="mt-1 font-display text-xs uppercase tracking-wide text-ink-muted">
-          {buildYearRange(collection)}
-        </div>
-      </div>
+      <span aria-hidden className="shrink-0 pl-1 font-display text-2xl font-light text-rule">
+        ›
+      </span>
       {/* isSignedIn is unused visually; kept in the API so parent logic can
           route locked_requires_signin for signed-in edge cases distinctly. */}
       {isSignedIn ? null : null}
     </button>
   );
+}
+
+function buildMetaLine(collection: CollectionListItem, locked: boolean): string {
+  if (locked) return buildAccessLine(collection, locked);
+  return `${buildAccessLine(collection, locked)} · ${collection.paper_count} papers · ${buildYearRange(
+    collection,
+  )}`;
 }
 
 function buildAccessLine(collection: CollectionListItem, locked: boolean): string {

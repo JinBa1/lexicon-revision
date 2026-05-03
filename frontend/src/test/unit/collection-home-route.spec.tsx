@@ -109,20 +109,46 @@ describe("CollectionHomeRoute", () => {
     renderCollectionHome();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Cambridge CS Tripos" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: /Read the question\.\s*Then ask yours\./i,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Cambridge CS Tripos" })).toBeNull();
+    expect(screen.getByText("PAST-PAPER REVISION")).toBeInTheDocument();
+    expect(screen.getByText("Select the archive to search")).toBeInTheDocument();
+    expect(screen.getByText("Enter what you want to learn")).toBeInTheDocument();
+    expect(screen.getByText("Choose your next step")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toBeInTheDocument();
     const activeRow = screen.getByRole("button", { name: /Cambridge CS Tripos\. Active scope/ });
     expect(activeRow).toHaveClass("selectable-selected");
     expect(screen.getByText("Active scope")).toBeInTheDocument();
+    const workflow = screen.getByRole("region", { name: "Collection search workflow" });
+    expect(workflow).toHaveClass("overflow-visible", "border", "bg-paper-raised");
+    expect(workflow).not.toHaveClass("overflow-hidden");
+    expect(screen.getByText("Current Collection")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toHaveClass("min-h-14");
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).not.toHaveTextContent("▾");
+    expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toHaveClass(
+      "bg-claret",
+    );
+    expect(screen.getByRole("button", { name: "Find questions" })).toHaveClass("bg-white");
+    expect(screen.queryByText(/87 papers · 2023–2025/i)).toBeNull();
+    expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
+      "href",
+      "#collections",
+    );
+    expect(document.getElementById("collections")).toBeInTheDocument();
   });
 
   test("submits to questions with query and filters", async () => {
     renderCollectionHome("/c/cam-cs-tripos?q=graph+theory");
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("current-location")).toHaveTextContent(
       "/c/cam-cs-tripos?q=graph+theory",
     );
@@ -166,9 +192,9 @@ describe("CollectionHomeRoute", () => {
     setCollectionsState({ data: [cambridgeAccessible, publicCollection] });
     renderCollectionHome("/c/cam-cs-tripos?page=questions&q=tree rotations");
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2020");
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /MIT 6\.006/ }));
 

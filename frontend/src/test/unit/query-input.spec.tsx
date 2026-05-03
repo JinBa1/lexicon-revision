@@ -44,4 +44,15 @@ describe("QueryInput", () => {
 
     expect(ref.current).toBe(screen.getByRole("textbox", { name: "Query" }));
   });
+
+  test("landing-unified chrome renders the prominent search box styling", () => {
+    render(<QueryInput chrome="landing-unified" />);
+
+    const input = screen.getByRole("textbox", { name: "Query" });
+    const wrapper = input.parentElement;
+
+    expect(wrapper).toHaveClass("bg-white", "px-5", "py-5");
+    expect(input).toHaveClass("text-xl", "italic");
+    expect(wrapper?.querySelector('[aria-hidden="true"]')).toHaveTextContent("✦");
+  });
 });

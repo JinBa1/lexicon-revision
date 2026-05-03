@@ -43,6 +43,11 @@ describe("TopNav", () => {
     renderTopNav();
 
     expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Supported Universities" })).toHaveClass("text-xs");
+    expect(screen.getByRole("link", { name: "Supported Universities" })).not.toHaveClass(
+      "uppercase",
+    );
+    expect(screen.getByRole("link", { name: "About" })).not.toHaveClass("uppercase");
     const signInLink = screen.getByRole("link", { name: /sign in/i });
     expect(signInLink).toHaveAttribute("href", "/sign-in");
     expect(within(signInLink).queryByRole("button", { name: /sign in/i })).toBeNull();
@@ -61,17 +66,19 @@ describe("TopNav", () => {
 });
 
 describe("Footer", () => {
-  test("renders archive links and the truncated build SHA", () => {
+  test("renders only centered internal footer links", () => {
     renderWithRouter(<Footer />);
 
+    expect(screen.getByRole("navigation", { name: "Footer" })).toHaveClass("justify-center");
     expect(screen.getByRole("link", { name: "Supported universities" })).toHaveAttribute(
       "href",
       "/sign-up",
     );
     expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
-    expect(screen.getByText("LEXICON REVISION")).toBeInTheDocument();
-    expect(screen.getByText("Read the question. Then ask yours.")).toBeInTheDocument();
-    expect(screen.getByText("abcdef1")).toBeInTheDocument();
+    expect(screen.queryByText("LEXICON REVISION")).toBeNull();
+    expect(screen.queryByText("Read the question. Then ask yours.")).toBeNull();
+    expect(screen.queryByText("abcdef1")).toBeNull();
+    expect(screen.queryByText(/Est\. 2026/i)).toBeNull();
   });
 });

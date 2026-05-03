@@ -23,4 +23,20 @@ describe("ActionPair", () => {
     expect(onGetAnswer).toHaveBeenCalledOnce();
     expect(onFindQuestions).toHaveBeenCalledOnce();
   });
+
+  test("landing-unified chrome makes answer primary and question search secondary with icons", () => {
+    render(
+      <ActionPair chrome="landing-unified" onFindQuestions={() => {}} onGetAnswer={() => {}} />,
+    );
+
+    const answer = screen.getByRole("button", { name: "Get answer with sources" });
+    const questions = screen.getByRole("button", { name: "Find questions" });
+    const answerIcon = answer.querySelector('span[aria-hidden="true"]');
+    const questionsIcon = questions.querySelector('span[aria-hidden="true"]');
+
+    expect(answer).toHaveClass("bg-claret", "text-paper-raised");
+    expect(questions).toHaveClass("bg-white", "text-claret");
+    expect(answerIcon).toHaveTextContent("📄");
+    expect(questionsIcon).toHaveTextContent("🔍");
+  });
 });

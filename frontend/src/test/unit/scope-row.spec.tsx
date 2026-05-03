@@ -86,4 +86,45 @@ describe("ScopeRow", () => {
     expect(onSubmit).toHaveBeenNthCalledWith(1, "questions");
     expect(onSubmit).toHaveBeenNthCalledWith(2, "answer");
   });
+
+  test("landing-unified chrome renders a full-height picker box without filters when no collection is selected", () => {
+    render(
+      <ScopeRow
+        chrome="landing-unified"
+        activeCollection={null}
+        filters={[]}
+        onFiltersChange={() => {}}
+        onOpenScope={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    const picker = screen.getByRole("button", { name: "Pick a collection" });
+    expect(picker).toHaveTextContent("Pick a collection");
+    expect(picker).not.toHaveTextContent("▾");
+    expect(picker).toHaveClass("min-h-14", "border-rule", "bg-[#FDFBF5]");
+    expect(screen.getByTestId("hero-action-row")).toHaveClass("justify-between");
+    expect(screen.getByTestId("hero-action-row").className).not.toMatch(/grid-cols/);
+    expect(screen.getByText("Current Collection")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
+  });
+
+  test("landing-unified chrome renders scope and filters as peer boxes when selected", () => {
+    render(
+      <ScopeRow
+        chrome="landing-unified"
+        activeCollection={collection}
+        filters={filters}
+        onFiltersChange={() => {}}
+        onOpenScope={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toHaveClass("min-h-14");
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).not.toHaveTextContent("▾");
+    const filtersButton = screen.getByRole("button", { name: "Filters (1)" });
+    expect(filtersButton).toHaveClass("min-h-14", "h-full");
+    expect(filtersButton.parentElement).toHaveClass("self-stretch");
+  });
 });
