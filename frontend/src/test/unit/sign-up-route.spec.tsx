@@ -113,7 +113,12 @@ describe("SignUpRoute", () => {
     const user = userEvent.setup();
     renderSignUpRoute("/sign-up?university=cambridge&returnTo=/c/cam-cs-tripos/questions?q=trees");
 
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+      screen.getByRole("heading", { name: "Join your student community" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Supported communities")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue →" }));
 
     expect(screen.getByRole("textbox")).toHaveAttribute("placeholder", "you@cam.ac.uk");
   });
@@ -122,7 +127,7 @@ describe("SignUpRoute", () => {
     const user = userEvent.setup();
     renderSignUpRoute("/sign-up?university=cambridge&returnTo=https://evil.test");
 
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue →" }));
     await user.type(screen.getByRole("textbox"), "student@cam.ac.uk");
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -213,7 +218,7 @@ describe("SignUpRoute", () => {
 
     const mitCard = screen.getByRole("button", { name: /MIT/i });
     await user.click(mitCard);
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue →" }));
 
     expect(within(screen.getByRole("main")).getByRole("textbox")).toHaveAttribute(
       "placeholder",
