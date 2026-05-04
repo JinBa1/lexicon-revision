@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 import { LandingRoute } from "@/routes/landing";
 import {
   cambridgeAccessible,
@@ -75,7 +76,7 @@ describe("LandingRoute", () => {
     setCollectionsState({ isLoading: true });
     const { container } = renderLanding();
 
-    expect(screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }));
+    expect(screen.getByRole("heading", { name: LANDING_HERO_COPY.title }));
     const workflow = screen.getByRole("region", { name: "Search workflow" });
     expect(workflow).toHaveClass("overflow-visible", "border", "bg-paper-raised");
     expect(workflow).not.toHaveClass("overflow-hidden");
@@ -89,7 +90,7 @@ describe("LandingRoute", () => {
       "#collections",
     );
     expect(document.getElementById("collections")).toBeInTheDocument();
-    expect(screen.getByText("PAST-PAPER REVISION")).toBeInTheDocument();
+    expect(screen.getByText(LANDING_HERO_COPY.eyebrow)).toBeInTheDocument();
     expect(screen.queryByText(/est\. 2026/i)).toBeNull();
     expect(container.querySelector("h1 br")).toBeNull();
     expect(screen.getByRole("button", { name: "Pick a collection" })).toHaveClass("min-h-14");
@@ -125,6 +126,10 @@ describe("LandingRoute", () => {
     setCollectionsState({ data: [cambridgeAccessible] });
 
     renderLanding();
+    expect(
+      screen.getByRole("link", { name: "Can't find your course? Suggest a collection->" }),
+    ).toHaveAttribute("href", "/sign-up");
+
     await userEvent.click(screen.getByRole("button", { name: /Cambridge CS Tripos/ }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos");

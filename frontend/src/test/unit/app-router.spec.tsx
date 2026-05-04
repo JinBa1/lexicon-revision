@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "@/App";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 import { cambridgeAccessible } from "../fixtures/collections";
 
 const { mockedEnv, mockUseCollections } = vi.hoisted(() => ({
@@ -46,9 +47,7 @@ describe("App router", () => {
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeInTheDocument();
   });
 
   test("renders collection routes from dynamic paths", () => {
@@ -68,7 +67,7 @@ describe("App router", () => {
     renderAppAt("/c/cam-cs-tripos");
 
     expect(
-      screen.getByRole("heading", { level: 1, name: /Read the question\.\s*Then ask yours\./i }),
+      screen.getByRole("heading", { level: 1, name: LANDING_HERO_COPY.title }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toBeInTheDocument();
   });
@@ -80,9 +79,10 @@ describe("App router", () => {
     expect(screen.getByRole("link", { name: "← Back to home" })).toHaveAttribute("href", "/");
     expect(screen.queryByText("Launch scaffold")).not.toBeInTheDocument();
     expect(screen.getByText("Version")).toBeInTheDocument();
-    expect(screen.getByText("0.1 · draft")).toBeInTheDocument();
+    expect(screen.getByText("0.2")).toBeInTheDocument();
     expect(screen.getByText("Last updated")).toBeInTheDocument();
     expect(screen.getByText("4 May 2026")).toBeInTheDocument();
+    expect(screen.getAllByText("jin.bai@outlook.com")).toHaveLength(2);
     expect(screen.getByTestId("doc-content-panel")).toHaveClass("bg-paper-raised", "border-rule");
     expect(screen.getByRole("heading", { name: "Controller and contact" })).toBeInTheDocument();
   });

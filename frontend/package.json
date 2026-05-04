@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@clerk/react": "^6.4.3",
+    "@primer/octicons-react": "^19.25.0",
     "@tanstack/react-query": "^5.100.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

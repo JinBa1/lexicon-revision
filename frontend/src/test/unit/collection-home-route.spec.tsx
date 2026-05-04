@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 import { CollectionHomeRoute } from "@/routes/collection-home";
 import {
   cambridgeAccessible,
@@ -111,11 +112,11 @@ describe("CollectionHomeRoute", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: /Read the question\.\s*Then ask yours\./i,
+        name: LANDING_HERO_COPY.title,
       }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Cambridge CS Tripos" })).toBeNull();
-    expect(screen.getByText("PAST-PAPER REVISION")).toBeInTheDocument();
+    expect(screen.getByText(LANDING_HERO_COPY.eyebrow)).toBeInTheDocument();
     expect(screen.getByText("Select the archive to search")).toBeInTheDocument();
     expect(screen.getByText("Enter what you want to learn")).toBeInTheDocument();
     expect(screen.getByText("Choose your next step")).toBeInTheDocument();
@@ -135,6 +136,9 @@ describe("CollectionHomeRoute", () => {
     );
     expect(screen.getByRole("button", { name: "Find questions" })).toHaveClass("bg-white");
     expect(screen.queryByText(/87 papers · 2023–2025/i)).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Can't find your course? Suggest a collection->" }),
+    ).toHaveAttribute("href", "/sign-up");
     expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
       "href",

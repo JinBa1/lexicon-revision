@@ -7,6 +7,7 @@ import type {
   SearchResponse,
   SupportedUniversity,
 } from "@/lib/api/types";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 
 const publicCollection: CollectionListItem = {
   name: "public-demo",
@@ -190,9 +191,7 @@ test("switching accessible collections preserves query on home and clears filter
 
   await expect(page).toHaveURL(/\/c\/open-archive\?q=x$/);
   await expect(page).not.toHaveURL(/filter=/);
-  await expect(
-    page.getByRole("heading", { name: "Read the question. Then ask yours." }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeVisible();
   await expect(
     page.getByTestId("hero-action-row").getByRole("button", { name: "Open Archive" }),
   ).toBeVisible();

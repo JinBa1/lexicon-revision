@@ -6,6 +6,7 @@ import type {
   SearchRequest,
   SearchResponse,
 } from "@/lib/api/types";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 
 const publicCollection: CollectionListItem = {
   name: "public-demo",
@@ -132,9 +133,7 @@ test("anonymous user can pick a public collection and search for matching questi
   await page.getByRole("button", { name: /MIT 6\.006 \(demo\)/ }).click();
 
   await expect(page).toHaveURL(/\/c\/public-demo$/);
-  await expect(
-    page.getByRole("heading", { name: "Read the question. Then ask yours." }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeVisible();
   await expect(
     page.getByTestId("hero-action-row").getByRole("button", { name: "MIT 6.006 (demo)" }),
   ).toBeVisible();

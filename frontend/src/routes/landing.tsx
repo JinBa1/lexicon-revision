@@ -6,6 +6,7 @@ import { NoAffiliationBanner } from "@/components/collections/NoAffiliationBanne
 import { WrongAffiliationModal } from "@/components/collections/WrongAffiliationModal";
 import { Hero } from "@/components/hero/Hero";
 import { HeroStatusStrip } from "@/components/hero/HeroStatusStrip";
+import { LandingHeroIntro } from "@/components/hero/LandingHeroIntro";
 import { SteppedRibbon } from "@/components/hero/SteppedRibbon";
 import { Button } from "@/components/shared/Button";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -81,18 +82,7 @@ export function LandingRoute() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:pb-14 lg:pt-[4.5rem]">
-      <div className="text-center">
-        <div className="font-ui text-[11px] uppercase tracking-widest text-claret">
-          PAST-PAPER REVISION
-        </div>
-        <h1 className="mx-auto mt-3 max-w-5xl font-display text-4xl font-semibold leading-tight text-ink sm:text-5xl lg:text-[4.8rem]">
-          Read the question. Then ask yours.
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl font-body text-base leading-relaxed text-ink-muted">
-          Search a curated archive of university past papers, or get a grounded answer assembled
-          from them — every answer cited back to the exact question it came from.
-        </p>
-      </div>
+      <LandingHeroIntro />
 
       <section
         aria-label="Search workflow"

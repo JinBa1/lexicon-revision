@@ -7,6 +7,7 @@ describe("archiveTokens", () => {
     expect(archiveTokens.colors.paper).toBe("#F8F5EE");
     expect(archiveTokens.colors["paper-raised"]).toBe("#FEFDFB");
     expect(archiveTokens.colors["paper-sunken"]).toBe("#F1EAD7");
+    expect(archiveTokens.colors["paper-footer"]).toBe("#ECE2CA");
     expect(archiveTokens.colors["paper-lock"]).toBe("#FAF9F3");
     expect(archiveTokens.colors["ink-muted"]).toBe("#8C7C5F");
     expect(archiveTokens.colors.rule).toBe("#E2D9C2");

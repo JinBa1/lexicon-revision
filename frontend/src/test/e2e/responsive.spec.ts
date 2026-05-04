@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { CollectionListItem } from "@/lib/api/types";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 
 const collections: CollectionListItem[] = [
   {
@@ -87,7 +88,7 @@ test.describe("landing responsive horizontal scroll", () => {
       });
 
       await page.goto("/");
-      await expect(page.getByRole("heading", { name: /Read the question/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeVisible();
       await expect(page.getByLabel("Query")).toBeVisible();
       await expect(page.getByText("Public Algorithms")).toBeVisible();
 

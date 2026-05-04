@@ -5,6 +5,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { UniversityGate } from "@/components/auth/UniversityGate";
 import type { SupportedUniversity } from "@/lib/api/types";
+import { PROJECT_DISCUSSIONS_URL } from "@/lib/publicCopy";
 
 const universities: SupportedUniversity[] = [
   {
@@ -53,7 +54,11 @@ describe("UniversityGate", () => {
     expect(screen.getByRole("button", { name: /Create a community/i })).toBeDisabled();
     expect(screen.getByRole("link", { name: "✉ Contact support" })).toHaveAttribute(
       "href",
-      "mailto:support@lexicon-revision.example",
+      PROJECT_DISCUSSIONS_URL,
+    );
+    expect(screen.getByRole("link", { name: "✉ Contact support" })).toHaveAttribute(
+      "target",
+      "_blank",
     );
 
     await user.click(screen.getByRole("button", { name: /MIT/i }));

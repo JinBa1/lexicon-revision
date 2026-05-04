@@ -346,7 +346,7 @@ test.describe("critical axe accessibility", () => {
 
   test("has no critical axe violations on source route", async ({ page }) => {
     await page.goto("/c/public-demo/source/chunk-1");
-    await expect(page.getByRole("heading", { name: focusedChunk.text })).toBeVisible();
+    await expect(page.getByText(focusedChunk.text)).toBeVisible();
 
     await assertNoCriticalAxeViolations(page);
   });

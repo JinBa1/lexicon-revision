@@ -11,6 +11,9 @@ importers:
       '@clerk/react':
         specifier: ^6.4.3
         version: 6.4.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@primer/octicons-react':
+        specifier: ^19.25.0
+        version: 19.25.0(react@19.2.5)
       '@tanstack/react-query':
         specifier: ^5.100.1
         version: 5.100.1(react@19.2.5)
@@ -397,6 +400,12 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@primer/octicons-react@19.25.0':
+    resolution: {integrity: sha512-Cv7l7Mk4ahe6pOJ4A59viOQ22q5QkJ3jtkMyrQ2lpOofcKpVzvVg4CpYiq76Lj0RRlYC4qk1Tp9FpfzQnf4AuQ==}
+    engines: {node: '>=8'}
+    peerDependencies:
+      react: '>=16.3'
 
   '@remix-run/router@1.23.2':
     resolution: {integrity: sha512-Ic6m2U/rMjTkhERIa/0ZtXJP17QUi2CbWE7cqx4J58M8aA3QTfW+2UlQ4psvTX9IO1RfNVhK3pcpdjej7L+t2w==}
@@ -2140,6 +2149,10 @@ snapshots:
       playwright: 1.59.1
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@primer/octicons-react@19.25.0(react@19.2.5)':
+    dependencies:
+      react: 19.2.5
 
   '@remix-run/router@1.23.2': {}
 

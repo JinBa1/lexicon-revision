@@ -3,6 +3,7 @@ export const archiveTokens = {
     paper: "#F8F5EE",
     "paper-raised": "#FEFDFB",
     "paper-sunken": "#F1EAD7",
+    "paper-footer": "#ECE2CA",
     "paper-lock": "#FAF9F3",
     ink: "#0C0A08",
     "ink-muted": "#8C7C5F",

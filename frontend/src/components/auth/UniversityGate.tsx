@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/shared/Button";
 import type { SupportedUniversity } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
-import { SUPPORT_EMAIL } from "@/lib/publicCopy";
+import { PROJECT_DISCUSSIONS_URL } from "@/lib/publicCopy";
 
 export function UniversityGate({
   universities,
@@ -134,7 +134,9 @@ export function UniversityGate({
             </span>
           </button>
           <a
-            href={`mailto:${SUPPORT_EMAIL}`}
+            href={PROJECT_DISCUSSIONS_URL}
+            target="_blank"
+            rel="noreferrer"
             className="inline-flex items-center gap-2 rounded border border-claret bg-white px-4 py-2 font-ui text-[12.5px] font-bold text-claret hover:bg-claret-soft"
           >
             ✉ Contact support
