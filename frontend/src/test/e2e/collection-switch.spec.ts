@@ -173,7 +173,7 @@ test("switching accessible collections preserves query on home and clears filter
   await page.goto("/c/public-demo/questions?q=x&filter=year%3Aeq%3A2022");
 
   await expect(page).toHaveURL(/\/c\/public-demo\/questions\?q=x&filter=year%3Aeq%3A2022$/);
-  await expect(page.getByRole("heading", { name: "Top 1 results" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 matching question" })).toBeVisible();
   expect(searchRequests).toContainEqual(
     expect.objectContaining({
       query: "x",
@@ -183,14 +183,19 @@ test("switching accessible collections preserves query on home and clears filter
   );
   const requestCountBeforeScopeSelection = searchRequests.length;
 
-  await page.getByRole("button", { name: "Public Demo ▾" }).click();
+  await page.getByRole("button", { name: "Public Demo" }).click();
   await expect(page).toHaveURL("/?scopePicker=1&page=questions&q=x");
 
   await page.getByRole("button", { name: "Open Archive" }).click();
 
   await expect(page).toHaveURL(/\/c\/open-archive\?q=x$/);
   await expect(page).not.toHaveURL(/filter=/);
-  await expect(page.getByRole("heading", { level: 1, name: "Open Archive" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Read the question. Then ask yours." }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("hero-action-row").getByRole("button", { name: "Open Archive" }),
+  ).toBeVisible();
   expect(searchRequests).toHaveLength(requestCountBeforeScopeSelection);
   expect(searchRequests).not.toContainEqual(
     expect.objectContaining({ collection: "open-archive" }),
@@ -203,9 +208,9 @@ test("switching to a sign-in locked collection routes anonymous users to unlock 
   await stubFrontendContract(page);
 
   await page.goto("/c/public-demo/questions?q=x");
-  await expect(page.getByRole("heading", { name: "Top 1 results" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 matching question" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Public Demo ▾" }).click();
+  await page.getByRole("button", { name: "Public Demo" }).click();
   await expect(page).toHaveURL("/?scopePicker=1&page=questions&q=x");
 
   await page

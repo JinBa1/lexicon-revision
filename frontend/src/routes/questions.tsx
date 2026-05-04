@@ -43,6 +43,11 @@ export function QuestionsRoute() {
   const focus = searchParams.get("focus");
   const results = search.data?.results ?? [];
   const selectedChunkId = focus ?? results[0]?.chunk_id ?? null;
+  const selectedIndex =
+    selectedChunkId === null
+      ? -1
+      : results.findIndex((result) => result.chunk_id === selectedChunkId);
+  const selectedRank = selectedIndex >= 0 ? selectedIndex + 1 : null;
   const chunk = useChunk(
     selectedChunkId === null ? null : { collection: collectionName, chunkId: selectedChunkId },
   );
@@ -222,22 +227,27 @@ export function QuestionsRoute() {
 
   return (
     <QuestionsShell header={header}>
-      <div className="overflow-hidden rounded-md border border-rule bg-paper-raised">
-        <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <ResultList
-            results={results}
-            selectedChunkId={selectedChunkId}
-            onSelect={setFocus}
+      <div
+        data-testid="questions-results-layout"
+        className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+      >
+        <ResultList
+          results={results}
+          total={search.data?.total}
+          selectedChunkId={selectedChunkId}
+          onSelect={setFocus}
+          metadataSchema={active?.metadata_schema ?? null}
+        />
+        <div className="hidden min-h-[34rem] lg:block">
+          <DetailPanel
+            collection={collectionName}
+            collectionDisplay={active?.display_name ?? collectionName}
+            query={query}
+            rank={selectedRank}
+            chunk={chunk.data}
+            isLoading={chunk.isLoading}
             metadataSchema={active?.metadata_schema ?? null}
           />
-          <div className="hidden min-h-[34rem] lg:block">
-            <DetailPanel
-              collection={collectionName}
-              chunk={chunk.data}
-              isLoading={chunk.isLoading}
-              metadataSchema={active?.metadata_schema ?? null}
-            />
-          </div>
         </div>
       </div>
       <p className="mt-3 text-center font-ui text-[11px] text-ink-muted">
@@ -252,6 +262,9 @@ export function QuestionsRoute() {
           </div>
           <DetailPanel
             collection={collectionName}
+            collectionDisplay={active?.display_name ?? collectionName}
+            query={query}
+            rank={selectedRank}
             chunk={chunk.data}
             isLoading={chunk.isLoading}
             metadataSchema={active?.metadata_schema ?? null}
@@ -266,7 +279,7 @@ function QuestionsShell({ header, children }: { header: ReactNode; children: Rea
   return (
     <>
       {header}
-      <main className="mx-auto max-w-6xl px-6 pb-8 pt-1">
+      <main className="mx-auto max-w-[1240px] px-6 pb-12 pt-1 sm:px-10">
         <div className="mt-5">{children}</div>
       </main>
     </>
