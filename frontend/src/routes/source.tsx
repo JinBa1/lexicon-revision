@@ -3,14 +3,9 @@ import { useState } from "react";
 
 import { CopyLinkButton } from "@/components/source/CopyLinkButton";
 import { Button } from "@/components/shared/Button";
-import { Chip } from "@/components/shared/Chip";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import {
-  RenderBlocks,
-  flattenFirstParagraph,
-  getReferencedMediaIds,
-} from "@/components/shared/render-blocks";
+import { RenderBlocks, getReferencedMediaIds } from "@/components/shared/render-blocks";
 import { isApiError } from "@/lib/api/errors";
 import type { CollectionMetadataSchema, ChunkDetail, MediaRef } from "@/lib/api/types";
 import { useChunk } from "@/lib/hooks/useChunk";
@@ -56,7 +51,7 @@ export function SourceRoute() {
   const shareUrl = `${window.location.origin}${sharePath}`;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="mx-auto max-w-[820px] px-6 py-9 pb-20 sm:px-8">
       {isLoading ? (
         <LoadingSkeleton variant="prose" count={8} />
       ) : isError && isApiError(error) && error.status === 404 ? (
@@ -111,7 +106,6 @@ function SourceContent({
   onBack: () => void;
   onToggleParent: () => void;
 }) {
-  const heading = flattenFirstParagraph(data.render_blocks) ?? data.text;
   const metaChips = buildMetaChips(data.metadata, metadataSchema, data.sub_question_label);
   const blockMediaIds = new Set([
     ...getReferencedMediaIds(data.render_blocks),
@@ -123,65 +117,86 @@ function SourceContent({
 
   return (
     <>
-      <Button variant="text" onClick={onBack}>
+      <Button
+        variant="text"
+        className="font-ui text-[12.5px] font-semibold text-claret"
+        onClick={onBack}
+      >
         {`← ${previousLabel}`}
       </Button>
-      <div className="mt-6">
-        <div className="section-eyebrow">Shareable source</div>
-        <h1 className="mt-1 font-display text-2xl text-ink line-clamp-2">{heading}</h1>
-        {metaChips.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {metaChips.map((chip) => (
-              <Chip key={chip.key} variant="meta">
-                {chip.label}
-              </Chip>
-            ))}
+
+      <section
+        data-testid="source-result-panel"
+        className="mt-7 rounded-[4px] border border-rule bg-paper-raised px-6 py-7 shadow-[0_12px_35px_rgba(0,0,0,0.04)] sm:px-9 sm:py-8"
+      >
+        <div>
+          <h1 className="section-eyebrow tracking-[0.2em] text-claret">Shareable Source</h1>
+          {metaChips.length > 0 ? <SourceMetaTags chips={metaChips} /> : null}
+          <div className="mt-5">
+            <CopyLinkButton url={shareUrl} />
           </div>
-        ) : null}
-        <div className="mt-4">
-          <CopyLinkButton url={shareUrl} />
         </div>
-      </div>
 
-      <article className="mt-6 select-text">
-        <RenderBlocks
-          blocks={data.render_blocks}
-          mode="full"
-          fallbackText={data.text}
-          media={data.media}
-        />
-      </article>
+        <article
+          data-testid="source-anchor-block"
+          className="mt-9 select-text rounded border border-rule border-l-[3px] border-l-claret bg-claret-active px-7 py-6"
+        >
+          <RenderBlocks
+            blocks={data.render_blocks}
+            mode="full"
+            fallbackText={data.text}
+            media={data.media}
+            className="text-[17px] leading-[1.65]"
+          />
+        </article>
 
-      {data.parent ? (
-        <section className="mt-8 border-t border-rule pt-5">
-          <div className="section-eyebrow">Parent question</div>
-          <div
-            data-testid="source-parent-body"
-            className={cn(
-              "mt-2 overflow-hidden text-[14px] text-ink-muted",
-              parentExpanded ? "" : "max-h-24",
-            )}
-          >
-            <RenderBlocks
-              blocks={data.parent.render_blocks}
-              mode="full"
-              fallbackText={data.parent.text}
-              media={data.media}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onToggleParent}
-            aria-expanded={parentExpanded}
-            className="mt-2 font-ui text-[11px] uppercase tracking-widest text-claret hover:underline"
-          >
-            {parentExpanded ? "Collapse parent" : "Show full parent"}
-          </button>
-        </section>
-      ) : null}
+        {data.parent ? (
+          <section className="mt-10 border-t border-rule pt-7">
+            <div className="section-eyebrow tracking-[0.2em] text-ink-muted">Parent question</div>
+            <div
+              data-testid="source-parent-body"
+              className={cn(
+                "relative mt-3 overflow-hidden text-ink",
+                parentExpanded ? "" : "max-h-36",
+              )}
+            >
+              <RenderBlocks
+                blocks={data.parent.render_blocks}
+                mode="full"
+                fallbackText={data.parent.text}
+                media={data.media}
+                className="text-[16px] leading-[1.7]"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onToggleParent}
+              aria-expanded={parentExpanded}
+              className="mt-6 inline-flex items-center gap-1 font-ui text-[11px] font-bold uppercase tracking-[0.14em] text-claret hover:underline"
+            >
+              {parentExpanded ? "↑ Collapse parent" : "Show full parent →"}
+            </button>
+          </section>
+        ) : null}
 
-      {remainingMedia.length > 0 ? <MediaList media={remainingMedia} /> : null}
+        {remainingMedia.length > 0 ? <MediaList media={remainingMedia} /> : null}
+      </section>
     </>
+  );
+}
+
+function SourceMetaTags({ chips }: { chips: MetaChip[] }) {
+  return (
+    <div className="mt-5 flex flex-wrap gap-1.5">
+      {chips.map((chip) => (
+        <span
+          key={chip.key}
+          className="rounded-[3px] border border-rule bg-paper-sunken px-2.5 py-[3px] font-ui text-[11px] font-medium tracking-[0.04em] text-ink"
+        >
+          {chip.label}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -224,10 +239,43 @@ function buildMetaChips(
     if (!field.exposed) continue;
     const value = resolveMetadataFieldValue(metadata, field.key, field.source);
     if (!isRenderableValue(value)) continue;
-    chips.push({ key: field.key, label: `${field.label}: ${formatMetadataValue(value)}` });
+    chips.push({
+      key: field.key,
+      label: formatSourceMetaLabel(field.label, formatMetadataValue(value)),
+    });
   }
 
   return chips;
+}
+
+function formatSourceMetaLabel(label: string, value: string): string {
+  const normalized = label.trim().toLowerCase();
+
+  if (normalized === "year" || normalized === "academic year") {
+    return value;
+  }
+
+  if (normalized === "paper") {
+    return value;
+  }
+
+  if (normalized === "question") {
+    return formatQuestionTag(value);
+  }
+
+  if (normalized === "marks") {
+    return `${value} marks`;
+  }
+
+  return `${label}: ${value}`;
+}
+
+function formatQuestionTag(value: string): string {
+  const trimmed = value.trim();
+  const numeric = trimmed.match(/\d+/)?.[0];
+  if (numeric) return `Q${numeric}`;
+  if (trimmed.toLowerCase().startsWith("q")) return trimmed.toUpperCase();
+  return `Q ${trimmed}`;
 }
 
 function normalizeSubQuestionLabel(subQuestionLabel: string | null): string | null {
