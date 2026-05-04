@@ -208,9 +208,15 @@ describe("AnswerRoute", () => {
   test("renders the answer question as an eyebrow and level-one heading", () => {
     renderAnswer();
 
-    expect(screen.getByText("Question")).toHaveClass("section-eyebrow");
+    expect(screen.getByRole("main")).toHaveClass("max-w-[1240px]", "sm:px-10");
+    expect(screen.getByTestId("answer-result-panel")).toHaveClass(
+      "border",
+      "border-rule",
+      "bg-paper-raised",
+    );
+    expect(screen.getByText("The Question")).toHaveClass("text-claret", "tracking-[0.2em]");
     const heading = screen.getByRole("heading", { level: 1, name: "dynamic tables" });
-    expect(heading).toHaveClass("font-display", "text-xl", "text-ink");
+    expect(heading).toHaveClass("font-display", "text-[28px]", "sm:text-[34px]", "font-bold");
     expect(heading).not.toHaveClass("italic");
   });
 
@@ -343,15 +349,24 @@ describe("AnswerRoute", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Dynamic table resizing")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /jump to source 1/i }));
-      expect(screen.getByText("Year: 2022")).toBeInTheDocument();
+      expect(screen.getByText("2022")).toBeInTheDocument();
       expect(screen.getByText("Part (b)")).toBeInTheDocument();
       expect(screen.getByText("Why cited")).toBeInTheDocument();
       expect(
         screen.getByText("It asks for the same amortized-analysis pattern."),
       ).toBeInTheDocument();
-      expect(
-        screen.getByRole("link", { name: /Retrieve matching questions instead/i }),
-      ).toHaveAttribute("href", "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020");
+      const fallbackLink = screen.getByRole("link", {
+        name: "Retrieve matching questions instead →",
+      });
+      expect(fallbackLink).toHaveAttribute(
+        "href",
+        "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020",
+      );
+      expect(fallbackLink.closest("div")).toHaveClass(
+        "bg-paper-raised",
+        "border-rule",
+        "rounded-[4px]",
+      );
     },
   );
 
