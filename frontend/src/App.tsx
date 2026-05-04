@@ -9,6 +9,7 @@ import { AnswerRoute } from "@/routes/answer";
 import { CollectionHomeRoute } from "@/routes/collection-home";
 import { LandingRoute } from "@/routes/landing";
 import { NotFoundRoute } from "@/routes/not-found";
+import { PrivacyRoute } from "@/routes/privacy";
 import { QuestionsRoute } from "@/routes/questions";
 import { SignInRoute } from "@/routes/sign-in";
 import { SignUpRoute } from "@/routes/sign-up";
@@ -71,6 +72,7 @@ export function App() {
                 <Route path="/sign-in/*" element={<SignInRoute />} />
                 <Route path="/sign-up/*" element={<SignUpRoute />} />
                 <Route path="/about" element={<AboutRoute />} />
+                <Route path="/privacy" element={<PrivacyRoute />} />
                 <Route path="*" element={<NotFoundRoute />} />
               </Routes>
             </div>

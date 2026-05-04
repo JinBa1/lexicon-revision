@@ -6,6 +6,7 @@ import { NoAffiliationBanner } from "@/components/collections/NoAffiliationBanne
 import { WrongAffiliationModal } from "@/components/collections/WrongAffiliationModal";
 import { Hero } from "@/components/hero/Hero";
 import { HeroStatusStrip } from "@/components/hero/HeroStatusStrip";
+import { LandingHeroIntro } from "@/components/hero/LandingHeroIntro";
 import { SteppedRibbon } from "@/components/hero/SteppedRibbon";
 import { Button } from "@/components/shared/Button";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -80,26 +81,17 @@ export function LandingRoute() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <div className="text-center">
-        <div className="font-ui text-[11px] uppercase tracking-widest text-claret">
-          Past-paper revision · est. 2026
-        </div>
-        <h1 className="mx-auto mt-3 max-w-3xl font-display text-4xl font-semibold leading-tight text-ink">
-          Read the question.
-          <br />
-          Then ask yours.
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl font-body text-sm leading-relaxed text-ink-muted">
-          Search a curated archive of university past papers, or get a grounded answer assembled
-          from them — every answer cited back to the exact question it came from.
-        </p>
-      </div>
+    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:pb-14 lg:pt-[4.5rem]">
+      <LandingHeroIntro />
 
-      <div className="mt-6">
+      <section
+        aria-label="Search workflow"
+        className="mt-9 overflow-visible rounded-md border border-rule bg-paper-raised shadow-module"
+      >
         <SteppedRibbon />
         <Hero
           mode="landing"
+          chrome="landing-unified"
           activeCollection={null}
           query={query}
           filters={filters}
@@ -112,13 +104,16 @@ export function LandingRoute() {
           onScopeMissing={onScopeMissing}
           showScopeRequiredHelper={false}
         />
-        <HeroStatusStrip activeCollection={null} />
+        <HeroStatusStrip activeCollection={null} chrome="landing-unified" />
         {scopeFlash ? (
-          <div role="alert" className="mt-2 text-center font-display text-sm italic text-claret">
+          <div
+            role="alert"
+            className="border-t border-rule-soft bg-claret-soft px-6 py-2 text-center font-display text-sm italic text-claret"
+          >
             Please pick a collection first
           </div>
         ) : null}
-      </div>
+      </section>
 
       <div id="collections">
         {isLoading ? (

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { CollectionListItem } from "@/lib/api/types";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 
 const collections: CollectionListItem[] = [
   {
@@ -61,10 +62,8 @@ const collections: CollectionListItem[] = [
 
 const breakpoints = [
   { name: "mobile", width: 360, height: 720 },
-  { name: "sm", width: 640, height: 800 },
-  { name: "md", width: 768, height: 900 },
-  { name: "lg", width: 1024, height: 900 },
-  { name: "xl", width: 1280, height: 900 },
+  { name: "tablet", width: 768, height: 900 },
+  { name: "desktop", width: 1280, height: 900 },
 ];
 
 async function stubCollections(page: Page) {
@@ -87,7 +86,7 @@ test.describe("landing responsive horizontal scroll", () => {
       });
 
       await page.goto("/");
-      await expect(page.getByRole("heading", { name: /Read the question/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeVisible();
       await expect(page.getByLabel("Query")).toBeVisible();
       await expect(page.getByText("Public Algorithms")).toBeVisible();
 

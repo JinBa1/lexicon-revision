@@ -1,21 +1,12 @@
 export function AnswerBody({ overview }: { overview: string }) {
   return (
-    <div>
-      <SectionHeader>Answer</SectionHeader>
-      <p className="max-w-[65ch] whitespace-pre-wrap font-body text-[15px] leading-relaxed text-ink">
+    <section>
+      <div className="font-ui text-[10px] font-bold uppercase tracking-[0.2em] text-ink-muted">
+        The Answer
+      </div>
+      <p className="mt-4 max-w-[65ch] whitespace-pre-wrap font-body text-[17px] leading-[1.7] text-ink">
         {overview}
       </p>
-    </div>
-  );
-}
-
-function SectionHeader({ children }: { children: string }) {
-  return (
-    <div className="my-3 flex items-center gap-3">
-      <span className="font-ui text-[10px] uppercase tracking-[0.14em] text-ink-muted">
-        {children}
-      </span>
-      <span className="h-px flex-1 bg-rule" />
-    </div>
+    </section>
   );
 }

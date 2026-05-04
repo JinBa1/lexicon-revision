@@ -35,6 +35,27 @@ function renderHeader(initialEntry = "/c/cam-cs-tripos/questions?q=old") {
   );
 }
 
+function renderAnswerHeader(initialEntry = "/c/cam-cs-tripos/answer?q=old") {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route
+          path="/c/:collection/answer"
+          element={
+            <HeaderEcho
+              page="answer"
+              collectionName="cam-cs-tripos"
+              initialQuery="old"
+              initialFilters={[]}
+            />
+          }
+        />
+        <Route path="*" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 function LocationProbe() {
   const location = useLocation();
   return (
@@ -61,7 +82,7 @@ describe("HeaderEcho", () => {
     const input = screen.getByLabelText("Query");
     await userEvent.clear(input);
     await userEvent.type(input, "dynamic arrays");
-    await userEvent.click(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cambridge CS Tripos" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/?scopePicker=1&page=questions&q=dynamic+arrays",
@@ -72,7 +93,7 @@ describe("HeaderEcho", () => {
     renderHeader();
 
     await userEvent.clear(screen.getByLabelText("Query"));
-    await userEvent.click(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cambridge CS Tripos" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/?scopePicker=1&page=questions");
   });
@@ -83,7 +104,7 @@ describe("HeaderEcho", () => {
     const input = screen.getByLabelText("Query");
     await userEvent.clear(input);
     await userEvent.type(input, "graph cuts");
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     await userEvent.click(screen.getByRole("button", { name: "Get answer with sources" }));
@@ -104,5 +125,28 @@ describe("HeaderEcho", () => {
     renderHeader();
 
     expect(screen.getByText("Access to Cambridge CS Tripos is restricted.")).toBeInTheDocument();
+  });
+
+  test("renders the result-page unified chrome", () => {
+    const { container } = renderHeader();
+
+    expect(container.querySelector('[data-testid="result-header-search"]')).toBeInTheDocument();
+    expect(screen.getByText("Current Collection")).toBeInTheDocument();
+    expect(screen.queryByText("In")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find questions" })).toBeInTheDocument();
+  });
+
+  test("answer header can navigate to matching questions with current query", async () => {
+    renderAnswerHeader();
+
+    const input = screen.getByLabelText("Query");
+    await userEvent.clear(input);
+    await userEvent.type(input, "graph flows");
+    await userEvent.click(screen.getByRole("button", { name: "Find questions" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/questions?q=graph+flows",
+    );
   });
 });

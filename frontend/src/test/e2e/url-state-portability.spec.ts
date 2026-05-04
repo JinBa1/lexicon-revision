@@ -147,7 +147,7 @@ async function stubSearchAndChunkDetails(page: Page) {
 }
 
 async function expectAlgorithmsResults(page: Page) {
-  await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2 matching questions" })).toBeVisible();
   await expect(
     page.getByText("Analyze the running time of a divide-and-conquer sorting algorithm."),
   ).toBeVisible();
@@ -180,12 +180,9 @@ test("focus param deep-links the selected chunk detail state", async ({ page }) 
   await expect(page).toHaveURL(/\/c\/public-demo\/questions\?q=algorithms&focus=chunk-2$/);
   await expectAlgorithmsResults(page);
   await expect(
-    page
-      .getByRole("article")
-      .first()
-      .getByText(
-        "Full chunk-2 detail: graph search algorithms recover shortest paths with predecessor links.",
-      ),
+    page.getByRole("heading", {
+      name: "Full chunk-2 detail: graph search algorithms recover shortest paths with predecessor links.",
+    }),
   ).toBeVisible();
 });
 
@@ -206,7 +203,7 @@ test("broken filter URL renders invalid state with clear filters action", async 
   await expect(page.getByText("Filters in this link aren't valid")).toBeVisible();
   await expect(page.getByText("Adjust or clear filters to continue.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Clear filters" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "2 matching questions" })).toBeHidden();
   await expect(
     page.getByText("Analyze the running time of a divide-and-conquer sorting algorithm."),
   ).toBeHidden();
@@ -245,7 +242,7 @@ test("collection-home filters stay open and remain draft-only until explicit sea
 
   await page.goto("/c/public-demo?q=algorithms");
 
-  const filtersButton = page.getByRole("button", { name: "+ Filters" });
+  const filtersButton = page.getByRole("button", { name: "Filters" });
   await filtersButton.click();
 
   await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
@@ -253,7 +250,7 @@ test("collection-home filters stay open and remain draft-only until explicit sea
 
   await page.getByLabel("Year from").fill("2021");
 
-  await expect(filtersButton).toHaveText("+ Filters (1)");
+  await expect(page.getByRole("button", { name: "Filters (1)" })).toBeVisible();
   await expect(page).toHaveURL(/\/c\/public-demo\?q=algorithms$/);
   expect(searchRequests).toBe(0);
 

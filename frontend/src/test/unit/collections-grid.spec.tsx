@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, test, vi } from "vitest";
 
 import { CollectionsGrid } from "@/components/collections/CollectionsGrid";
@@ -10,8 +11,12 @@ import {
 } from "../fixtures/collections";
 
 describe("CollectionsGrid", () => {
+  function renderCollectionsGrid(ui: React.ReactNode) {
+    return render(<MemoryRouter>{ui}</MemoryRouter>);
+  }
+
   test("renders collection rows with the active scope marked", () => {
-    render(
+    renderCollectionsGrid(
       <CollectionsGrid
         collections={[publicCollection, cambridgeAccessible, oxfordWrongAffiliation]}
         activeName={cambridgeAccessible.name}
@@ -22,16 +27,18 @@ describe("CollectionsGrid", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Collections" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Can't find your course? Suggest a collection->" }),
+    ).toHaveAttribute("href", "/sign-up");
     expect(screen.queryByText("Click to change scope")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /MIT 6\.006 \(demo\)/ })).toBeInTheDocument();
     const activeButton = screen.getByRole("button", { name: /Cambridge CS Tripos\. Active scope/ });
     expect(activeButton).toHaveAttribute("aria-pressed", "true");
-    expect(activeButton).toHaveClass("selectable-selected");
     expect(screen.getByRole("button", { name: /Oxford Mathematics\. Locked/ })).toBeInTheDocument();
   });
 
-  test("renders a single-column row surface instead of a card grid", () => {
-    render(
+  test("renders one row per collection", () => {
+    renderCollectionsGrid(
       <CollectionsGrid
         collections={[publicCollection, cambridgeAccessible, oxfordWrongAffiliation]}
         activeName={null}
@@ -41,19 +48,14 @@ describe("CollectionsGrid", () => {
       />,
     );
 
-    const section = screen.getByRole("heading", { name: "Collections" }).closest("section");
-    const rowSurface = section?.querySelector("[data-collection-rows]");
-
     expect(screen.getAllByRole("button")).toHaveLength(3);
-    expect(rowSurface).toHaveClass("flex", "flex-col");
-    expect(rowSurface?.className).not.toMatch(/grid-cols/);
   });
 
   test("routes accessible and locked picks to their callbacks", async () => {
     const onPickAccessible = vi.fn();
     const onPickLocked = vi.fn();
 
-    render(
+    renderCollectionsGrid(
       <CollectionsGrid
         collections={[cambridgeAccessible, oxfordWrongAffiliation]}
         activeName={null}

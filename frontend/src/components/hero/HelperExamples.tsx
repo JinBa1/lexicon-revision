@@ -16,10 +16,32 @@ const DEFAULT_EXAMPLES: HelperExample[] = [
 export function HelperExamples({
   examples = DEFAULT_EXAMPLES,
   onPick,
+  chrome = "default",
 }: {
   examples?: HelperExample[];
   onPick: (example: HelperExample) => void;
+  chrome?: "default" | "landing-unified";
 }) {
+  if (chrome === "landing-unified") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 font-ui text-sm text-ink-muted">
+        <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.15em] text-ink-muted">
+          Try examples
+        </span>
+        {examples.map((example, idx) => (
+          <button
+            key={`${example.label}-${idx}`}
+            type="button"
+            onClick={() => onPick(example)}
+            className="rounded border border-rule-soft bg-paper-sunken px-3 py-1.5 font-body text-xs text-ink transition-colors hover:border-rule hover:bg-[#E9DEC4]"
+          >
+            {example.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   const findExamples = examples.filter((e) => e.action === "questions");
   const answerExamples = examples.filter((e) => e.action === "answer");
   return (

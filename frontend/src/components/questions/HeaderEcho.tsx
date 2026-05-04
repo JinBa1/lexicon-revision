@@ -65,24 +65,27 @@ export function HeaderEcho({
   }, [navigate, page, query]);
 
   return (
-    <div className="border-b border-rule bg-paper-raised">
-      <div className="mx-auto max-w-6xl px-6 py-3">
-        <Hero
-          mode="header-echo"
-          activeCollection={active}
-          query={query}
-          filters={filters}
-          onQueryChange={setQuery}
-          onFiltersChange={updateFilters}
-          onOpenScope={switchScope}
-          onSubmit={submit}
-        />
+    <section data-testid="result-header-search" className="bg-paper">
+      <div className="mx-auto max-w-[1240px] px-6 py-7 sm:px-10">
+        <div className="overflow-visible rounded-md border border-rule bg-paper-raised shadow-[0_12px_35px_rgba(0,0,0,0.04)]">
+          <Hero
+            mode="header-echo"
+            chrome="result-unified"
+            activeCollection={active}
+            query={query}
+            filters={filters}
+            onQueryChange={setQuery}
+            onFiltersChange={updateFilters}
+            onOpenScope={switchScope}
+            onSubmit={submit}
+          />
+        </div>
+        {active !== null && active.access_state !== "accessible" ? (
+          <p className="mt-2 font-display text-xs italic text-claret">
+            Access to {active.display_name} is restricted.
+          </p>
+        ) : null}
       </div>
-      {active !== null && active.access_state !== "accessible" ? (
-        <p className="mx-auto max-w-6xl px-6 pb-2 font-display text-xs italic text-claret">
-          Access to {active.display_name} is restricted.
-        </p>
-      ) : null}
-    </div>
+    </section>
   );
 }

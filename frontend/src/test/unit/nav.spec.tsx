@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { Footer } from "@/components/nav/Footer";
 import { TopNav } from "@/components/nav/TopNav";
 import { AppAuthProvider } from "@/lib/auth/runtime";
+import { PROJECT_REPOSITORY_URL } from "@/lib/publicCopy";
 
 const { mockedEnv } = vi.hoisted(() => ({
   mockedEnv: {
@@ -42,7 +43,12 @@ describe("TopNav", () => {
   test("shows a sign-in link for anonymous users", () => {
     renderTopNav();
 
-    expect(screen.getByRole("link", { name: "The Tripos Archive" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Supported Universities" })).toHaveAttribute(
+      "href",
+      "/sign-up",
+    );
+    expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
     const signInLink = screen.getByRole("link", { name: /sign in/i });
     expect(signInLink).toHaveAttribute("href", "/sign-in");
     expect(within(signInLink).queryByRole("button", { name: /sign in/i })).toBeNull();
@@ -61,15 +67,21 @@ describe("TopNav", () => {
 });
 
 describe("Footer", () => {
-  test("renders archive links and the truncated build SHA", () => {
+  test("renders footer link destinations and product line", () => {
     renderWithRouter(<Footer />);
 
+    expect(screen.getByRole("contentinfo")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Supported universities" })).toHaveAttribute(
       "href",
       "/sign-up",
     );
     expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
-    expect(screen.getByText("Read the question. Then ask yours.")).toBeInTheDocument();
-    expect(screen.getByText("abcdef1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getByRole("link", { name: "Project repository on GitHub" })).toHaveAttribute(
+      "href",
+      PROJECT_REPOSITORY_URL,
+    );
+    expect(screen.getByText("© 2026 LEXICON REVISION")).toBeInTheDocument();
   });
 });

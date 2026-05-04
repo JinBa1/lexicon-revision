@@ -6,6 +6,7 @@ import type {
   SearchRequest,
   SearchResponse,
 } from "@/lib/api/types";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 
 const publicCollection: CollectionListItem = {
   name: "public-demo",
@@ -131,13 +132,17 @@ test("anonymous user can pick a public collection and search for matching questi
   );
   await page.getByRole("button", { name: /MIT 6\.006 \(demo\)/ }).click();
 
-  await expect(page.getByRole("heading", { level: 1, name: "MIT 6.006 (demo)" })).toBeVisible();
+  await expect(page).toHaveURL(/\/c\/public-demo$/);
+  await expect(page.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeVisible();
+  await expect(
+    page.getByTestId("hero-action-row").getByRole("button", { name: "MIT 6.006 (demo)" }),
+  ).toBeVisible();
 
   await page.getByLabel("Query").fill("dynamic programming");
   await page.getByRole("button", { name: "Find questions" }).click();
 
   await expect(page).toHaveURL(/\/c\/public-demo\/questions\?q=dynamic\+programming/);
-  await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2 matching questions" })).toBeVisible();
   await expect(
     page.getByText("Design a dynamic programming algorithm for optimal binary search trees."),
   ).toBeVisible();
@@ -145,8 +150,8 @@ test("anonymous user can pick a public collection and search for matching questi
     page.getByText("Use memoization to count paths in a directed acyclic graph."),
   ).toBeVisible();
   await expect(
-    page.getByText(
-      "Full question: design a dynamic programming algorithm for optimal binary search trees and analyze its running time.",
-    ),
+    page.getByRole("heading", {
+      name: "Full question: design a dynamic programming algorithm for optimal binary search trees and analyze its running time.",
+    }),
   ).toBeVisible();
 });

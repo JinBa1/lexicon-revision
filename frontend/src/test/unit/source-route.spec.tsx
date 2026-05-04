@@ -86,7 +86,6 @@ describe("SourceRoute", () => {
       chunkId: "cam-2022-p5-q3-b",
     });
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(8);
   });
 
   test("renders the full chunk and parent context", () => {
@@ -97,14 +96,7 @@ describe("SourceRoute", () => {
     expect(screen.getAllByText(/halves on underflow/i).length).toBeGreaterThan(0);
   });
 
-  test("does not render header search chrome", () => {
-    renderSource();
-
-    expect(screen.queryByPlaceholderText("Enter a topic or a question…")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /find questions/i })).not.toBeInTheDocument();
-  });
-
-  test("renders shareable source eyebrow, heading from the first paragraph, and copy link button", () => {
+  test("renders shareable source panel, metadata, and copy link button without duplicating the prompt title", () => {
     setChunkState({
       data: {
         ...chunkDetailFixture,
@@ -123,11 +115,14 @@ describe("SourceRoute", () => {
 
     renderSource();
 
-    expect(screen.getByText(/shareable source/i)).toHaveClass("section-eyebrow");
+    expect(screen.getByTestId("source-result-panel")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Shareable Source" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "First structured heading with $x^2$" }),
-    ).toHaveClass("mt-1", "font-display", "text-2xl", "text-ink", "line-clamp-2");
+      screen.queryByRole("heading", { name: "First structured heading with $x^2$" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText(/First structured heading with/i)).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
+    expect(screen.getByTestId("source-anchor-block")).toBeInTheDocument();
   });
 
   test("copy link uses an absolute URL derived from the route location and origin", async () => {
@@ -182,8 +177,8 @@ describe("SourceRoute", () => {
     renderSource();
 
     expect(screen.getByText("Part (b)")).toBeInTheDocument();
-    expect(screen.getByText("Year: 2022")).toBeInTheDocument();
-    expect(screen.getByText("Paper: Paper 5")).toBeInTheDocument();
+    expect(screen.getByText("2022")).toBeInTheDocument();
+    expect(screen.getByText("Paper 5")).toBeInTheDocument();
   });
 
   test("formats source metadata chips using dotted source keys and readable values", () => {
@@ -204,6 +199,22 @@ describe("SourceRoute", () => {
             key: "has_figure",
             label: "Has figure",
             type: "boolean",
+            operators: ["eq"],
+            exposed: true,
+            source: null,
+          },
+          {
+            key: "question_label",
+            label: "Question",
+            type: "string",
+            operators: ["eq"],
+            exposed: true,
+            source: null,
+          },
+          {
+            key: "marks",
+            label: "Marks",
+            type: "integer",
             operators: ["eq"],
             exposed: true,
             source: null,
@@ -231,6 +242,8 @@ describe("SourceRoute", () => {
         metadata: {
           "paper.label": "Paper dotted",
           has_figure: false,
+          question_label: "Question 3",
+          marks: 8,
           attrs: { topic: "amortized" },
         },
       },
@@ -238,7 +251,9 @@ describe("SourceRoute", () => {
 
     renderSource();
 
-    expect(screen.getByText("Paper: Paper dotted")).toBeInTheDocument();
+    expect(screen.getByText("Paper dotted")).toBeInTheDocument();
+    expect(screen.getByText("Q3")).toBeInTheDocument();
+    expect(screen.getByText("8 marks")).toBeInTheDocument();
     expect(screen.getByText("Has figure: No")).toBeInTheDocument();
     expect(screen.getByText('Attrs: {"topic":"amortized"}')).toBeInTheDocument();
   });
@@ -265,19 +280,18 @@ describe("SourceRoute", () => {
   test("parent question is collapsed by default and toggles expanded state", async () => {
     renderSource();
 
-    const toggle = screen.getByRole("button", { name: "Show full parent" });
+    const toggle = screen.getByRole("button", { name: /Show full parent/i });
     const parentBody = screen.getByTestId("source-parent-body");
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(parentBody).toHaveClass("max-h-24", "overflow-hidden");
+    expect(parentBody).toBeInTheDocument();
 
     await userEvent.click(toggle);
 
-    expect(screen.getByRole("button", { name: "Collapse parent" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /Collapse parent/i })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
-    expect(parentBody).not.toHaveClass("max-h-24");
   });
 
   test("passes child and parent render_blocks through to the custom layout", async () => {
@@ -324,7 +338,7 @@ describe("SourceRoute", () => {
 
     const { container } = renderSource();
 
-    await userEvent.click(screen.getByRole("button", { name: "Show full parent" }));
+    await userEvent.click(screen.getByRole("button", { name: /Show full parent/i }));
 
     expect(screen.getByText("Structured parent question text")).toBeInTheDocument();
     expect(screen.getAllByText(/Structured child prompt with/i).length).toBeGreaterThan(0);

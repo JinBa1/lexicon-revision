@@ -1,16 +1,17 @@
 export const archiveTokens = {
   colors: {
-    paper: "#F1E8D5",
-    "paper-raised": "#FBF6E8",
-    "paper-sunken": "#E9DEC4",
-    "paper-lock": "#EADCB8",
+    paper: "#F8F5EE",
+    "paper-raised": "#FEFDFB",
+    "paper-sunken": "#F1EAD7",
+    "paper-footer": "#ECE2CA",
+    "paper-lock": "#FAF9F3",
     ink: "#0C0A08",
-    "ink-muted": "#6B5A3B",
-    rule: "#D8CCA9",
-    "rule-soft": "#C9B98E",
+    "ink-muted": "#8C7C5F",
+    rule: "#E2D9C2",
+    "rule-soft": "#EDE4D0",
     claret: "#7E2E2E",
-    "claret-soft": "#F7EED6",
-    "claret-active": "#E8D4D4",
+    "claret-soft": "#F9F4E8",
+    "claret-active": "#F2E4DE",
   },
   fontFamily: {
     display: ['"Source Serif Pro"', "Georgia", "serif"],
@@ -23,6 +24,6 @@ export const archiveTokens = {
     sm: "3px",
   },
   boxShadow: {
-    module: "0 10px 40px rgba(0,0,0,.35)",
+    module: "0 12px 35px rgba(0,0,0,.04)",
   },
 } as const;

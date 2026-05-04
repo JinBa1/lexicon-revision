@@ -15,12 +15,11 @@ const patterns: StudyPattern[] = [
 ];
 
 describe("pattern citations", () => {
-  test("renders citation as numbered chip [N] with claret bg", () => {
+  test("renders citation as an accessible numbered chip", () => {
     render(<CitationChip label="1" targetChunkId="source-1" onActivate={() => {}} />);
 
     const chip = screen.getByRole("button", { name: /jump to source 1/i });
-    expect(chip.textContent).toContain("[1]");
-    expect(chip.className).toContain("bg-claret");
+    expect(chip).toHaveTextContent("1");
   });
 
   test("renders one citation chip per supporting_chunk_id mapped by position", () => {
@@ -36,8 +35,8 @@ describe("pattern citations", () => {
       />,
     );
     expect(screen.getAllByRole("button")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /jump to source 1/i })).toHaveTextContent("[1]");
-    expect(screen.getByRole("button", { name: /jump to source 2/i })).toHaveTextContent("[2]");
+    expect(screen.getByRole("button", { name: /jump to source 1/i })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: /jump to source 2/i })).toHaveTextContent("2");
   });
 
   test("skips citation chips whose chunk_id is not in sources", () => {

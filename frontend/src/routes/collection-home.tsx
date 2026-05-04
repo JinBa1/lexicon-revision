@@ -5,6 +5,9 @@ import { CollectionsGrid } from "@/components/collections/CollectionsGrid";
 import { NoAffiliationBanner } from "@/components/collections/NoAffiliationBanner";
 import { WrongAffiliationModal } from "@/components/collections/WrongAffiliationModal";
 import { Hero } from "@/components/hero/Hero";
+import { HeroStatusStrip } from "@/components/hero/HeroStatusStrip";
+import { LandingHeroIntro } from "@/components/hero/LandingHeroIntro";
+import { SteppedRibbon } from "@/components/hero/SteppedRibbon";
 import { Button } from "@/components/shared/Button";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
@@ -130,27 +133,29 @@ export function CollectionHomeRoute() {
   const anyAccessible = collections.some((collection) => collection.access_state === "accessible");
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <div className="text-center">
-        <h1 className="mx-auto max-w-3xl font-display text-4xl font-semibold leading-tight text-ink">
-          {active.display_name}
-        </h1>
-      </div>
-      <div className="mt-6">
+    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:pb-14 lg:pt-[4.5rem]">
+      <LandingHeroIntro />
+      <section
+        aria-label="Collection search workflow"
+        className="mt-9 overflow-visible rounded-md border border-rule bg-paper-raised shadow-module"
+      >
+        <SteppedRibbon />
         <Hero
           mode="landing"
+          chrome="landing-unified"
           activeCollection={active}
           query={query}
           filters={filters}
           onQueryChange={onQueryChange}
           onFiltersChange={setFilters}
           onOpenScope={() =>
-            document.getElementById("collections-grid")?.scrollIntoView({ behavior: "smooth" })
+            document.getElementById("collections")?.scrollIntoView({ behavior: "smooth" })
           }
           onSubmit={submit}
         />
-      </div>
-      <div id="collections-grid">
+        <HeroStatusStrip activeCollection={active} chrome="landing-unified" />
+      </section>
+      <div id="collections">
         {isSignedIn && !anyAccessible ? (
           <div className="mt-10">
             <NoAffiliationBanner />

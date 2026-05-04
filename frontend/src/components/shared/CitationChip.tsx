@@ -17,13 +17,13 @@ export const CitationChip = forwardRef<
       onClick={() => onActivate(targetChunkId)}
       aria-label={`Jump to source ${label}`}
       className={cn(
-        "mx-0.5 inline-flex items-center justify-center rounded-sm px-1.5 py-0.5",
-        "bg-claret font-ui text-[10px] text-paper-raised transition-colors hover:bg-claret/90",
+        "mx-0.5 inline-flex items-center justify-center rounded-full border border-claret px-2 py-px",
+        "bg-white font-ui text-[11px] font-bold text-claret transition-colors hover:bg-claret hover:text-white",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-claret focus-visible:ring-offset-1 focus-visible:ring-offset-paper",
         className,
       )}
     >
-      [{label}]
+      {label}
     </button>
   );
 });

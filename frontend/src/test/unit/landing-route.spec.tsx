@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 import { LandingRoute } from "@/routes/landing";
 import {
   cambridgeAccessible,
@@ -75,7 +76,11 @@ describe("LandingRoute", () => {
     setCollectionsState({ isLoading: true });
     const { container } = renderLanding();
 
-    expect(screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }));
+    expect(screen.getByRole("heading", { name: LANDING_HERO_COPY.title }));
+    expect(screen.getByRole("region", { name: "Search workflow" })).toBeInTheDocument();
+    expect(screen.getByText("Select the archive to search")).toBeInTheDocument();
+    expect(screen.getByText("Enter what you want to learn")).toBeInTheDocument();
+    expect(screen.getByText("Choose your next step")).toBeInTheDocument();
     expect(screen.queryByText(/Pick a collection below to enable search/i)).toBeNull();
     expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
@@ -83,6 +88,12 @@ describe("LandingRoute", () => {
       "#collections",
     );
     expect(document.getElementById("collections")).toBeInTheDocument();
+    expect(screen.getByText(LANDING_HERO_COPY.eyebrow)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pick a collection" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pick a collection" })).not.toHaveTextContent("▾");
+    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find questions" })).toBeInTheDocument();
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
@@ -109,6 +120,10 @@ describe("LandingRoute", () => {
     setCollectionsState({ data: [cambridgeAccessible] });
 
     renderLanding();
+    expect(
+      screen.getByRole("link", { name: "Can't find your course? Suggest a collection->" }),
+    ).toHaveAttribute("href", "/sign-up");
+
     await userEvent.click(screen.getByRole("button", { name: /Cambridge CS Tripos/ }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos");

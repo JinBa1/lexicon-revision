@@ -27,8 +27,7 @@ describe("CollectionCard", () => {
       ),
     );
     expect(screen.getByText("Cambridge CS Tripos")).toBeInTheDocument();
-    expect(screen.getByText(/744 papers/)).toBeInTheDocument();
-    expect(screen.getByRole("button")).toHaveClass("flex-row");
+    expect(screen.getByText("Cambridge · 744 papers · 2018–25")).toBeInTheDocument();
   });
 
   test("active row exposes Active scope state accessibly", () => {
@@ -46,11 +45,6 @@ describe("CollectionCard", () => {
     expect(screen.getByText(/Active scope/i)).toBeInTheDocument();
     const btn = screen.getByRole("button", { name: /Active scope/i });
     expect(btn).toHaveAttribute("aria-pressed", "true");
-    expect(btn).toHaveClass("selectable-selected");
-    expect(btn).not.toHaveClass("border-rule");
-    expect(btn).not.toHaveClass("border-l-transparent");
-    expect(btn).not.toHaveClass("bg-paper-raised");
-    expect(btn).not.toHaveClass("bg-paper-lock");
   });
 
   test("locked anonymous click calls onPickLocked with signin reason", async () => {
@@ -70,7 +64,7 @@ describe("CollectionCard", () => {
     expect(onPickLocked).toHaveBeenCalledWith(cambridgeLocked);
   });
 
-  test("active locked row does not keep inactive lock styling tokens", () => {
+  test("active locked row exposes Active scope state accessibly", () => {
     render(
       wrap(
         <CollectionCard
@@ -84,12 +78,7 @@ describe("CollectionCard", () => {
     );
 
     const btn = screen.getByRole("button", { name: /Active scope/i });
-    expect(btn).toHaveClass("selectable-selected");
-    expect(btn).not.toHaveClass("border-rule");
-    expect(btn).not.toHaveClass("border-l-transparent");
-    expect(btn).not.toHaveClass("bg-paper-raised");
-    expect(btn).not.toHaveClass("bg-paper-lock");
-    expect(btn).not.toHaveClass("opacity-90");
+    expect(btn).toHaveAttribute("aria-pressed", "true");
   });
 
   test("accessible click calls onPickAccessible", async () => {
@@ -126,6 +115,9 @@ describe("CollectionCard", () => {
       "aria-label",
       expect.stringContaining("Unavailable to your account"),
     );
-    expect(screen.getAllByText("Unavailable to your account")).toHaveLength(1);
+    expect(screen.getByText("Unavailable to your account")).toBeInTheDocument();
+    expect(screen.queryByText(/310 papers/)).toBeNull();
+    expect(screen.queryByText(/2019–25/)).toBeNull();
+    expect(screen.queryByText(/verified by email/i)).toBeNull();
   });
 });

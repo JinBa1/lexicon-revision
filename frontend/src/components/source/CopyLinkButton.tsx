@@ -48,8 +48,13 @@ export function CopyLinkButton({ url }: CopyLinkButtonProps) {
 
   return (
     <div className="inline-flex flex-wrap items-center gap-2">
-      <Button variant="secondary" onClick={handleClick}>
-        Copy link
+      <Button
+        variant="secondary"
+        className="rounded border-claret bg-white px-4 py-2 font-ui text-[12.5px] font-bold text-claret hover:bg-claret-soft"
+        onClick={handleClick}
+      >
+        <span aria-hidden>🔗</span>
+        <span>Copy link</span>
       </Button>
       <span role="status" aria-live="polite" className="text-[12px] text-ink-muted">
         {message}

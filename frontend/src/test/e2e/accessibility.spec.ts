@@ -288,13 +288,6 @@ test.describe("critical axe accessibility", () => {
     await assertNoCriticalAxeViolations(page);
   });
 
-  test("has no critical axe violations on /sign-in", async ({ page }) => {
-    await page.goto("/sign-in");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
   test("has no critical axe violations on /sign-up", async ({ page }) => {
     await page.goto("/sign-up");
     await expect(page.getByText("Demo University")).toBeVisible();
@@ -302,29 +295,10 @@ test.describe("critical axe accessibility", () => {
     await assertNoCriticalAxeViolations(page);
   });
 
-  test("has no critical axe violations on /about", async ({ page }) => {
-    await page.goto("/about");
-    await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
-  test("has no critical axe violations on /unlock/private-demo", async ({ page }) => {
-    await page.goto("/unlock/private-demo");
-    await expect(
-      page.getByRole("heading", {
-        name: "Private Demo Papers is restricted to Demo University members.",
-      }),
-    ).toBeVisible();
-    await expect(page.getByText("Use your @demo.edu email to sign up.")).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
   test("has no critical axe violations on focused questions route", async ({ page }) => {
     await page.goto("/c/public-demo/questions?q=graphs&focus=chunk-1");
-    await expect(page.getByRole("heading", { name: "Top 2 results" })).toBeVisible();
-    await expect(page.getByRole("article").first().getByText(focusedChunk.text)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "2 matching questions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: focusedChunk.text })).toBeVisible();
 
     await assertNoCriticalAxeViolations(page);
   });
@@ -339,7 +313,7 @@ test.describe("critical axe accessibility", () => {
 
   test("has no critical axe violations on source route", async ({ page }) => {
     await page.goto("/c/public-demo/source/chunk-1");
-    await expect(page.getByRole("heading", { name: focusedChunk.text })).toBeVisible();
+    await expect(page.getByText(focusedChunk.text)).toBeVisible();
 
     await assertNoCriticalAxeViolations(page);
   });

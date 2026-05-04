@@ -239,21 +239,30 @@ function AnswerContent({
           />
         ) : data ? (
           <>
-            <section className="border-b border-rule pb-3">
-              <div className="section-eyebrow">Question</div>
-              <h1 className="mt-1 font-display text-xl text-ink">{data.query}</h1>
-            </section>
-            <AnswerStatusBanner status={data.answer_status} />
-            <div className="mt-4 space-y-4">
-              <AnswerBody overview={data.answer.overview} />
-              <LimitationsBlock limitations={data.answer.limitations} />
-              <PatternsList
-                patterns={data.answer.patterns}
-                chunkIdToPosition={chunkIdToPosition}
-                onCitationActivate={onCitationActivate}
-              />
+            <div
+              data-testid="answer-result-panel"
+              className="rounded-[4px] border border-rule bg-paper-raised px-6 py-8 shadow-[0_12px_35px_rgba(0,0,0,0.04)] sm:px-10 lg:px-12"
+            >
+              <section className="mb-8 border-b border-rule pb-8">
+                <div className="font-ui text-[10px] font-bold uppercase tracking-[0.2em] text-claret">
+                  The Question
+                </div>
+                <h1 className="mt-3 font-display text-[28px] font-bold leading-[1.2] text-ink sm:text-[34px]">
+                  {data.query}
+                </h1>
+              </section>
+              <AnswerStatusBanner status={data.answer_status} />
+              <div className="space-y-0">
+                <AnswerBody overview={data.answer.overview} />
+                <LimitationsBlock limitations={data.answer.limitations} />
+                <PatternsList
+                  patterns={data.answer.patterns}
+                  chunkIdToPosition={chunkIdToPosition}
+                  onCitationActivate={onCitationActivate}
+                />
+              </div>
+              <RetrievalFooter retrieval={data.retrieval} />
             </div>
-            <RetrievalFooter retrieval={data.retrieval} />
             <SourcesGrid
               collection={collectionName}
               sources={data.sources}
@@ -262,12 +271,12 @@ function AnswerContent({
               registerRef={registerRef}
             />
             {shouldShowQuestionsFallback(data.answer_status) ? (
-              <div className="mt-6 rounded-sm border border-rule bg-paper-raised p-4 text-center">
+              <div className="mt-10 rounded-[4px] border border-rule bg-paper-raised px-6 py-4 text-center">
                 <Link
                   to={buildQuestionsHref({ collection: collectionName, query, filters })}
-                  className="font-display text-[13px] text-claret hover:underline"
+                  className="font-display text-[15px] text-claret hover:underline"
                 >
-                  Retrieve matching questions instead
+                  Retrieve matching questions instead →
                 </Link>
               </div>
             ) : null}
@@ -279,7 +288,7 @@ function AnswerContent({
 }
 
 function AnswerMain({ children }: { children: ReactNode }) {
-  return <main className="mx-auto max-w-4xl px-6 py-10">{children}</main>;
+  return <main className="mx-auto max-w-[1240px] px-6 py-8 pb-24 sm:px-10">{children}</main>;
 }
 
 function shouldShowQuestionsFallback(status: StudyAnswerStatus): boolean {

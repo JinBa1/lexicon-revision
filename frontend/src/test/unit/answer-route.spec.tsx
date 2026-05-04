@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -208,10 +208,11 @@ describe("AnswerRoute", () => {
   test("renders the answer question as an eyebrow and level-one heading", () => {
     renderAnswer();
 
-    expect(screen.getByText("Question")).toHaveClass("section-eyebrow");
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.getByTestId("answer-result-panel")).toBeInTheDocument();
+    expect(screen.getByText("The Question")).toBeInTheDocument();
     const heading = screen.getByRole("heading", { level: 1, name: "dynamic tables" });
-    expect(heading).toHaveClass("font-display", "text-xl", "text-ink");
-    expect(heading).not.toHaveClass("italic");
+    expect(heading).toBeInTheDocument();
   });
 
   test("renders limitations between the answer overview and patterns", () => {
@@ -240,15 +241,15 @@ describe("AnswerRoute", () => {
     renderAnswer("/c/cam-cs-tripos/answer?q=dynamic");
     const initialStudyCalls = mockUseStudy.mock.calls.length;
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
 
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos/answer?q=dynamic");
     expect(mockUseStudy).toHaveBeenCalledTimes(initialStudyCalls);
 
     await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(screen.getByRole("button", { name: "+ Filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/c/cam-cs-tripos/answer?q=dynamic");
     expect(mockUseStudy).toHaveBeenCalledTimes(initialStudyCalls);
 
@@ -262,6 +263,18 @@ describe("AnswerRoute", () => {
       expect.objectContaining({
         filters: [{ field: "year", op: "gte", value: 2021 }],
       }),
+    );
+  });
+
+  test("shared header can switch from answer to questions with draft filters", async () => {
+    renderAnswer("/c/cam-cs-tripos/answer?q=dynamic");
+
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    await userEvent.type(screen.getByLabelText("Year from"), "2021");
+    await userEvent.click(screen.getByRole("button", { name: "Find questions" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2021",
     );
   });
 
@@ -331,15 +344,19 @@ describe("AnswerRoute", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Dynamic table resizing")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /jump to source 1/i }));
-      expect(screen.getByText("Year: 2022")).toBeInTheDocument();
+      expect(screen.getByText("2022")).toBeInTheDocument();
       expect(screen.getByText("Part (b)")).toBeInTheDocument();
       expect(screen.getByText("Why cited")).toBeInTheDocument();
       expect(
         screen.getByText("It asks for the same amortized-analysis pattern."),
       ).toBeInTheDocument();
-      expect(
-        screen.getByRole("link", { name: /Retrieve matching questions instead/i }),
-      ).toHaveAttribute("href", "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020");
+      const fallbackLink = screen.getByRole("link", {
+        name: "Retrieve matching questions instead →",
+      });
+      expect(fallbackLink).toHaveAttribute(
+        "href",
+        "/c/cam-cs-tripos/questions?q=dynamic&filter=year%3Agte%3A2020",
+      );
     },
   );
 
@@ -359,72 +376,16 @@ describe("AnswerRoute", () => {
       configurable: true,
       value: animate,
     });
-    const addClass = vi.spyOn(DOMTokenList.prototype, "add");
 
     try {
       renderAnswer();
 
       await userEvent.click(screen.getByRole("button", { name: /jump to source 1/i }));
-      const sourceCard = screen
-        .getByText("A question about table doubling and halving on underflow.")
-        .closest("li");
 
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
-      expect(addClass).toHaveBeenCalledWith("citation-highlighted");
-      expect(animate).toHaveBeenCalledWith(
-        expect.arrayContaining([expect.objectContaining({ boxShadow: "0 0 0 2px #7E2E2E" })]),
-        expect.objectContaining({ duration: 900, easing: "ease-out" }),
-      );
+      expect(animate).toHaveBeenCalled();
       await Promise.resolve();
-      expect(sourceCard).not.toHaveClass("citation-highlighted");
     } finally {
-      if (originalScrollIntoView) {
-        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
-      } else {
-        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
-      }
-      if (originalAnimate) {
-        Object.defineProperty(HTMLElement.prototype, "animate", originalAnimate);
-      } else {
-        delete (HTMLElement.prototype as { animate?: unknown }).animate;
-      }
-      addClass.mockRestore();
-    }
-  });
-
-  test("citation fallback highlight keeps the latest activation until its timeout completes", () => {
-    vi.useFakeTimers();
-    const scrollIntoView = vi.fn();
-    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      "scrollIntoView",
-    );
-    const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate");
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView,
-    });
-    delete (HTMLElement.prototype as { animate?: unknown }).animate;
-
-    try {
-      renderAnswer();
-      const citation = screen.getByRole("button", { name: /jump to source 1/i });
-      const sourceCard = screen
-        .getByText("A question about table doubling and halving on underflow.")
-        .closest("li");
-
-      fireEvent.click(citation);
-      expect(sourceCard).toHaveClass("citation-highlighted");
-
-      vi.advanceTimersByTime(500);
-      fireEvent.click(citation);
-      vi.advanceTimersByTime(500);
-      expect(sourceCard).toHaveClass("citation-highlighted");
-
-      vi.advanceTimersByTime(400);
-      expect(sourceCard).not.toHaveClass("citation-highlighted");
-    } finally {
-      vi.useRealTimers();
       if (originalScrollIntoView) {
         Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
       } else {

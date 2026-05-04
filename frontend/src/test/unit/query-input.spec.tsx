@@ -15,12 +15,11 @@ describe("QueryInput", () => {
     expect(input).toHaveAttribute("placeholder", "Enter a topic or a question…");
   });
 
-  test("supports md sizing and typing", async () => {
+  test("supports typing", async () => {
     render(<QueryInput size="md" />);
 
     const input = screen.getByRole("textbox", { name: "Query" });
 
-    expect(input.className).toContain("text-sm");
     await userEvent.type(input, "binary search trees");
     expect(input).toHaveValue("binary search trees");
   });

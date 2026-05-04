@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "@/App";
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 import { cambridgeAccessible } from "../fixtures/collections";
 
 const { mockedEnv, mockUseCollections } = vi.hoisted(() => ({
@@ -45,10 +46,8 @@ describe("App router", () => {
 
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "The Tripos Archive" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /Read the question\.\s*Then ask yours\./i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: LANDING_HERO_COPY.title })).toBeInTheDocument();
   });
 
   test("renders collection routes from dynamic paths", () => {
@@ -68,9 +67,28 @@ describe("App router", () => {
     renderAppAt("/c/cam-cs-tripos");
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Cambridge CS Tripos" }),
+      screen.getByRole("heading", { level: 1, name: LANDING_HERO_COPY.title }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toBeInTheDocument();
+  });
+
+  test("renders the privacy notice route", () => {
+    renderAppAt("/privacy");
+
+    expect(screen.getByRole("heading", { name: "Privacy notice" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Back to home" })).toHaveAttribute("href", "/");
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    expect(screen.getByText("Last updated")).toBeInTheDocument();
+    expect(screen.getByTestId("doc-content-panel")).toBeInTheDocument();
+  });
+
+  test("renders the about route as a document page", () => {
+    renderAppAt("/about");
+
+    expect(screen.getByRole("heading", { name: "About" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Back to home" })).toHaveAttribute("href", "/");
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    expect(screen.getByTestId("doc-content-panel")).toBeInTheDocument();
   });
 
   test("renders not found content instead of redirecting unknown routes", () => {

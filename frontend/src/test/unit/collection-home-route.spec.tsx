@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
+import { LANDING_HERO_COPY } from "@/lib/publicCopy";
 import { CollectionHomeRoute } from "@/routes/collection-home";
 import {
   cambridgeAccessible,
@@ -109,20 +110,43 @@ describe("CollectionHomeRoute", () => {
     renderCollectionHome();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Cambridge CS Tripos" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: LANDING_HERO_COPY.title,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cambridge CS Tripos ▾" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Cambridge CS Tripos" })).toBeNull();
+    expect(screen.getByText(LANDING_HERO_COPY.eyebrow)).toBeInTheDocument();
+    expect(screen.getByText("Select the archive to search")).toBeInTheDocument();
+    expect(screen.getByText("Enter what you want to learn")).toBeInTheDocument();
+    expect(screen.getByText("Choose your next step")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toBeInTheDocument();
     const activeRow = screen.getByRole("button", { name: /Cambridge CS Tripos\. Active scope/ });
-    expect(activeRow).toHaveClass("selectable-selected");
+    expect(activeRow).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Active scope")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Collection search workflow" })).toBeInTheDocument();
+    expect(screen.getByText("Current Collection")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).not.toHaveTextContent("▾");
+    expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find questions" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Can't find your course? Suggest a collection->" }),
+    ).toHaveAttribute("href", "/sign-up");
+    expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View collections ↓" })).toHaveAttribute(
+      "href",
+      "#collections",
+    );
+    expect(document.getElementById("collections")).toBeInTheDocument();
   });
 
   test("submits to questions with query and filters", async () => {
     renderCollectionHome("/c/cam-cs-tripos?q=graph+theory");
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2021");
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("current-location")).toHaveTextContent(
       "/c/cam-cs-tripos?q=graph+theory",
     );
@@ -166,9 +190,9 @@ describe("CollectionHomeRoute", () => {
     setCollectionsState({ data: [cambridgeAccessible, publicCollection] });
     renderCollectionHome("/c/cam-cs-tripos?page=questions&q=tree rotations");
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.type(screen.getByLabelText("Year from"), "2020");
-    expect(screen.getByRole("button", { name: "+ Filters (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /MIT 6\.006/ }));
 
@@ -179,9 +203,7 @@ describe("CollectionHomeRoute", () => {
     const newActiveRow = screen.getByRole("button", { name: /MIT 6\.006 \(demo\)\. Active scope/ });
     const oldActiveRow = screen.getByRole("button", { name: "Cambridge CS Tripos" });
     expect(newActiveRow).toHaveAttribute("aria-pressed", "true");
-    expect(newActiveRow).toHaveClass("selectable-selected");
     expect(oldActiveRow).toHaveAttribute("aria-pressed", "false");
-    expect(oldActiveRow).not.toHaveClass("selectable-selected");
   });
 
   test("scope switching uses edited query state and omits blank q", async () => {

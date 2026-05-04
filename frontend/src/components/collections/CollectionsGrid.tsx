@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import type { CollectionListItem } from "@/lib/api/types";
 import { CollectionCard } from "./CollectionCard";
 
@@ -15,13 +17,22 @@ export function CollectionsGrid({
   onPickLocked: (collection: CollectionListItem) => void;
 }) {
   return (
-    <section className="mt-10 border-t border-rule/50 pt-8">
-      <div className="mb-4">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
-          Collections
-        </h2>
+    <section className="mt-14">
+      <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+        <div className="flex flex-1 items-center gap-5">
+          <h2 className="font-ui text-xs font-bold uppercase tracking-[0.2em] text-ink">
+            Collections
+          </h2>
+          <div data-testid="collections-header-rule" className="h-px flex-1 bg-rule-soft" />
+        </div>
+        <Link
+          to="/sign-up"
+          className="font-ui text-[11px] font-medium text-claret transition-colors hover:text-claret/80"
+        >
+          Can't find your course? Suggest a collection-&gt;
+        </Link>
       </div>
-      <div data-collection-rows className="flex flex-col gap-3">
+      <div data-collection-rows className="flex flex-col gap-3.5">
         {collections.map((collection) => (
           <CollectionCard
             key={collection.name}
