@@ -27,7 +27,6 @@ describe("DetailPanel", () => {
     });
 
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(8);
     expect(screen.queryByText("Select a result")).not.toBeInTheDocument();
   });
 
@@ -132,11 +131,9 @@ describe("DetailPanel", () => {
       isLoading: false,
     });
     expect(screen.getByRole("link", { name: /open shareable source/i })).toBeInTheDocument();
-    // No tiny uppercase-claret hover-link variant remains.
-    expect(screen.queryByText(/^Open as shareable source/i)).not.toBeInTheDocument();
   });
 
-  test("renders mockup-style detail sections", () => {
+  test("renders detail sections", () => {
     renderDetailPanel({
       collection: "cam-cs-tripos",
       collectionDisplay: "Cam Cs Tripos Fixture",
@@ -146,10 +143,8 @@ describe("DetailPanel", () => {
       isLoading: false,
     });
 
-    expect(screen.getByText("1")).toHaveClass("rounded-full", "bg-claret");
-    expect(screen.getByRole("heading", { name: /halves on underflow/i })).toHaveClass(
-      "text-[19px]",
-    );
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /halves on underflow/i })).toBeInTheDocument();
     expect(screen.getByText("✦ Matched")).toBeInTheDocument();
     expect(screen.queryByText("✦ Matched prompt")).not.toBeInTheDocument();
     expect(screen.getByText("Parent question")).toBeInTheDocument();

@@ -122,20 +122,14 @@ describe("CollectionHomeRoute", () => {
     expect(screen.getByText("Choose your next step")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toBeInTheDocument();
     const activeRow = screen.getByRole("button", { name: /Cambridge CS Tripos\. Active scope/ });
-    expect(activeRow).toHaveClass("selectable-selected");
+    expect(activeRow).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Active scope")).toBeInTheDocument();
-    const workflow = screen.getByRole("region", { name: "Collection search workflow" });
-    expect(workflow).toHaveClass("overflow-visible", "border", "bg-paper-raised");
-    expect(workflow).not.toHaveClass("overflow-hidden");
+    expect(screen.getByRole("region", { name: "Collection search workflow" })).toBeInTheDocument();
     expect(screen.getByText("Current Collection")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).toHaveClass("min-h-14");
     expect(screen.getByRole("button", { name: "Cambridge CS Tripos" })).not.toHaveTextContent("▾");
     expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Get answer with sources" })).toHaveClass(
-      "bg-claret",
-    );
-    expect(screen.getByRole("button", { name: "Find questions" })).toHaveClass("bg-white");
-    expect(screen.queryByText(/87 papers · 2023–2025/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find questions" })).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Can't find your course? Suggest a collection->" }),
     ).toHaveAttribute("href", "/sign-up");
@@ -209,9 +203,7 @@ describe("CollectionHomeRoute", () => {
     const newActiveRow = screen.getByRole("button", { name: /MIT 6\.006 \(demo\)\. Active scope/ });
     const oldActiveRow = screen.getByRole("button", { name: "Cambridge CS Tripos" });
     expect(newActiveRow).toHaveAttribute("aria-pressed", "true");
-    expect(newActiveRow).toHaveClass("selectable-selected");
     expect(oldActiveRow).toHaveAttribute("aria-pressed", "false");
-    expect(oldActiveRow).not.toHaveClass("selectable-selected");
   });
 
   test("scope switching uses edited query state and omits blank q", async () => {

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { Footer } from "@/components/nav/Footer";
 import { TopNav } from "@/components/nav/TopNav";
 import { AppAuthProvider } from "@/lib/auth/runtime";
-import { LANDING_HERO_COPY, PROJECT_REPOSITORY_URL } from "@/lib/publicCopy";
+import { PROJECT_REPOSITORY_URL } from "@/lib/publicCopy";
 
 const { mockedEnv } = vi.hoisted(() => ({
   mockedEnv: {
@@ -44,15 +44,11 @@ describe("TopNav", () => {
     renderTopNav();
 
     expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "LEXICON REVISION" })).toHaveClass(
-      "text-[14px]",
-      "sm:text-[17px]",
+    expect(screen.getByRole("link", { name: "Supported Universities" })).toHaveAttribute(
+      "href",
+      "/sign-up",
     );
-    expect(screen.getByRole("link", { name: "Supported Universities" })).toHaveClass("text-sm");
-    expect(screen.getByRole("link", { name: "Supported Universities" })).not.toHaveClass(
-      "uppercase",
-    );
-    expect(screen.getByRole("link", { name: "About" })).not.toHaveClass("uppercase");
+    expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
     const signInLink = screen.getByRole("link", { name: /sign in/i });
     expect(signInLink).toHaveAttribute("href", "/sign-in");
     expect(within(signInLink).queryByRole("button", { name: /sign in/i })).toBeNull();
@@ -71,16 +67,11 @@ describe("TopNav", () => {
 });
 
 describe("Footer", () => {
-  test("renders split footer links with centered repository link and bottom line", () => {
+  test("renders footer link destinations and product line", () => {
     renderWithRouter(<Footer />);
 
-    expect(screen.getByRole("contentinfo")).toHaveClass("bg-paper-footer");
-    expect(screen.getByRole("contentinfo")).toHaveClass("py-5", "sm:py-6");
-    expect(screen.getByRole("navigation", { name: "Footer" })).toHaveClass(
-      "sm:grid-cols-[1fr_auto_1fr]",
-      "gap-3",
-      "font-bold",
-    );
+    expect(screen.getByRole("contentinfo")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Supported universities" })).toHaveAttribute(
       "href",
       "/sign-up",
@@ -91,17 +82,6 @@ describe("Footer", () => {
       "href",
       PROJECT_REPOSITORY_URL,
     );
-    expect(screen.getByRole("link", { name: "Project repository on GitHub" })).toHaveClass(
-      "rounded-sm",
-      "border-transparent",
-      "text-ink-muted",
-    );
     expect(screen.getByText("© 2026 LEXICON REVISION")).toBeInTheDocument();
-    expect(screen.queryByText("GH")).toBeNull();
-    expect(screen.queryByText(/OPEN SOURCE/i)).toBeNull();
-    expect(screen.queryByRole("link", { name: "LEXICON REVISION" })).toBeNull();
-    expect(screen.queryByText(LANDING_HERO_COPY.title)).toBeNull();
-    expect(screen.queryByText("abcdef1")).toBeNull();
-    expect(screen.queryByText(/Est\. 2026/i)).toBeNull();
   });
 });

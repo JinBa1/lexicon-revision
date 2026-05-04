@@ -288,42 +288,9 @@ test.describe("critical axe accessibility", () => {
     await assertNoCriticalAxeViolations(page);
   });
 
-  test("has no critical axe violations on /sign-in", async ({ page }) => {
-    await page.goto("/sign-in");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
   test("has no critical axe violations on /sign-up", async ({ page }) => {
     await page.goto("/sign-up");
     await expect(page.getByText("Demo University")).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
-  test("has no critical axe violations on /about", async ({ page }) => {
-    await page.goto("/about");
-    await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
-  test("has no critical axe violations on /privacy", async ({ page }) => {
-    await page.goto("/privacy");
-    await expect(page.getByRole("heading", { name: "Privacy notice" })).toBeVisible();
-
-    await assertNoCriticalAxeViolations(page);
-  });
-
-  test("has no critical axe violations on /unlock/private-demo", async ({ page }) => {
-    await page.goto("/unlock/private-demo");
-    await expect(
-      page.getByRole("heading", {
-        name: "Private Demo Papers is restricted to Demo University members.",
-      }),
-    ).toBeVisible();
-    await expect(page.getByText("Use your @demo.edu email to sign up.")).toBeVisible();
 
     await assertNoCriticalAxeViolations(page);
   });

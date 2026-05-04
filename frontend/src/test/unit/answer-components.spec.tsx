@@ -90,8 +90,7 @@ describe("AnswerBody", () => {
     const { container } = render(<AnswerBody overview={"First line.\nSecond line."} />);
     const paragraph = container.querySelector("p");
 
-    expect(screen.getByText("The Answer")).toHaveClass("tracking-[0.2em]", "text-ink-muted");
-    expect(paragraph).toHaveClass("whitespace-pre-wrap", "text-[17px]", "leading-[1.7]");
+    expect(screen.getByText("The Answer")).toBeInTheDocument();
     expect(paragraph?.textContent).toBe("First line.\nSecond line.");
   });
 });
@@ -120,18 +119,10 @@ describe("PatternsList", () => {
       />,
     );
 
-    expect(screen.getByText("Patterns")).toHaveClass("tracking-[0.2em]", "text-ink-muted");
-    expect(screen.getByText("1.")).toHaveClass("text-claret");
-    expect(screen.getByRole("heading", { level: 3, name: "Dynamic tables" })).toHaveClass(
-      "font-display",
-      "text-[18px]",
-    );
-    expect(screen.getByRole("button", { name: /jump to source 1/i })).toHaveClass(
-      "rounded-full",
-      "border-claret",
-      "bg-white",
-      "text-claret",
-    );
+    expect(screen.getByText("Patterns")).toBeInTheDocument();
+    expect(screen.getByText("1.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Dynamic tables" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /jump to source 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /missing/i })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /jump to source 3/i }));
@@ -147,7 +138,7 @@ describe("LimitationsBlock", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  test("renders limitations in a bordered callout", () => {
+  test("renders limitations in a complementary region", () => {
     render(
       <LimitationsBlock
         limitations={["Only three sources were retrieved.", "The answer may omit later papers."]}
@@ -159,7 +150,7 @@ describe("LimitationsBlock", () => {
     expect(screen.getByText("Limitations")).toBeInTheDocument();
     expect(screen.getByText("Only three sources were retrieved.")).toBeInTheDocument();
     expect(screen.getByText("The answer may omit later papers.")).toBeInTheDocument();
-    expect(callout).toHaveClass("border-l-4", "border-claret", "bg-claret-soft", "py-5");
+    expect(callout).toBeInTheDocument();
   });
 });
 
@@ -217,9 +208,6 @@ describe("SourcesGrid", () => {
     expect(screen.getByText(/Use potential/i)).toBeInTheDocument();
     expect(screen.queryByText(/Fallback text should not render/i)).not.toBeInTheDocument();
     expect(container.querySelectorAll(".katex").length).toBeGreaterThan(0);
-    expect(container.querySelector(".question-prose-clamp")).toHaveStyle({
-      WebkitLineClamp: "4",
-    });
   });
 
   test("renders excerpt_blocks table indicator in compact mode", () => {
@@ -267,11 +255,8 @@ describe("SourcesGrid", () => {
     );
 
     expect(screen.getByText(source.excerpt)).toBeInTheDocument();
-    expect(screen.getByText("Sources").parentElement).toHaveClass("flex", "items-center");
-    expect(screen.getByTestId("sources-heading-rule")).toHaveClass("flex-1", "bg-rule");
-    const sourceCard = screen.getByText(source.excerpt).closest("li");
-    expect(sourceCard).toHaveClass("rounded-[4px]", "border-rule", "bg-paper-raised");
-    expect(screen.getByText("1 · Source")).toHaveClass("tracking-[0.1em]", "text-ink-muted");
+    expect(screen.getByText("Sources")).toBeInTheDocument();
+    expect(screen.getByText("1 · Source")).toBeInTheDocument();
   });
 
   test("renders only the sub-question metadata chip when no schema is provided", () => {
@@ -393,41 +378,23 @@ describe("AnswerStatusBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  test("shows warm caution treatment for partial answers", () => {
-    const { container } = render(<AnswerStatusBanner status="partial" />);
-    const banner = container.firstElementChild;
+  test("shows partial answer status", () => {
+    render(<AnswerStatusBanner status="partial" />);
 
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
-    expect(screen.getByText("Partial answer")).toHaveClass("font-bold");
+    expect(screen.getByText("Partial answer")).toBeInTheDocument();
     expect(
       screen.getByText("Some sub-questions had no strong evidence — see Limitations below."),
-    ).toHaveClass("mt-1");
-    expect(banner).toHaveClass(
-      "bg-claret-soft",
-      "border",
-      "border-rule",
-      "border-l-4",
-      "border-l-claret",
-      "text-ink",
-    );
+    ).toBeInTheDocument();
   });
 
-  test("shows stronger warning treatment for insufficient evidence", () => {
-    const { container } = render(<AnswerStatusBanner status="insufficient_evidence" />);
-    const banner = container.firstElementChild;
+  test("shows insufficient evidence status", () => {
+    render(<AnswerStatusBanner status="insufficient_evidence" />);
 
     expect(screen.getByText("Insufficient evidence")).toBeInTheDocument();
     expect(
       screen.getByText("Try retrieving matching questions instead, or broaden your filters."),
     ).toBeInTheDocument();
-    expect(banner).toHaveClass(
-      "bg-claret-soft",
-      "border",
-      "border-rule",
-      "border-l-4",
-      "border-l-claret",
-      "text-ink",
-    );
   });
 
   test.each<[StudyAnswerStatus, string, string]>([

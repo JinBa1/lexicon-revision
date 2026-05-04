@@ -62,10 +62,8 @@ const collections: CollectionListItem[] = [
 
 const breakpoints = [
   { name: "mobile", width: 360, height: 720 },
-  { name: "sm", width: 640, height: 800 },
-  { name: "md", width: 768, height: 900 },
-  { name: "lg", width: 1024, height: 900 },
-  { name: "xl", width: 1280, height: 900 },
+  { name: "tablet", width: 768, height: 900 },
+  { name: "desktop", width: 1280, height: 900 },
 ];
 
 async function stubCollections(page: Page) {

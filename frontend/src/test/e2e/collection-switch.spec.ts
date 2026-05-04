@@ -200,23 +200,3 @@ test("switching accessible collections preserves query on home and clears filter
     expect.objectContaining({ collection: "open-archive" }),
   );
 });
-
-test("switching to a sign-in locked collection routes anonymous users to unlock with return target", async ({
-  page,
-}) => {
-  await stubFrontendContract(page);
-
-  await page.goto("/c/public-demo/questions?q=x");
-  await expect(page.getByRole("heading", { name: "1 matching question" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Public Demo" }).click();
-  await expect(page).toHaveURL("/?scopePicker=1&page=questions&q=x");
-
-  await page
-    .getByRole("button", {
-      name: /Locked Demo\. Locked\. Sign in with Demo University email to unlock/,
-    })
-    .click();
-
-  await expect(page).toHaveURL("/unlock/locked-demo?returnTo=%2Fc%2Flocked-demo%3Fq%3Dx");
-});

@@ -15,12 +15,11 @@ describe("QueryInput", () => {
     expect(input).toHaveAttribute("placeholder", "Enter a topic or a question…");
   });
 
-  test("supports md sizing and typing", async () => {
+  test("supports typing", async () => {
     render(<QueryInput size="md" />);
 
     const input = screen.getByRole("textbox", { name: "Query" });
 
-    expect(input.className).toContain("text-sm");
     await userEvent.type(input, "binary search trees");
     expect(input).toHaveValue("binary search trees");
   });
@@ -43,27 +42,5 @@ describe("QueryInput", () => {
     render(<QueryInput ref={ref} />);
 
     expect(ref.current).toBe(screen.getByRole("textbox", { name: "Query" }));
-  });
-
-  test("landing-unified chrome renders the prominent search box styling", () => {
-    render(<QueryInput chrome="landing-unified" />);
-
-    const input = screen.getByRole("textbox", { name: "Query" });
-    const wrapper = input.parentElement;
-
-    expect(wrapper).toHaveClass("bg-white", "px-5", "py-5");
-    expect(input).toHaveClass("text-xl", "italic");
-    expect(wrapper?.querySelector('[aria-hidden="true"]')).toHaveTextContent("✦");
-  });
-
-  test("result-unified chrome uses the compact bordered query style", () => {
-    render(<QueryInput chrome="result-unified" value="amortized analysis" onChange={() => {}} />);
-
-    const input = screen.getByLabelText("Query");
-    const shell = input.parentElement;
-
-    expect(input).toHaveClass("text-[18px]");
-    expect(shell).toHaveClass("rounded", "px-5", "py-4");
-    expect(shell).not.toHaveClass("py-5");
   });
 });

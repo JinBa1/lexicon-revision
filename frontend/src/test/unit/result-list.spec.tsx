@@ -144,7 +144,7 @@ describe("ResultList", () => {
     expect(screen.getByRole("heading", { name: "15 matching questions" })).toBeInTheDocument();
   });
 
-  test("renders rank circles, truthful level context, compact metadata, and selected styling", () => {
+  test("renders rank labels, truthful level context, and compact metadata", () => {
     render(
       <ResultList
         results={[questionResult, subQuestionResult]}
@@ -155,18 +155,19 @@ describe("ResultList", () => {
       />,
     );
 
-    expect(screen.getByText("1")).toHaveClass("rounded-full");
-    expect(screen.getByText("2")).toHaveClass("rounded-full");
-    expect(screen.getByText("Q")).toHaveClass("bg-claret", "text-white");
-    expect(screen.getByText("Part")).toHaveClass("bg-claret-soft", "text-claret");
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("Q")).toBeInTheDocument();
+    expect(screen.getByText("Part")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.queryByText("Q 3")).not.toBeInTheDocument();
     expect(screen.getByText("b - Q 3")).toBeInTheDocument();
     expect(screen.queryByText("Paper 5 · Question 3")).not.toBeInTheDocument();
     expect(screen.queryByText("Paper: Paper 5")).not.toBeInTheDocument();
     expect(screen.queryByText("Question: Question 3")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /halves on underflow/i })).toHaveClass(
-      "bg-[#F2E4DE]",
+    expect(screen.getByRole("button", { name: /halves on underflow/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
   });
 

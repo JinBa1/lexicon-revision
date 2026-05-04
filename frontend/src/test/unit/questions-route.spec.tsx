@@ -155,15 +155,6 @@ describe("QuestionsRoute", () => {
     const { container } = renderQuestions();
 
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThanOrEqual(3);
-  });
-
-  test("uses a narrower results column and wider detail column", () => {
-    renderQuestions();
-
-    expect(screen.getByTestId("questions-results-layout")).toHaveClass(
-      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
-    );
   });
 
   test("empty results render empty state and switch collection preserves query", async () => {

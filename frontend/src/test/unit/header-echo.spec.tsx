@@ -133,10 +133,8 @@ describe("HeaderEcho", () => {
     expect(container.querySelector('[data-testid="result-header-search"]')).toBeInTheDocument();
     expect(screen.getByText("Current Collection")).toBeInTheDocument();
     expect(screen.queryByText("In")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Get answer with sources" })).toHaveClass(
-      "bg-claret",
-    );
-    expect(screen.getByRole("button", { name: "Find questions" })).toHaveClass("bg-white");
+    expect(screen.getByRole("button", { name: "Get answer with sources" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find questions" })).toBeInTheDocument();
   });
 
   test("answer header can navigate to matching questions with current query", async () => {

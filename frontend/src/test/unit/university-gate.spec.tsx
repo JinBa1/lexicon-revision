@@ -44,10 +44,9 @@ describe("UniversityGate", () => {
 
     expect(screen.getByText("Sign-up · Step 1 of 2")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "← Back to home" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("heading", { name: "Join your student community" })).toHaveClass(
-      "text-[38px]",
-      "font-bold",
-    );
+    expect(
+      screen.getByRole("heading", { name: "Join your student community" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Supported communities")).toBeInTheDocument();
     expect(screen.getByText("Choose a university to")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue →" })).toBeDisabled();
@@ -68,7 +67,6 @@ describe("UniversityGate", () => {
         (_, node) => node?.textContent === "You'll verify with a mit.edu email next.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /MIT/i })).toHaveClass("bg-claret-active");
 
     await user.click(screen.getByRole("button", { name: "Continue →" }));
 

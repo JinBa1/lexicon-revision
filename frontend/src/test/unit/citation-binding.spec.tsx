@@ -15,12 +15,11 @@ const patterns: StudyPattern[] = [
 ];
 
 describe("pattern citations", () => {
-  test("renders citation as outlined numbered chip", () => {
+  test("renders citation as an accessible numbered chip", () => {
     render(<CitationChip label="1" targetChunkId="source-1" onActivate={() => {}} />);
 
     const chip = screen.getByRole("button", { name: /jump to source 1/i });
     expect(chip).toHaveTextContent("1");
-    expect(chip).toHaveClass("rounded-full", "border", "border-claret", "bg-white", "text-claret");
   });
 
   test("renders one citation chip per supporting_chunk_id mapped by position", () => {

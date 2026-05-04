@@ -13,18 +13,10 @@ describe("document routes", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "Privacy notice" })).toHaveClass(
-      "font-display",
-      "text-[38px]",
-      "sm:text-[42px]",
-    );
-    expect(screen.queryByText("Launch scaffold")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Privacy notice" })).toBeInTheDocument();
     expect(screen.getByText("Version")).toBeInTheDocument();
     expect(screen.getByText("Last updated")).toBeInTheDocument();
-    expect(screen.getByTestId("doc-content-panel")).toHaveClass(
-      "bg-paper-raised",
-      "shadow-[0_12px_35px_rgba(0,0,0,0.04)]",
-    );
+    expect(screen.getByTestId("doc-content-panel")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Contact the ICO ↗" })).toHaveAttribute(
       "href",
       "https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/",
@@ -38,11 +30,7 @@ describe("document routes", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "About" })).toHaveClass(
-      "font-display",
-      "text-[38px]",
-      "sm:text-[42px]",
-    );
+    expect(screen.getByRole("heading", { level: 1, name: "About" })).toBeInTheDocument();
     expect(screen.getByText("Version")).toBeInTheDocument();
     expect(screen.getByText("Last updated")).toBeInTheDocument();
     expect(screen.getByTestId("doc-content-panel")).toBeInTheDocument();

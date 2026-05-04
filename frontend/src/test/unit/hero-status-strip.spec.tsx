@@ -22,7 +22,7 @@ describe("HeroStatusStrip", () => {
     expect(screen.queryByRole("link", { name: "View collections ↓" })).toBeNull();
   });
 
-  test("landing-unified chrome keeps the choose-collection prompt even when selected", () => {
+  test("keeps the choose-collection prompt in landing mode even when selected", () => {
     render(<HeroStatusStrip activeCollection={cambridgeAccessible} chrome="landing-unified" />);
 
     expect(screen.getByText(/Choose a collection below to enable search\./i)).toBeInTheDocument();

@@ -28,15 +28,6 @@ describe("<CopyLinkButton>", () => {
 
     const button = screen.getByRole("button", { name: "Copy link" });
     expect(button).toBeInTheDocument();
-    expect(button).toHaveClass(
-      "rounded",
-      "border-claret",
-      "bg-white",
-      "font-ui",
-      "text-[12.5px]",
-      "font-bold",
-      "text-claret",
-    );
     expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.queryByDisplayValue("https://example.test/x")).not.toBeInTheDocument();
   });

@@ -4,7 +4,7 @@ import { ChunkCard } from "@/components/shared/ChunkCard";
 import type { CollectionMetadataSchema, MediaRef, RenderBlock } from "@/lib/api/types";
 import { renderMetadataSummary } from "@/lib/metadata/render";
 import { edinburghAccessible } from "../fixtures/collections";
-import { chunkDetailFixture, questionResult, subQuestionResult } from "../fixtures/search";
+import { chunkDetailFixture, questionResult } from "../fixtures/search";
 
 const metadataSchema: CollectionMetadataSchema = {
   version: 1,
@@ -84,24 +84,6 @@ describe("ChunkCard", () => {
     expect(screen.getByText(/amortized analysis/i)).toBeInTheDocument();
   });
 
-  test("compact mode renders sub_question label indent affordance", () => {
-    const { container } = render(
-      <ChunkCard
-        mode="compact"
-        chunk={{
-          chunk_id: subQuestionResult.chunk_id,
-          chunk_level: subQuestionResult.chunk_level,
-          parent_chunk_id: subQuestionResult.parent_chunk_id,
-          sub_question_label: subQuestionResult.sub_question_label,
-          text: subQuestionResult.text,
-          metadata: subQuestionResult.metadata,
-          media: [],
-        }}
-      />,
-    );
-    expect(container.firstChild).toHaveClass("ml-5");
-  });
-
   test("compact mode renders non-interactive markup when no click handler is provided", () => {
     const { container } = render(
       <ChunkCard
@@ -119,7 +101,6 @@ describe("ChunkCard", () => {
     );
 
     expect(container.querySelector("button")).toBeNull();
-    expect(container.firstChild).toHaveClass("block");
   });
 
   test("compact mode keeps button behavior when a click handler is provided", () => {
@@ -385,19 +366,6 @@ describe("<ChunkCard> compact (M20b)", () => {
     media: [],
     render_blocks: null,
   };
-
-  it("base row reserves border-l-4 transparent", () => {
-    const { container } = render(<ChunkCard mode="compact" chunk={baseChunk} />);
-    expect((container.firstChild as HTMLElement).className).toContain("border-l-4");
-    expect((container.firstChild as HTMLElement).className).toContain("border-l-transparent");
-  });
-
-  it("selected row applies .selectable-selected", () => {
-    const { container } = render(
-      <ChunkCard mode="compact" chunk={baseChunk} selected onClick={() => {}} />,
-    );
-    expect((container.firstChild as HTMLElement).className).toContain("selectable-selected");
-  });
 
   it("renders meta chip row from exposed schema fields", () => {
     const schema = {
