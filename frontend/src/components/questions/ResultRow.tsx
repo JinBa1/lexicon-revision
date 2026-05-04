@@ -31,7 +31,7 @@ export function ResultRow({
       aria-pressed={selected}
       className={cn(
         "grid w-full grid-cols-[36px_minmax(0,1fr)_18px] items-start gap-3 rounded-[5px] border border-rule bg-paper-raised p-4 text-left transition-colors hover:border-claret",
-        selected && "border-claret bg-[#F2E4DE]",
+        selected && "border-claret bg-claret-active",
       )}
     >
       <span

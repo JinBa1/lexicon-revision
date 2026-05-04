@@ -4,7 +4,11 @@ import {
   DocumentPage,
   DocumentSection,
 } from "@/components/document/DocumentPage";
-import { PROJECT_DISCUSSIONS_URL, PROJECT_ISSUES_URL } from "@/lib/publicCopy";
+import {
+  PRIVACY_CONTACT_EMAIL,
+  PROJECT_DISCUSSIONS_URL,
+  PROJECT_ISSUES_URL,
+} from "@/lib/publicCopy";
 
 const DOCUMENT_META = [
   { label: "Version", value: "0.2" },
@@ -13,7 +17,6 @@ const DOCUMENT_META = [
 
 const ICO_COMPLAINT_URL =
   "https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/";
-const PRIVACY_EMAIL = "jin.bai@outlook.com";
 
 const DATA_CATEGORIES = [
   {
@@ -87,11 +90,7 @@ export function PrivacyRoute() {
           the personal data described in this notice.
         </p>
         <p>
-          For privacy questions or requests, contact{" "}
-          <a className="font-semibold text-claret hover:underline" href={`mailto:${PRIVACY_EMAIL}`}>
-            {PRIVACY_EMAIL}
-          </a>
-          .
+          For privacy questions or requests, contact <PrivacyContact />.
         </p>
       </DocumentSection>
 
@@ -206,11 +205,7 @@ export function PrivacyRoute() {
           <li>Portability: receive your data in a portable format where this applies.</li>
         </ul>
         <p>
-          To make a request, contact{" "}
-          <a className="font-semibold text-claret hover:underline" href={`mailto:${PRIVACY_EMAIL}`}>
-            {PRIVACY_EMAIL}
-          </a>
-          .
+          To make a request, contact <PrivacyContact />.
         </p>
       </DocumentSection>
 
@@ -253,6 +248,25 @@ function DefinitionList({ items }: { items: { label: string; text: string }[] })
         </div>
       ))}
     </dl>
+  );
+}
+
+function PrivacyContact() {
+  if (!PRIVACY_CONTACT_EMAIL) {
+    return (
+      <span className="font-semibold text-ink">
+        the privacy contact address that will be published before public deployment
+      </span>
+    );
+  }
+
+  return (
+    <a
+      className="font-semibold text-claret hover:underline"
+      href={`mailto:${PRIVACY_CONTACT_EMAIL}`}
+    >
+      {PRIVACY_CONTACT_EMAIL}
+    </a>
   );
 }
 

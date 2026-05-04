@@ -11,7 +11,7 @@ const universities: SupportedUniversity[] = [
   {
     id: "cambridge",
     display_name: "University of Cambridge",
-    email_domains: ["cam.ac.uk"],
+    email_domains: ["cam.ac.uk", "cambridge.ac.uk"],
   },
   {
     id: "mit",
@@ -80,6 +80,13 @@ describe("UniversityGate", () => {
     renderUniversityGate({ initialSelected: "cambridge", onContinue });
 
     expect(screen.getByRole("button", { name: "Continue →" })).toBeEnabled();
+    expect(
+      screen.getByText(
+        (_, node) =>
+          node?.textContent ===
+          "You'll verify with one of cam.ac.uk or cambridge.ac.uk email domains next.",
+      ),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Continue →" }));
 

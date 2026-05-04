@@ -18,7 +18,8 @@ export function UniversityGate({
 }) {
   const [selected, setSelected] = useState<string | null>(initialSelected);
   const selectedUniversity = universities.find((university) => university.id === selected) ?? null;
-  const selectedDomain = selectedUniversity?.email_domains[0] ?? null;
+  const selectedDomains = selectedUniversity?.email_domains ?? [];
+  const selectedDomainText = formatEmailDomains(selectedDomains);
 
   return (
     <main className="mx-auto max-w-[880px] px-6 py-12 pb-20 sm:px-8">
@@ -86,13 +87,17 @@ export function UniversityGate({
 
       <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end">
         <span className="font-ui text-xs text-ink-muted">
-          {selectedDomain ? (
+          {selectedDomainText ? (
             <>
-              You'll verify with a{" "}
-              <strong className="font-semibold text-ink">{selectedDomain}</strong> email next.
+              You'll verify with {selectedDomains.length > 1 ? "one of " : "a "}
+              <strong className="font-semibold text-ink">{selectedDomainText}</strong>{" "}
+              {selectedDomains.length > 1 ? "email domains" : "email"} next.
             </>
           ) : (
-            "Choose a university to"
+            <>
+              {/* This phrase is completed by the adjacent "Continue" button. */}
+              Choose a university to
+            </>
           )}
         </span>
         <Button
@@ -156,4 +161,25 @@ function SectionHeader({ label, className }: { label: string; className?: string
       <span className="h-px flex-1 bg-rule-soft" />
     </div>
   );
+}
+
+function formatEmailDomains(domains: string[]): string | null {
+  if (domains.length === 0) {
+    return null;
+  }
+
+  if (domains.length === 1) {
+    return domains[0] ?? null;
+  }
+
+  if (domains.length === 2) {
+    return domains.join(" or ");
+  }
+
+  const lastDomain = domains[domains.length - 1];
+  if (!lastDomain) {
+    return domains.join(", ");
+  }
+
+  return `${domains.slice(0, -1).join(", ")}, or ${lastDomain}`;
 }

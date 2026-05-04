@@ -17,6 +17,12 @@ describe("document routes", () => {
     expect(screen.getByText("Version")).toBeInTheDocument();
     expect(screen.getByText("Last updated")).toBeInTheDocument();
     expect(screen.getByTestId("doc-content-panel")).toBeInTheDocument();
+    expect(screen.queryByText("jin.bai@outlook.com")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "the privacy contact address that will be published before public deployment",
+      ),
+    ).toHaveLength(2);
     expect(screen.getByRole("link", { name: "Contact the ICO ↗" })).toHaveAttribute(
       "href",
       "https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/",
