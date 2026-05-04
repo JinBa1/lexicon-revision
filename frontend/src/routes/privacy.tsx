@@ -1,64 +1,91 @@
-const sections = [
-  {
-    heading: "Controller and contact",
-    body: "Controller/contact placeholder. Replace this with the public project identity and contact address before launch.",
-  },
-  {
-    heading: "Personal data collected",
-    body: "Sign-in identity and email, university/community affiliation, access-control records, search and study requests, and operational request logs.",
-  },
-  {
-    heading: "Purposes and lawful bases",
-    body: "Authentication, access control, answering user requests, service security, debugging, rate limiting, and operating-cost control. Replace this scaffold with the final lawful-basis wording before launch.",
-  },
-  {
-    heading: "Retention",
-    body: "Account and access records are kept while needed for access control. Operational logs are kept only while needed for security, debugging, and service operation. Replace with final retention criteria before launch.",
-  },
-  {
-    heading: "Recipients and providers",
-    body: "Personal data may be processed by provider categories used for authentication, hosting, database/storage, rate limiting, AI/retrieval APIs, and operational infrastructure.",
-  },
-  {
-    heading: "Your rights",
-    body: "You may ask for access, correction, deletion, restriction, objection, or portability where those rights apply.",
-  },
+import {
+  DocumentCallout,
+  DocumentExternalLink,
+  DocumentPage,
+  DocumentSection,
+} from "@/components/document/DocumentPage";
+
+const DOCUMENT_META = [
+  { label: "Version", value: "0.1 · draft" },
+  { label: "Last updated", value: "4 May 2026" },
 ];
+
+const ICO_COMPLAINT_URL =
+  "https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/";
 
 export function PrivacyRoute() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16 font-body text-ink">
-      <div className="section-eyebrow">Launch scaffold</div>
-      <h1 className="mt-2 font-display text-3xl font-semibold">Privacy notice</h1>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-ink-muted">
-        This page is a minimum UK privacy-notice scaffold for the current service. Edit the
-        placeholders before public launch.
-      </p>
+    <DocumentPage
+      title="Privacy notice"
+      lead="A concise UK privacy notice for the current service. The contact details and final wording should be reviewed before public launch."
+      meta={DOCUMENT_META}
+    >
+      <DocumentSection index={1} title="Controller and contact">
+        <p>
+          Controller and contact details will be finalized before public launch. Until then, this
+          notice records the data categories and providers used by the current service.
+        </p>
+      </DocumentSection>
 
-      <div className="mt-10 space-y-7">
-        {sections.map((section) => (
-          <section key={section.heading}>
-            <h2 className="font-display text-xl font-semibold">{section.heading}</h2>
-            <p className="mt-2 text-sm leading-6 text-ink-muted">{section.body}</p>
-          </section>
-        ))}
+      <DocumentSection index={2} title="Personal data collected">
+        <p>
+          Sign-in identity and email, university or community affiliation, access-control records,
+          search and study requests, and operational request logs.
+        </p>
+      </DocumentSection>
 
-        <section>
-          <h2 className="font-display text-xl font-semibold">ICO complaint route</h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">
-            You can complain to the UK Information Commissioner's Office if you are unhappy with how
-            your personal data is handled.
+      <DocumentSection index={3} title="Purposes and lawful bases">
+        <p>
+          Authentication, access control, answering user requests, service security, debugging, rate
+          limiting, and operating-cost control. Final lawful-basis wording should be reviewed before
+          public launch.
+        </p>
+      </DocumentSection>
+
+      <DocumentSection index={4} title="Retention">
+        <p>
+          Account and access records are kept while needed for access control. Operational logs are
+          kept only while needed for security, debugging, and service operation. Final retention
+          criteria should be reviewed before public launch.
+        </p>
+      </DocumentSection>
+
+      <DocumentSection index={5} title="Recipients and providers">
+        <p>
+          Personal data may be processed by provider categories used for authentication, hosting,
+          database or storage, rate limiting, AI or retrieval APIs, and operational infrastructure.
+        </p>
+      </DocumentSection>
+
+      <DocumentSection index={6} title="Your rights">
+        <p>
+          You may ask for access, correction, deletion, restriction, objection, or portability where
+          those rights apply.
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Access: request a copy of the personal data held about you.</li>
+          <li>Correction: ask for inaccurate or incomplete data to be corrected.</li>
+          <li>Deletion: ask for data to be removed where the legal basis allows.</li>
+          <li>Restriction or objection: limit how your data is processed.</li>
+          <li>Portability: receive your data in a portable format where this applies.</li>
+        </ul>
+      </DocumentSection>
+
+      <DocumentSection index={7} title="ICO complaint route">
+        <p>
+          You can complain to the UK Information Commissioner's Office if you are unhappy with how
+          your personal data is handled.
+        </p>
+        <DocumentCallout label="Independent route">
+          <p>
+            The ICO is the UK's independent data-protection regulator. You may contact them at any
+            time without first contacting us.
           </p>
-          <a
-            href="https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/"
-            className="mt-3 inline-block font-display text-sm text-claret hover:underline"
-            rel="noreferrer"
-            target="_blank"
-          >
-            Contact the ICO
-          </a>
-        </section>
-      </div>
-    </main>
+        </DocumentCallout>
+        <div className="mt-5">
+          <DocumentExternalLink href={ICO_COMPLAINT_URL}>Contact the ICO ↗</DocumentExternalLink>
+        </div>
+      </DocumentSection>
+    </DocumentPage>
   );
 }

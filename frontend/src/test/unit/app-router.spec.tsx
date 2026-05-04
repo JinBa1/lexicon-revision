@@ -77,7 +77,23 @@ describe("App router", () => {
     renderAppAt("/privacy");
 
     expect(screen.getByRole("heading", { name: "Privacy notice" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Back to home" })).toHaveAttribute("href", "/");
+    expect(screen.queryByText("Launch scaffold")).not.toBeInTheDocument();
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    expect(screen.getByText("0.1 · draft")).toBeInTheDocument();
+    expect(screen.getByText("Last updated")).toBeInTheDocument();
+    expect(screen.getByText("4 May 2026")).toBeInTheDocument();
+    expect(screen.getByTestId("doc-content-panel")).toHaveClass("bg-paper-raised", "border-rule");
     expect(screen.getByRole("heading", { name: "Controller and contact" })).toBeInTheDocument();
+  });
+
+  test("renders the about route as a document page", () => {
+    renderAppAt("/about");
+
+    expect(screen.getByRole("heading", { name: "About" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Back to home" })).toHaveAttribute("href", "/");
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    expect(screen.getByTestId("doc-content-panel")).toHaveClass("bg-paper-raised", "border-rule");
   });
 
   test("renders not found content instead of redirecting unknown routes", () => {
