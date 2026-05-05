@@ -756,3 +756,99 @@ def test_alembic_head_seeds_cambridge_access_community() -> None:
         assert domain == ("cambridge", "cam.ac.uk", "suffix", True)
     finally:
         engine.dispose()
+
+
+def test_alembic_upgrade_from_0011_adds_chunk_media_refs() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260430_0011")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    insert into collections (
+                        id,
+                        name,
+                        embedding_model_id,
+                        embedding_dimension,
+                        metadata_schema
+                    ) values (
+                        'collection-media-refs',
+                        'fixture-media-refs',
+                        'fake-v1',
+                        8,
+                        '{}'::jsonb
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    insert into papers (id, collection_id, source_pdf)
+                    values (
+                        'paper-media-refs',
+                        'collection-media-refs',
+                        'fixture.pdf'
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    insert into chunks (
+                        id,
+                        chunk_id,
+                        collection_id,
+                        paper_id,
+                        chunk_level,
+                        parent_chunk_id,
+                        sub_question_label,
+                        text,
+                        metadata,
+                        source_pdf
+                    ) values (
+                        'chunk-media-refs',
+                        'cam-media-refs',
+                        'collection-media-refs',
+                        'paper-media-refs',
+                        'question',
+                        null,
+                        null,
+                        'Media refs migration test',
+                        '{"year": 2026}'::jsonb,
+                        'fixture.pdf'
+                    )
+                    """
+                )
+            )
+
+        command.upgrade(config, "head")
+
+        with engine.connect() as conn:
+            columns = {
+                column["name"]: column for column in inspect(conn).get_columns("chunks")
+            }
+            stored_refs = conn.execute(
+                text("select media_refs from chunks where id = 'chunk-media-refs'")
+            ).scalar_one()
+
+        assert "media_refs" in columns
+        assert isinstance(columns["media_refs"]["type"], JSONB)
+        assert columns["media_refs"]["nullable"] is False
+        assert stored_refs == []
+    finally:
+        command.upgrade(config, "head")
+        engine.dispose()

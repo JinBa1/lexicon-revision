@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import inspect
 from unittest.mock import Mock
 
 import pytest
@@ -192,23 +191,7 @@ def test_pg_search_service_uses_default_collection_constant() -> None:
     assert repo.calls[1]["collection_name"] == DEFAULT_COLLECTION
 
 
-def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
-    sidecar_path = tmp_path / "fixture_media_map.json"
-    sidecar_path.write_text(
-        json.dumps(
-            {
-                "cam-1": [
-                    {
-                        "media_id": "fig-1",
-                        "kind": "image",
-                        "object_key": MEDIA_OBJECT_KEY,
-                        "relation": "direct",
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
-    )
+def test_pg_search_service_materializes_media_from_row_refs(tmp_path) -> None:
     storage = LocalObjectStorage(
         root=tmp_path / "object-store",
         dev_presign_secret=SECRET,
@@ -219,12 +202,32 @@ def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
         content_type="image/png",
     )
     repo = _Repo()
+    repo.search = Mock(
+        return_value=[
+            PgChunkRow(
+                chunk_id="cam-1",
+                chunk_level="question",
+                parent_chunk_id=None,
+                sub_question_label=None,
+                text="body",
+                score=0.9,
+                metadata={},
+                media_refs=[
+                    {
+                        "media_id": "fig-1",
+                        "kind": "image",
+                        "object_key": MEDIA_OBJECT_KEY,
+                        "relation": "direct",
+                    }
+                ],
+            )
+        ]
+    )
     service = PgSearchService(
         repository=repo,
         embedding_model=_Embedder(),
         embedding_dimension=2,
         reranker=None,
-        media_dir=str(tmp_path),
         object_storage=storage,
     )
 
@@ -239,6 +242,12 @@ def test_pg_search_service_joins_media_from_sidecar(tmp_path: Path) -> None:
     assert response.results[0].media[0].media_id == "fig-1"
     assert response.results[0].media[0].object_key == MEDIA_OBJECT_KEY
     assert response.results[0].media[0].access_url is not None
+
+
+def test_pg_search_service_constructor_has_no_media_dir_parameter() -> None:
+    signature = inspect.signature(PgSearchService)
+
+    assert "media_dir" not in signature.parameters
 
 
 class _Reranker:

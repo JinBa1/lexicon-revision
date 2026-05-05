@@ -3,7 +3,6 @@ from __future__ import annotations
 from sqlalchemy import Engine
 from src.db.config import DatabaseSettings, create_database_engine
 from src.search.base import SearchBackend
-from src.search.errors import DEFAULT_MEDIA_DIR
 from src.search.pg_repository import PgSearchRepository
 from src.search.pg_service import PgSearchService
 from src.search.providers.base import EmbeddingProvider, RerankProvider
@@ -16,7 +15,6 @@ def create_search_service(
     database_settings: DatabaseSettings,
     embedding_model: EmbeddingProvider,
     reranker: RerankProvider | None,
-    media_dir: str = DEFAULT_MEDIA_DIR,
     engine: Engine | None = None,
     object_storage: ObjectStorage | None = None,
     apply_collection_thresholds: bool = True,
@@ -33,7 +31,6 @@ def create_search_service(
         embedding_model=embedding_model,
         embedding_dimension=database_settings.embedding_dimension,
         reranker=reranker,
-        media_dir=media_dir,
         object_storage=storage,
         apply_collection_thresholds=apply_collection_thresholds,
     )

@@ -204,7 +204,7 @@ def test_render_json_is_parseable() -> None:
     assert parsed["results"][0]["chunk_id"] == "chunk-1"
 
 
-def test_parse_args_supports_media_dir_and_no_rerank(
+def test_parse_args_supports_no_rerank(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -215,15 +215,12 @@ def test_parse_args_supports_media_dir_and_no_rerank(
             "binary search trees",
             "--collection",
             "tool-test-collection",
-            "--media-dir",
-            "/tmp/media",
             "--no-rerank",
         ],
     )
 
     args = parse_args()
 
-    assert args.media_dir == "/tmp/media"
     assert args.rerank is False
 
 
@@ -295,13 +292,12 @@ def test_create_real_search_service_enables_collection_thresholds(
         fake_create_search_service,
     )
 
-    service = create_real_search_service("media", rerank=True)
+    service = create_real_search_service(rerank=True)
 
     assert service == "service"
     assert captured["database_settings"] == "db"
     assert captured["embedding_model"] == "embedder"
     assert captured["reranker"] == "reranker"
-    assert captured["media_dir"] == "media"
     assert captured["apply_collection_thresholds"] is True
     assert "retrieval_vector_min_score" not in captured
     assert "retrieval_rerank_min_score" not in captured
@@ -314,7 +310,7 @@ def test_main_forwards_repeatable_filter_conditions(
     service = ToolTestFakeSearchService(_build_fake_response())
     monkeypatch.setattr(
         "scripts.inspect_search.create_real_search_service",
-        lambda media_dir, rerank, reranker_device=None: service,
+        lambda rerank, reranker_device=None: service,
     )
     monkeypatch.setattr(
         sys,
@@ -352,9 +348,7 @@ def test_main_reports_missing_collection_without_traceback(
 ) -> None:
     monkeypatch.setattr(
         "scripts.inspect_search.create_real_search_service",
-        lambda media_dir, rerank, reranker_device=None: (
-            ToolTestMissingCollectionService()
-        ),
+        lambda rerank, reranker_device=None: ToolTestMissingCollectionService(),
     )
     monkeypatch.setattr(
         sys,

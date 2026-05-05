@@ -30,17 +30,19 @@ from src.metadata_schema import (  # noqa: E402
     load_collection_schema,
     render_metadata_summary,
 )
-from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
-from src.search.media_sidecar import (  # noqa: E402
-    build_storage_media_map,
-    write_storage_media_map,
-)
+from src.search.media_refs import validate_media_refs_by_chunk_id  # noqa: E402
+from src.search.media_sidecar import build_storage_media_map  # noqa: E402
 from src.search.pg_repository import PgIndexRepository  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
     build_embedding_provider,
     load_retrieval_provider_settings,
 )
-from src.storage import ArtifactManifest, load_local_manifests  # noqa: E402
+from src.storage import (  # noqa: E402
+    ArtifactManifest,
+    conversion_run_id_from_stem,
+    load_local_manifests,
+    mineru_artifact_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,72 @@ def build_embedding_text(
             parts.append(rendered_metadata)
 
     return "\n\n".join(parts)
+
+
+def validate_manifest_ownership(manifests: dict[str, ArtifactManifest]) -> None:
+    for source_pdf, manifest in manifests.items():
+        stem = Path(source_pdf).stem
+        expected_run_id = conversion_run_id_from_stem(stem)
+        if manifest.paper_id != stem:
+            raise ValueError(
+                f"artifact manifest paper_id mismatch for {source_pdf}: "
+                f"expected {stem}, got {manifest.paper_id}"
+            )
+        if manifest.conversion_run_id != expected_run_id:
+            raise ValueError(
+                f"artifact manifest conversion_run_id mismatch for {source_pdf}: "
+                f"expected {expected_run_id}, got {manifest.conversion_run_id}"
+            )
+        _validate_manifest_artifact_namespace(
+            source_pdf=source_pdf,
+            manifest=manifest,
+            conversion_run_id=expected_run_id,
+        )
+
+
+def _validate_manifest_artifact_namespace(
+    *,
+    source_pdf: str,
+    manifest: ArtifactManifest,
+    conversion_run_id: str,
+) -> None:
+    image_prefix = f"artifacts/mineru/{conversion_run_id}/images/"
+    for artifact in manifest.artifacts:
+        if artifact.kind == "content_list":
+            expected_key = mineru_artifact_key(
+                conversion_run_id=conversion_run_id,
+                kind="content_list",
+                filename="",
+            )
+        elif artifact.kind == "markdown":
+            expected_key = mineru_artifact_key(
+                conversion_run_id=conversion_run_id,
+                kind="markdown",
+                filename="",
+            )
+        elif artifact.kind == "image":
+            if not artifact.key.startswith(image_prefix):
+                raise ValueError(
+                    f"artifact manifest image namespace mismatch for {source_pdf}: "
+                    f"{artifact.key}"
+                )
+            image_name = artifact.key.removeprefix(image_prefix)
+            if not image_name or "/" in image_name:
+                raise ValueError(
+                    f"artifact manifest image key is not canonical for "
+                    f"{source_pdf}: {artifact.key}"
+                )
+            continue
+        else:
+            raise ValueError(
+                f"artifact manifest has unsupported artifact kind for "
+                f"{source_pdf}: {artifact.kind}"
+            )
+        if artifact.key != expected_key:
+            raise ValueError(
+                f"artifact manifest {artifact.kind} key mismatch for {source_pdf}: "
+                f"expected {expected_key}, got {artifact.key}"
+            )
 
 
 def parse_args() -> argparse.Namespace:
@@ -138,7 +206,16 @@ def index_collection_postgres(
         source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
         for source_pdf, path in load_local_manifests(Path(mineru_output_dir)).items()
     }
-    media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
+    validate_manifest_ownership(manifests)
+    raw_media_refs_by_chunk_id = build_storage_media_map(
+        chunks=chunks,
+        manifests=manifests,
+        verify_local_files=True,
+    )
+    media_refs_by_chunk_id = validate_media_refs_by_chunk_id(
+        chunks=chunks,
+        media_refs_by_chunk_id=raw_media_refs_by_chunk_id,
+    )
 
     schema_path = metadata_schema_path or default_schema_path(collection_name)
     metadata_schema = load_collection_schema(schema_path)
@@ -169,36 +246,13 @@ def index_collection_postgres(
         vectors=vectors,
         metadata_schema=metadata_schema,
         community_id=collection_config.community_id,
+        media_refs_by_chunk_id=media_refs_by_chunk_id,
     )
     ensure_metadata_indexes(
         engine,
         collection_name=collection_name,
         schema=metadata_schema,
     )
-    _write_media_sidecar(
-        collection_name=collection_name,
-        media_map=media_map,
-        media_dir=DEFAULT_MEDIA_DIR,
-    )
-
-
-def _write_media_sidecar(
-    *,
-    collection_name: str,
-    media_map: dict[str, list[dict[str, Any]]],
-    media_dir: str = DEFAULT_MEDIA_DIR,
-) -> None:
-    media_root = Path(media_dir)
-    media_root.mkdir(parents=True, exist_ok=True)
-    sidecar_path = media_root / f"{collection_name}_media_map.json"
-    try:
-        write_storage_media_map(
-            output_path=sidecar_path,
-            media_map=media_map,
-        )
-    except OSError:
-        logger.exception("Failed to write Postgres media sidecar to %s", sidecar_path)
-        raise
 
 
 def main() -> None:

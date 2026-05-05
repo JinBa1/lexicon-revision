@@ -92,15 +92,6 @@ class _AuthenticatedIdentityResolver:
         )
 
 
-class _FakeSearchServiceWithMedia:
-    def __init__(self, *, repo, media_map: dict[str, list[dict]]) -> None:
-        self.search_repository = repo
-        self._media_map = media_map
-
-    def get_media_refs(self, *, collection: str, chunk_id: str) -> list[dict]:
-        return list(self._media_map.get(chunk_id, []))
-
-
 def _row() -> ChunkDetailRow:
     return ChunkDetailRow(
         chunk_id="q-1",
@@ -257,21 +248,19 @@ async def test_get_chunk_detail_returns_media_refs_with_presigned_urls() -> None
         text="t",
         metadata={},
         parent=None,
+        media_refs=[
+            {
+                "media_id": "fig1",
+                "kind": "image",
+                "object_key": "artifacts/demo/fig1.png",
+                "relation": "direct",
+            }
+        ],
     )
     repo = _FakeChunkRepo(chunks={("demo", "q-1"): row})
-    service = _FakeSearchServiceWithMedia(
-        repo=repo,
-        media_map={
-            "q-1": [
-                {
-                    "media_id": "fig1",
-                    "kind": "image",
-                    "object_key": "artifacts/demo/fig1.png",
-                    "relation": "direct",
-                }
-            ]
-        },
-    )
+
+    class _Service:
+        search_repository = repo
 
     class _FakeStorage:
         def presign_get(self, key, *, expires_in_seconds):
@@ -281,7 +270,7 @@ async def test_get_chunk_detail_returns_media_refs_with_presigned_urls() -> None
             return _P()
 
     app = create_app(
-        search_service=service,
+        search_service=_Service(),
         access_service=_FakeAccessServiceWithAuthorize(allowed=True),
         auth_resolver=_FakeIdentityResolver(),
         object_storage=_FakeStorage(),

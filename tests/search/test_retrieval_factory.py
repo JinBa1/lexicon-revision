@@ -25,10 +25,9 @@ class _FalseyStorage:
         return False
 
 
-def test_create_search_service_returns_postgres_backend_only(tmp_path) -> None:
+def test_create_search_service_returns_postgres_backend_only() -> None:
     service = create_search_service(
         database_settings=_settings(),
-        media_dir=str(tmp_path),
         embedding_model=Mock(model_id="fake-v1"),
         reranker=None,
         engine=Mock(),
@@ -39,12 +38,11 @@ def test_create_search_service_returns_postgres_backend_only(tmp_path) -> None:
     assert isinstance(service, SearchBackend)
 
 
-def test_factory_returns_postgres_service_for_postgres_backend(tmp_path) -> None:
+def test_factory_returns_postgres_service_for_postgres_backend() -> None:
     from src.search.pg_service import PgSearchService
 
     service = create_search_service(
         database_settings=_settings(),
-        media_dir=str(tmp_path),
         embedding_model=Mock(model_id="fake-v1"),
         reranker=None,
         engine=Mock(),
@@ -56,7 +54,6 @@ def test_factory_returns_postgres_service_for_postgres_backend(tmp_path) -> None
 
 
 def test_factory_preserves_falsey_injected_storage_for_postgres(
-    tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FalseyStorage()
@@ -67,7 +64,6 @@ def test_factory_preserves_falsey_injected_storage_for_postgres(
 
     service = create_search_service(
         database_settings=_settings(),
-        media_dir=str(tmp_path),
         embedding_model=Mock(model_id="fake-v1"),
         reranker=None,
         engine=Mock(),
@@ -83,15 +79,13 @@ def test_factory_exposes_collection_threshold_toggle() -> None:
 
     assert "retrieval_vector_min_score" not in signature.parameters
     assert "retrieval_rerank_min_score" not in signature.parameters
+    assert "media_dir" not in signature.parameters
     assert signature.parameters["apply_collection_thresholds"].default is True
 
 
-def test_factory_passes_collection_threshold_toggle_to_postgres_service(
-    tmp_path,
-) -> None:
+def test_factory_passes_collection_threshold_toggle_to_postgres_service() -> None:
     service = create_search_service(
         database_settings=_settings(),
-        media_dir=str(tmp_path),
         embedding_model=Mock(model_id="fake-v1"),
         reranker=None,
         engine=Mock(),

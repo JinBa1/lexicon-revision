@@ -162,7 +162,7 @@ cases:
     )
     monkeypatch.setattr(
         "scripts.evaluate_search.create_real_search_service",
-        lambda chroma_dir, rerank: service,
+        lambda rerank: service,
     )
     monkeypatch.setattr(
         sys,
@@ -484,7 +484,7 @@ cases:
     )
     monkeypatch.setattr(
         "scripts.evaluate_search.create_real_search_service",
-        lambda chroma_dir, rerank: ToolTestMissingCollectionService(),
+        lambda rerank: ToolTestMissingCollectionService(),
     )
     monkeypatch.setattr(
         sys,
@@ -530,7 +530,7 @@ cases:
     )
     monkeypatch.setattr(
         "scripts.evaluate_search.create_real_search_service",
-        lambda chroma_dir, rerank: ToolTestFakeSearchService(
+        lambda rerank: ToolTestFakeSearchService(
             {
                 query: _response(
                     query,
@@ -594,7 +594,7 @@ cases:
     )
     monkeypatch.setattr(
         "scripts.evaluate_search.create_real_search_service",
-        lambda chroma_dir, rerank: ToolTestFakeSearchService(
+        lambda rerank: ToolTestFakeSearchService(
             {
                 query: _response(
                     query,

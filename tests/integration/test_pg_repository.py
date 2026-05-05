@@ -916,3 +916,185 @@ def test_metadata_indexes_rebuild_for_recreated_collection_name() -> None:
     assert first_collection_id != second_collection_id
     assert second_collection_id in year_index_def
     assert first_collection_id not in year_index_def
+
+
+def test_index_repository_persists_media_refs_and_search_returns_them() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-db-media")
+    repo.index_chunks(
+        collection_name="fixture-db-media",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+        media_refs_by_chunk_id={
+            chunks[0].id: [
+                {
+                    "media_id": "fig-1",
+                    "kind": "image",
+                    "relation": "direct",
+                    "object_key": "artifacts/mineru/run-fixture/images/fig-1.png",
+                }
+            ]
+        },
+    )
+
+    search_repo = PgSearchRepository(engine=engine)
+    result = search_repo.search(
+        collection_name="fixture-db-media",
+        query_vector=[1.0] + [0.0] * 7,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+        filters=[],
+        limit=1,
+    )[0]
+    detail = search_repo.get_chunk_by_id(
+        collection_name="fixture-db-media",
+        chunk_id=chunks[0].id,
+    )
+
+    assert result.media_refs == [
+        {
+            "media_id": "fig-1",
+            "kind": "image",
+            "relation": "direct",
+            "object_key": "artifacts/mineru/run-fixture/images/fig-1.png",
+        }
+    ]
+    assert detail is not None
+    assert detail.media_refs == result.media_refs
+
+
+def test_index_repository_reindex_replaces_media_refs() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-db-media-reindex")
+    repo.index_chunks(
+        collection_name="fixture-db-media-reindex",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+        media_refs_by_chunk_id={
+            chunks[0].id: [
+                {
+                    "media_id": "old",
+                    "kind": "image",
+                    "relation": "direct",
+                    "object_key": "artifacts/mineru/run-fixture/images/old.png",
+                }
+            ]
+        },
+    )
+    repo.index_chunks(
+        collection_name="fixture-db-media-reindex",
+        chunks=chunks,
+        vectors=_vectors(len(chunks), 8),
+        metadata_schema=_schema(),
+        media_refs_by_chunk_id={
+            chunks[0].id: [
+                {
+                    "media_id": "new",
+                    "kind": "image",
+                    "relation": "direct",
+                    "object_key": "artifacts/mineru/run-fixture/images/new.png",
+                }
+            ]
+        },
+    )
+
+    result = PgSearchRepository(engine=engine).search(
+        collection_name="fixture-db-media-reindex",
+        query_vector=[1.0] + [0.0] * 7,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+        filters=[],
+        limit=1,
+    )[0]
+
+    assert [ref["media_id"] for ref in result.media_refs] == ["new"]
+
+
+def test_index_repository_rejects_unknown_media_ref_chunk_id_before_writes() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-db-media-unknown")
+
+    with pytest.raises(ValueError, match="unknown chunk ids"):
+        repo.index_chunks(
+            collection_name="fixture-db-media-unknown",
+            chunks=chunks,
+            vectors=_vectors(len(chunks), 8),
+            metadata_schema=_schema(),
+            media_refs_by_chunk_id={"not-a-real-chunk": []},
+        )
+
+    with engine.connect() as conn:
+        row_count = conn.execute(
+            text(
+                """
+                select count(*)
+                from collections
+                where name = 'fixture-db-media-unknown'
+                """
+            )
+        ).scalar_one()
+
+    assert row_count == 0
+
+
+def test_index_repository_rejects_access_url_media_refs_before_writes() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    repo = PgIndexRepository(
+        engine=engine,
+        embedding_model_id="fake-v1",
+        embedding_dimension=8,
+    )
+    repo.recreate_collection("fixture-db-media-access-url")
+
+    with pytest.raises(ValueError, match="access_url"):
+        repo.index_chunks(
+            collection_name="fixture-db-media-access-url",
+            chunks=chunks,
+            vectors=_vectors(len(chunks), 8),
+            metadata_schema=_schema(),
+            media_refs_by_chunk_id={
+                chunks[0].id: [
+                    {
+                        "media_id": "fig-1",
+                        "kind": "image",
+                        "relation": "direct",
+                        "object_key": "artifacts/mineru/run-fixture/images/fig-1.png",
+                        "access_url": "https://signed.example/old",
+                    }
+                ]
+            },
+        )
+
+    with engine.connect() as conn:
+        row_count = conn.execute(
+            text(
+                """
+                select count(*)
+                from collections
+                where name = 'fixture-db-media-access-url'
+                """
+            )
+        ).scalar_one()
+
+    assert row_count == 0

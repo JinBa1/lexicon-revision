@@ -18,11 +18,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -34,13 +36,18 @@ from src.storage import (  # noqa: E402
     conversion_run_id_from_stem,
     discover_converted_paper_artifacts,
     load_object_storage_settings,
+    local_manifest_path,
+    mineru_artifact_key,
+    sha256_blob_key,
     upload_converted_paper_artifacts,
 )
 from src.storage.base import ObjectStorage  # noqa: E402
-from src.storage.manifest import ArtifactManifest  # noqa: E402
+from src.storage.manifest import ArtifactManifest, ManifestArtifact  # noqa: E402
 
 logger = logging.getLogger(__name__)
 MINERU_VERSION = "mineru-cli"
+ContentListSnapshot = dict[Path, tuple[int, int]]
+ManifestReuseStatus = Literal["reuse", "upload", "convert"]
 
 
 def find_content_list(output_dir: Path, stem: str) -> Path | None:
@@ -48,6 +55,269 @@ def find_content_list(output_dir: Path, stem: str) -> Path | None:
     # MinerU outputs to <output>/<stem>/<method>/<stem>_content_list.json
     candidates = list(output_dir.glob(f"{stem}/**/{stem}_content_list.json"))
     return candidates[0] if candidates else None
+
+
+def snapshot_content_list_state(output_dir: Path, stem: str) -> ContentListSnapshot:
+    """Capture existing content_list file identity before a forced conversion."""
+    snapshot: ContentListSnapshot = {}
+    for path in sorted(output_dir.glob(f"{stem}/**/{stem}_content_list.json")):
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            continue
+        snapshot[path] = (stat.st_mtime_ns, stat.st_size)
+    return snapshot
+
+
+def content_list_refreshed_since_snapshot(
+    content_list_path: Path | None,
+    snapshot: ContentListSnapshot,
+) -> bool:
+    """Return whether a content_list is new or rewritten after the snapshot."""
+    if content_list_path is None:
+        return False
+    try:
+        stat = content_list_path.stat()
+    except FileNotFoundError:
+        return False
+    previous_stat = snapshot.get(content_list_path)
+    if previous_stat is None:
+        return True
+    return previous_stat != (stat.st_mtime_ns, stat.st_size)
+
+
+def _find_unique_content_list_for_manifest(output_dir: Path, stem: str) -> Path | None:
+    candidates = sorted(output_dir.glob(f"{stem}/**/{stem}_content_list.json"))
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        logger.warning(
+            "Ignoring reusable artifact manifest for %s because multiple "
+            "content_list outputs exist: %s",
+            stem,
+            ", ".join(str(path) for path in candidates),
+        )
+        return None
+    return candidates[0]
+
+
+def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
+    """Find the local artifact manifest for a converted PDF stem."""
+    status, manifest_path = _classify_artifact_manifest_reuse(
+        output_dir,
+        stem=stem,
+    )
+    if status != "reuse":
+        return None
+    return manifest_path
+
+
+def _classify_artifact_manifest_reuse(
+    output_dir: Path,
+    *,
+    stem: str,
+    pdf_path: Path | None = None,
+    storage: ObjectStorage | None = None,
+) -> tuple[ManifestReuseStatus, Path | None]:
+    """Return whether a converted output can reuse its local manifest.
+
+    ``convert`` means the source PDF bytes differ from the manifest, so the
+    local MinerU output may also be stale. Other invalid or missing manifests
+    can be repaired by uploading the current local artifacts.
+    """
+    content_list_path = _find_unique_content_list_for_manifest(output_dir, stem)
+    if content_list_path is None:
+        return "upload", None
+    manifest_path = local_manifest_path(content_list_path, pdf_stem=stem)
+    if not manifest_path.is_file():
+        return "upload", None
+    try:
+        manifest = ArtifactManifest.from_json(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning(
+            "Ignoring invalid artifact manifest for %s: %s",
+            stem,
+            manifest_path,
+        )
+        return "upload", None
+    expected_run_id = conversion_run_id_from_stem(stem)
+    if manifest.paper_id != stem:
+        logger.warning(
+            "Ignoring artifact manifest for %s with paper_id=%s: %s",
+            stem,
+            manifest.paper_id,
+            manifest_path,
+        )
+        return "upload", None
+    if manifest.conversion_run_id != expected_run_id:
+        logger.warning(
+            "Ignoring artifact manifest for %s with conversion_run_id=%s "
+            "(expected %s): %s",
+            stem,
+            manifest.conversion_run_id,
+            expected_run_id,
+            manifest_path,
+        )
+        return "upload", None
+    artifacts_match, mismatch_reason = _manifest_artifacts_match_run_namespace(
+        manifest.artifacts,
+        conversion_run_id=expected_run_id,
+    )
+    if not artifacts_match:
+        logger.warning(
+            "Ignoring artifact manifest for %s with invalid artifact namespace "
+            "(%s): %s",
+            stem,
+            mismatch_reason,
+            manifest_path,
+        )
+        return "upload", None
+    expected_artifact_keys = _expected_local_artifact_keys(
+        content_list_path,
+        stem=stem,
+        conversion_run_id=expected_run_id,
+    )
+    manifest_artifact_keys = {artifact.key for artifact in manifest.artifacts}
+    if manifest_artifact_keys != expected_artifact_keys or len(
+        manifest_artifact_keys
+    ) != len(manifest.artifacts):
+        logger.warning(
+            "Ignoring artifact manifest for %s with incomplete artifact set "
+            "(missing=%s extra=%s): %s",
+            stem,
+            sorted(expected_artifact_keys - manifest_artifact_keys),
+            sorted(manifest_artifact_keys - expected_artifact_keys),
+            manifest_path,
+        )
+        return "upload", None
+    if pdf_path is not None and not _manifest_source_pdf_matches(manifest, pdf_path):
+        logger.warning(
+            "Ignoring artifact manifest for %s because source_pdf_key does not "
+            "match current PDF bytes: %s",
+            stem,
+            manifest_path,
+        )
+        return "convert", None
+    if storage is not None and not _manifest_storage_objects_exist(manifest, storage):
+        logger.warning(
+            "Ignoring artifact manifest for %s because referenced object storage "
+            "keys are missing: %s",
+            stem,
+            manifest_path,
+        )
+        return "upload", None
+    return "reuse", manifest_path
+
+
+def _manifest_source_pdf_matches(
+    manifest: ArtifactManifest,
+    pdf_path: Path,
+) -> bool:
+    pdf_sha256_hex = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+    expected_key = sha256_blob_key(sha256_hex=pdf_sha256_hex, extension="pdf")
+    return manifest.source_pdf_key == expected_key
+
+
+def _manifest_storage_objects_exist(
+    manifest: ArtifactManifest,
+    storage: ObjectStorage,
+) -> bool:
+    keys = [
+        manifest.source_pdf_key,
+        *[artifact.key for artifact in manifest.artifacts],
+        mineru_artifact_key(
+            conversion_run_id=manifest.conversion_run_id,
+            kind="manifest",
+            filename="",
+        ),
+    ]
+    for key in keys:
+        try:
+            if not storage.exists(key):
+                return False
+        except Exception:
+            logger.warning(
+                "Unable to verify artifact object exists in storage: %s",
+                key,
+                exc_info=True,
+            )
+            return False
+    return True
+
+
+def _expected_local_artifact_keys(
+    content_list_path: Path,
+    *,
+    stem: str,
+    conversion_run_id: str,
+) -> set[str]:
+    expected_keys = {
+        mineru_artifact_key(
+            conversion_run_id=conversion_run_id,
+            kind="content_list",
+            filename="",
+        )
+    }
+    markdown_path = content_list_path.with_name(f"{stem}.md")
+    if markdown_path.is_file():
+        expected_keys.add(
+            mineru_artifact_key(
+                conversion_run_id=conversion_run_id,
+                kind="markdown",
+                filename="",
+            )
+        )
+
+    images_dir = content_list_path.parent / "images"
+    image_paths = sorted(path for path in images_dir.glob("**/*") if path.is_file())
+    for image_path in image_paths:
+        expected_keys.add(
+            mineru_artifact_key(
+                conversion_run_id=conversion_run_id,
+                kind="image",
+                filename=image_path.name,
+            )
+        )
+    return expected_keys
+
+
+def _manifest_artifacts_match_run_namespace(
+    artifacts: tuple[ManifestArtifact, ...],
+    *,
+    conversion_run_id: str,
+) -> tuple[bool, str]:
+    if not artifacts:
+        return False, "manifest has no artifacts"
+
+    has_content_list = False
+    image_prefix = f"artifacts/mineru/{conversion_run_id}/images/"
+    for artifact in artifacts:
+        if artifact.kind == "content_list":
+            if artifact.key != mineru_artifact_key(
+                conversion_run_id=conversion_run_id,
+                kind="content_list",
+                filename="",
+            ):
+                return False, f"content_list key {artifact.key!r} is not canonical"
+            has_content_list = True
+        elif artifact.kind == "markdown":
+            if artifact.key != mineru_artifact_key(
+                conversion_run_id=conversion_run_id,
+                kind="markdown",
+                filename="",
+            ):
+                return False, f"markdown key {artifact.key!r} is not canonical"
+        elif artifact.kind == "image":
+            if not artifact.key.startswith(image_prefix):
+                return False, f"image key {artifact.key!r} is outside {image_prefix}"
+            filename = artifact.key.removeprefix(image_prefix)
+            if not filename or "/" in filename:
+                return False, f"image key {artifact.key!r} has invalid filename"
+        else:
+            return False, f"unexpected artifact kind {artifact.kind!r}"
+    if not has_content_list:
+        return False, "missing content_list artifact"
+    return True, ""
 
 
 def run_mineru_batch(
@@ -98,14 +368,36 @@ def run_mineru_batch(
     return True
 
 
+def write_manifest_atomic(path: Path, manifest: ArtifactManifest) -> None:
+    """Atomically write a local artifact manifest JSON file."""
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+            temp_file.write(manifest.to_json() + "\n")
+        temp_path.replace(path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
+
+
 def upload_batch_artifacts(
     *,
     pdf_paths: list[Path],
     output_dir: Path,
     storage: ObjectStorage,
     mineru_version: str,
+    strict: bool = False,
 ) -> list[ArtifactManifest]:
     manifests: list[ArtifactManifest] = []
+    failures: list[tuple[Path, BaseException]] = []
     for pdf_path in pdf_paths:
         try:
             discovered = discover_converted_paper_artifacts(
@@ -118,16 +410,19 @@ def upload_batch_artifacts(
                 conversion_run_id=conversion_run_id_from_stem(pdf_path.stem),
                 mineru_version=mineru_version,
             )
-            discovered.manifest_local_path.write_text(
-                manifest.to_json() + "\n",
-                encoding="utf-8",
-            )
+            write_manifest_atomic(discovered.manifest_local_path, manifest)
             manifests.append(manifest)
-        except Exception:
+        except Exception as exc:
+            failures.append((pdf_path, exc))
             logger.exception(
                 "Failed to upload converted artifacts for %s",
                 pdf_path.name,
             )
+    if failures and strict:
+        failed_names = ", ".join(path.name for path, _ in failures)
+        raise RuntimeError(
+            f"artifact upload failed for {len(failures)} PDF(s): {failed_names}"
+        ) from failures[0][1]
     return manifests
 
 
@@ -176,6 +471,14 @@ def main() -> None:
         default="en",
         help="PDF language for OCR (default: en)",
     )
+    parser.add_argument(
+        "--strict-upload",
+        action="store_true",
+        help=(
+            "Require production object-storage upload and exit nonzero on "
+            "storage config, upload, or missing manifest failures"
+        ),
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -194,51 +497,147 @@ def main() -> None:
         logger.warning("No PDF files found in %s", pdf_dir)
         sys.exit(0)
 
-    # Partition into to-convert vs skip
+    if args.strict_upload:
+        seen_run_ids: dict[str, Path] = {}
+        duplicate_run_ids: list[str] = []
+        for pdf_path in pdf_files:
+            try:
+                run_id = conversion_run_id_from_stem(pdf_path.stem)
+            except Exception as exc:
+                logger.error(
+                    "Invalid PDF stem for strict upload: %s (%s)",
+                    pdf_path.stem,
+                    exc,
+                )
+                sys.exit(1)
+            existing_path = seen_run_ids.get(run_id)
+            if existing_path is not None:
+                duplicate_run_ids.append(run_id)
+                logger.error(
+                    "Duplicate conversion run ID for strict upload: %s (%s and %s)",
+                    run_id,
+                    existing_path,
+                    pdf_path,
+                )
+            else:
+                seen_run_ids[run_id] = pdf_path
+        if duplicate_run_ids:
+            sys.exit(1)
+
+    storage: ObjectStorage | None = None
+    if args.strict_upload:
+        try:
+            storage = build_object_storage(load_object_storage_settings())
+        except ObjectStorageConfigError as exc:
+            logger.error(
+                "Storage upload required but object storage is misconfigured: %s",
+                exc,
+            )
+            sys.exit(1)
+
     to_convert: list[Path] = []
+    skipped_missing_manifest: list[Path] = []
     skipped = 0
 
     for pdf_path in pdf_files:
         stem = pdf_path.stem
-        if not args.force and find_content_list(output_dir, stem) is not None:
-            logger.info("Skipping %s (already converted)", stem)
-            skipped += 1
+        content_list_path = find_content_list(output_dir, stem)
+        if not args.force and content_list_path is not None:
+            if args.strict_upload:
+                manifest_status, _manifest_path = _classify_artifact_manifest_reuse(
+                    output_dir,
+                    stem=stem,
+                    pdf_path=pdf_path,
+                    storage=storage,
+                )
+                if manifest_status == "reuse":
+                    logger.info("Skipping %s (already converted and uploaded)", stem)
+                    skipped += 1
+                elif manifest_status == "convert":
+                    logger.info(
+                        "Re-converting %s (source PDF differs from manifest)",
+                        stem,
+                    )
+                    to_convert.append(pdf_path)
+                else:
+                    logger.info(
+                        "Re-uploading artifacts for %s (manifest not reusable)",
+                        stem,
+                    )
+                    skipped_missing_manifest.append(pdf_path)
+            else:
+                logger.info("Skipping %s (already converted)", stem)
+                skipped += 1
         else:
             to_convert.append(pdf_path)
 
-    if not to_convert:
+    if not to_convert and not skipped_missing_manifest:
         logger.info("Nothing to convert (%d skipped)", skipped)
-        return
+        if not args.strict_upload:
+            return
 
-    # Run MinerU in a single batch for GPU efficiency
-    success = run_mineru_batch(
-        to_convert, output_dir, args.method, args.backend, args.lang
-    )
+    forced_content_list_snapshots: dict[str, ContentListSnapshot] = {}
+    if args.force and to_convert:
+        forced_content_list_snapshots = {
+            pdf_path.stem: snapshot_content_list_state(output_dir, pdf_path.stem)
+            for pdf_path in to_convert
+        }
 
-    # Count results
+    success = True
+    if to_convert:
+        success = run_mineru_batch(
+            to_convert, output_dir, args.method, args.backend, args.lang
+        )
+
     converted = 0
     failed = 0
     converted_pdf_paths: list[Path] = []
     for pdf_path in to_convert:
-        if find_content_list(output_dir, pdf_path.stem) is not None:
+        content_list_path = find_content_list(output_dir, pdf_path.stem)
+        if content_list_path is not None:
+            forced_content_list_is_stale = (
+                args.strict_upload
+                and args.force
+                and not content_list_refreshed_since_snapshot(
+                    content_list_path,
+                    forced_content_list_snapshots.get(pdf_path.stem, {}),
+                )
+            )
+            if forced_content_list_is_stale:
+                logger.error(
+                    "Strict upload failed because forced conversion did not refresh "
+                    "content_list for %s",
+                    pdf_path.name,
+                )
+                failed += 1
+                continue
             converted += 1
             converted_pdf_paths.append(pdf_path)
         else:
             failed += 1
 
     uploaded = 0
-    if converted > 0:
+    upload_candidates = converted_pdf_paths + skipped_missing_manifest
+    if upload_candidates:
         try:
-            storage = build_object_storage(load_object_storage_settings())
+            if storage is None:
+                storage = build_object_storage(load_object_storage_settings())
             manifests = upload_batch_artifacts(
-                pdf_paths=converted_pdf_paths,
+                pdf_paths=upload_candidates,
                 output_dir=output_dir,
                 storage=storage,
                 mineru_version=MINERU_VERSION,
+                strict=args.strict_upload,
             )
             uploaded = len(manifests)
             logger.info("Uploaded artifacts for %d PDFs", uploaded)
         except ObjectStorageConfigError as exc:
+            if args.strict_upload:
+                logger.error(
+                    "Storage upload required but object storage is misconfigured: %s",
+                    exc,
+                )
+                sys.exit(1)
             logger.warning(
                 "Storage upload skipped: %s. For local artifact upload, set "
                 "OBJECT_STORAGE_DEV_PRESIGN_SECRET and optionally "
@@ -246,9 +645,32 @@ def main() -> None:
                 exc,
             )
         except Exception:
+            if args.strict_upload:
+                logger.exception(
+                    "Storage upload failed; strict upload requires all artifacts"
+                )
+                sys.exit(1)
             logger.exception(
                 "Storage upload unavailable; leaving converted outputs in place"
             )
+        if args.strict_upload and uploaded != len(upload_candidates):
+            logger.error(
+                "Strict upload incomplete: uploaded %d of %d PDFs",
+                uploaded,
+                len(upload_candidates),
+            )
+            sys.exit(1)
+
+    if args.strict_upload and failed > 0:
+        logger.error(
+            "Strict upload failed because %d PDF(s) did not produce content_list",
+            failed,
+        )
+        sys.exit(1)
+
+    if args.strict_upload and args.force and not success:
+        logger.error("Strict upload failed because MinerU batch returned failure")
+        sys.exit(1)
 
     if not success and failed == len(to_convert):
         logger.error("MinerU batch failed for all %d PDFs", failed)
