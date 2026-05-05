@@ -1,5 +1,9 @@
 """chunks media refs
 
+Rollout note: existing chunk rows are backfilled with ``media_refs = []``. A
+database upgraded with this migration must reindex collections in the same
+deployment step to preserve media in search and chunk-detail API responses.
+
 Revision ID: 20260505_0012
 Revises: 20260430_0011
 Create Date: 2026-05-05

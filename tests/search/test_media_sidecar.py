@@ -18,9 +18,13 @@ from src.storage.manifest import ArtifactManifest, ManifestArtifact
 SECRET = b"media-sidecar-secret"
 
 
-def _chunk_with_media(file_path: str | None) -> Chunk:
+def _chunk_with_media(
+    file_path: str | None,
+    *,
+    chunk_id: str = "cam-2025-p1-q1",
+) -> Chunk:
     return Chunk(
-        id="cam-2025-p1-q1",
+        id=chunk_id,
         chunk_level="question",
         parent_chunk_id=None,
         text="body",
@@ -43,7 +47,7 @@ def _chunk_with_media(file_path: str | None) -> Chunk:
                 file_path=file_path,
                 page_number=1,
                 bbox=None,
-                chunk_id="cam-2025-p1-q1",
+                chunk_id=chunk_id,
                 relation="direct",
                 owner_level="question",
                 owner_label=None,
@@ -110,6 +114,36 @@ def test_build_storage_media_map_verifies_manifest_hash_and_size(
     )
 
     assert media_map["cam-2025-p1-q1"][0]["object_key"].endswith("figure_1.png")
+
+
+def test_build_storage_media_map_hashes_shared_local_file_once(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    local_path = tmp_path / "figure_1.png"
+    local_path.write_bytes(b"png")
+    read_count = 0
+    original_read_bytes = Path.read_bytes
+
+    def counting_read_bytes(path: Path) -> bytes:
+        nonlocal read_count
+        if path == local_path:
+            read_count += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", counting_read_bytes)
+
+    media_map = build_storage_media_map(
+        chunks=[
+            _chunk_with_media(str(local_path), chunk_id="cam-2025-p1-q1"),
+            _chunk_with_media(str(local_path), chunk_id="cam-2025-p1-q1-a"),
+        ],
+        manifests={"y2025p1q1.pdf": _manifest()},
+        verify_local_files=True,
+    )
+
+    assert read_count == 1
+    assert set(media_map) == {"cam-2025-p1-q1", "cam-2025-p1-q1-a"}
 
 
 def test_build_storage_media_map_rejects_stale_manifest_hash(

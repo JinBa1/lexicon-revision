@@ -18,11 +18,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -36,6 +38,7 @@ from src.storage import (  # noqa: E402
     load_object_storage_settings,
     local_manifest_path,
     mineru_artifact_key,
+    sha256_blob_key,
     upload_converted_paper_artifacts,
 )
 from src.storage.base import ObjectStorage  # noqa: E402
@@ -44,6 +47,7 @@ from src.storage.manifest import ArtifactManifest, ManifestArtifact  # noqa: E40
 logger = logging.getLogger(__name__)
 MINERU_VERSION = "mineru-cli"
 ContentListSnapshot = dict[Path, tuple[int, int]]
+ManifestReuseStatus = Literal["reuse", "upload", "convert"]
 
 
 def find_content_list(output_dir: Path, stem: str) -> Path | None:
@@ -99,12 +103,34 @@ def _find_unique_content_list_for_manifest(output_dir: Path, stem: str) -> Path 
 
 def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
     """Find the local artifact manifest for a converted PDF stem."""
+    status, manifest_path = _classify_artifact_manifest_reuse(
+        output_dir,
+        stem=stem,
+    )
+    if status != "reuse":
+        return None
+    return manifest_path
+
+
+def _classify_artifact_manifest_reuse(
+    output_dir: Path,
+    *,
+    stem: str,
+    pdf_path: Path | None = None,
+    storage: ObjectStorage | None = None,
+) -> tuple[ManifestReuseStatus, Path | None]:
+    """Return whether a converted output can reuse its local manifest.
+
+    ``convert`` means the source PDF bytes differ from the manifest, so the
+    local MinerU output may also be stale. Other invalid or missing manifests
+    can be repaired by uploading the current local artifacts.
+    """
     content_list_path = _find_unique_content_list_for_manifest(output_dir, stem)
     if content_list_path is None:
-        return None
+        return "upload", None
     manifest_path = local_manifest_path(content_list_path, pdf_stem=stem)
     if not manifest_path.is_file():
-        return None
+        return "upload", None
     try:
         manifest = ArtifactManifest.from_json(manifest_path.read_text(encoding="utf-8"))
     except Exception:
@@ -113,7 +139,7 @@ def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
             stem,
             manifest_path,
         )
-        return None
+        return "upload", None
     expected_run_id = conversion_run_id_from_stem(stem)
     if manifest.paper_id != stem:
         logger.warning(
@@ -122,7 +148,7 @@ def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
             manifest.paper_id,
             manifest_path,
         )
-        return None
+        return "upload", None
     if manifest.conversion_run_id != expected_run_id:
         logger.warning(
             "Ignoring artifact manifest for %s with conversion_run_id=%s "
@@ -132,7 +158,7 @@ def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
             expected_run_id,
             manifest_path,
         )
-        return None
+        return "upload", None
     artifacts_match, mismatch_reason = _manifest_artifacts_match_run_namespace(
         manifest.artifacts,
         conversion_run_id=expected_run_id,
@@ -145,7 +171,7 @@ def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
             mismatch_reason,
             manifest_path,
         )
-        return None
+        return "upload", None
     expected_artifact_keys = _expected_local_artifact_keys(
         content_list_path,
         stem=stem,
@@ -163,8 +189,60 @@ def find_artifact_manifest(output_dir: Path, stem: str) -> Path | None:
             sorted(manifest_artifact_keys - expected_artifact_keys),
             manifest_path,
         )
-        return None
-    return manifest_path
+        return "upload", None
+    if pdf_path is not None and not _manifest_source_pdf_matches(manifest, pdf_path):
+        logger.warning(
+            "Ignoring artifact manifest for %s because source_pdf_key does not "
+            "match current PDF bytes: %s",
+            stem,
+            manifest_path,
+        )
+        return "convert", None
+    if storage is not None and not _manifest_storage_objects_exist(manifest, storage):
+        logger.warning(
+            "Ignoring artifact manifest for %s because referenced object storage "
+            "keys are missing: %s",
+            stem,
+            manifest_path,
+        )
+        return "upload", None
+    return "reuse", manifest_path
+
+
+def _manifest_source_pdf_matches(
+    manifest: ArtifactManifest,
+    pdf_path: Path,
+) -> bool:
+    pdf_sha256_hex = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+    expected_key = sha256_blob_key(sha256_hex=pdf_sha256_hex, extension="pdf")
+    return manifest.source_pdf_key == expected_key
+
+
+def _manifest_storage_objects_exist(
+    manifest: ArtifactManifest,
+    storage: ObjectStorage,
+) -> bool:
+    keys = [
+        manifest.source_pdf_key,
+        *[artifact.key for artifact in manifest.artifacts],
+        mineru_artifact_key(
+            conversion_run_id=manifest.conversion_run_id,
+            kind="manifest",
+            filename="",
+        ),
+    ]
+    for key in keys:
+        try:
+            if not storage.exists(key):
+                return False
+        except Exception:
+            logger.warning(
+                "Unable to verify artifact object exists in storage: %s",
+                key,
+                exc_info=True,
+            )
+            return False
+    return True
 
 
 def _expected_local_artifact_keys(
@@ -446,26 +524,6 @@ def main() -> None:
         if duplicate_run_ids:
             sys.exit(1)
 
-    to_convert: list[Path] = []
-    skipped_missing_manifest: list[Path] = []
-    skipped = 0
-
-    for pdf_path in pdf_files:
-        stem = pdf_path.stem
-        if not args.force and find_content_list(output_dir, stem) is not None:
-            logger.info("Skipping %s (already converted)", stem)
-            if args.strict_upload and find_artifact_manifest(output_dir, stem) is None:
-                skipped_missing_manifest.append(pdf_path)
-            else:
-                skipped += 1
-        else:
-            to_convert.append(pdf_path)
-
-    if not to_convert and not skipped_missing_manifest:
-        logger.info("Nothing to convert (%d skipped)", skipped)
-        if not args.strict_upload:
-            return
-
     storage: ObjectStorage | None = None
     if args.strict_upload:
         try:
@@ -476,6 +534,47 @@ def main() -> None:
                 exc,
             )
             sys.exit(1)
+
+    to_convert: list[Path] = []
+    skipped_missing_manifest: list[Path] = []
+    skipped = 0
+
+    for pdf_path in pdf_files:
+        stem = pdf_path.stem
+        content_list_path = find_content_list(output_dir, stem)
+        if not args.force and content_list_path is not None:
+            if args.strict_upload:
+                manifest_status, _manifest_path = _classify_artifact_manifest_reuse(
+                    output_dir,
+                    stem=stem,
+                    pdf_path=pdf_path,
+                    storage=storage,
+                )
+                if manifest_status == "reuse":
+                    logger.info("Skipping %s (already converted and uploaded)", stem)
+                    skipped += 1
+                elif manifest_status == "convert":
+                    logger.info(
+                        "Re-converting %s (source PDF differs from manifest)",
+                        stem,
+                    )
+                    to_convert.append(pdf_path)
+                else:
+                    logger.info(
+                        "Re-uploading artifacts for %s (manifest not reusable)",
+                        stem,
+                    )
+                    skipped_missing_manifest.append(pdf_path)
+            else:
+                logger.info("Skipping %s (already converted)", stem)
+                skipped += 1
+        else:
+            to_convert.append(pdf_path)
+
+    if not to_convert and not skipped_missing_manifest:
+        logger.info("Nothing to convert (%d skipped)", skipped)
+        if not args.strict_upload:
+            return
 
     forced_content_list_snapshots: dict[str, ContentListSnapshot] = {}
     if args.force and to_convert:

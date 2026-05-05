@@ -43,6 +43,7 @@ def build_storage_media_map(
 ) -> dict[str, list[StoredMediaRef]]:
     media_map: dict[str, list[StoredMediaRef]] = {}
     manifest_indexes: dict[str, dict[str, ManifestArtifact]] = {}
+    local_file_digests: dict[Path, tuple[str, int]] = {}
 
     for chunk in chunks:
         if not chunk.media:
@@ -69,7 +70,11 @@ def build_storage_media_map(
                         f"{ref.file_path}"
                     )
                 if verify_local_files:
-                    _verify_local_file_matches_artifact(local_path, artifact)
+                    _verify_local_file_matches_artifact(
+                        local_path,
+                        artifact,
+                        local_file_digests=local_file_digests,
+                    )
                 object_key = artifact.key
 
             refs.append(
@@ -209,15 +214,21 @@ def _build_artifact_basename_index(
 def _verify_local_file_matches_artifact(
     local_path: Path,
     artifact: ManifestArtifact,
+    *,
+    local_file_digests: dict[Path, tuple[str, int]] | None = None,
 ) -> None:
-    data = local_path.read_bytes()
-    sha256_hex = hashlib.sha256(data).hexdigest()
+    digest = None if local_file_digests is None else local_file_digests.get(local_path)
+    if digest is None:
+        data = local_path.read_bytes()
+        digest = (hashlib.sha256(data).hexdigest(), len(data))
+        if local_file_digests is not None:
+            local_file_digests[local_path] = digest
+    sha256_hex, size_bytes = digest
     if sha256_hex != artifact.sha256_hex:
         raise ValueError(
             f"manifest hash mismatch for {local_path}: "
             f"expected {artifact.sha256_hex}, got {sha256_hex}"
         )
-    size_bytes = len(data)
     if size_bytes != artifact.size_bytes:
         raise ValueError(
             f"manifest size mismatch for {local_path}: "

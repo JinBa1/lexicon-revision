@@ -508,6 +508,74 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
     )
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("paper_id", "other-paper", "paper_id"),
+        ("conversion_run_id", "run-other-paper", "conversion_run_id"),
+    ],
+)
+def test_index_collection_postgres_rejects_foreign_manifest_before_indexing(
+    tmp_path: Path,
+    monkeypatch,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
+    manifest_path = next(Path(fixture_dir).glob("**/*_artifact_manifest.json"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest[field] = value
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    calls: dict[str, object] = {}
+
+    class _FakeRepo:
+        def __init__(
+            self,
+            *,
+            engine,
+            embedding_model_id: str,
+            embedding_dimension: int,
+        ) -> None:
+            del engine, embedding_model_id, embedding_dimension
+
+        def recreate_collection(self, collection_name: str) -> None:
+            calls["recreated"] = collection_name
+
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+            community_id: str | None = None,
+            media_refs_by_chunk_id=None,
+        ) -> None:
+            del collection_name, chunks, vectors
+            del metadata_schema, community_id, media_refs_by_chunk_id
+            calls["indexed"] = True
+
+    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: None,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        index_collection_postgres(
+            mineru_output_dir=fixture_dir,
+            collection_name="cam-cs-tripos-fixture",
+            engine=object(),
+            embedding_model=_FakeEmbedder(),
+            embedding_dimension=2,
+            recreate_collection=True,
+        )
+
+    assert "recreated" not in calls
+    assert "indexed" not in calls
+
+
 def test_index_collection_postgres_rejects_stale_manifest_before_indexing(
     tmp_path: Path,
     monkeypatch,

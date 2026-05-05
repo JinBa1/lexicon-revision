@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,7 +8,11 @@ from unittest.mock import Mock
 
 import pytest
 import scripts.convert_papers as convert_papers
-from src.storage import conversion_run_id_from_stem, mineru_artifact_key
+from src.storage import (
+    conversion_run_id_from_stem,
+    mineru_artifact_key,
+    sha256_blob_key,
+)
 from src.storage.local import LocalObjectStorage
 from src.storage.manifest import ArtifactManifest, ManifestArtifact
 
@@ -59,6 +64,7 @@ def _write_manifest(
     conversion_run_id: str | None = None,
     content_list_key: str | None = None,
     include_all_outputs: bool = True,
+    source_pdf_key: str | None = None,
 ) -> Path:
     if conversion_run_id is None:
         conversion_run_id = conversion_run_id_from_stem(stem)
@@ -109,10 +115,15 @@ def _write_manifest(
                     size_bytes=7,
                 )
             )
+    if source_pdf_key is None:
+        source_pdf_key = sha256_blob_key(
+            sha256_hex=hashlib.sha256(b"pdf-bytes").hexdigest(),
+            extension="pdf",
+        )
     manifest = ArtifactManifest(
         conversion_run_id=conversion_run_id,
         paper_id=paper_id,
-        source_pdf_key=SAMPLE_SOURCE_PDF_KEY,
+        source_pdf_key=source_pdf_key,
         mineru_version="mineru-cli",
         created_at=datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc),
         artifacts=tuple(artifacts),
@@ -722,6 +733,106 @@ def test_main_strict_upload_validates_storage_with_nothing_to_upload(
 
     assert exc_info.value.code == 1
     run_mineru_mock.assert_not_called()
+
+
+def test_main_strict_upload_reuploads_when_manifest_objects_are_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    pdf_dir = tmp_path / "papers"
+    output_dir = tmp_path / "output"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = pdf_dir / "y2025p1q7.pdf"
+    pdf_path.write_bytes(b"pdf-bytes")
+    _write_mineru_outputs(output_dir, stem=pdf_path.stem)
+    manifest_path = _write_manifest(
+        output_dir,
+        stem=pdf_path.stem,
+        paper_id=pdf_path.stem,
+    )
+    old_manifest = ArtifactManifest.from_json(manifest_path.read_text(encoding="utf-8"))
+    run_mineru_mock = Mock()
+
+    monkeypatch.setattr(convert_papers, "run_mineru_batch", run_mineru_mock)
+    monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
+    monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path / "store"))
+    monkeypatch.setenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", "dev-secret")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["convert_papers.py", str(pdf_dir), str(output_dir), "--strict-upload"],
+    )
+
+    convert_papers.main()
+
+    run_mineru_mock.assert_not_called()
+    new_manifest = ArtifactManifest.from_json(manifest_path.read_text(encoding="utf-8"))
+    assert {artifact.key for artifact in new_manifest.artifacts} == {
+        artifact.key for artifact in old_manifest.artifacts
+    }
+    storage = LocalObjectStorage(
+        root=tmp_path / "store",
+        dev_presign_secret=b"dev-secret",
+    )
+    assert storage.exists(new_manifest.source_pdf_key)
+    assert all(storage.exists(artifact.key) for artifact in new_manifest.artifacts)
+
+
+def test_main_strict_upload_reconverts_when_pdf_bytes_differ_from_manifest(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    pdf_dir = tmp_path / "papers"
+    output_dir = tmp_path / "output"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = pdf_dir / "y2025p1q7.pdf"
+    pdf_path.write_bytes(b"new-pdf-bytes")
+    _write_mineru_outputs(output_dir, stem=pdf_path.stem)
+    old_source_pdf_key = sha256_blob_key(
+        sha256_hex=hashlib.sha256(b"old-pdf-bytes").hexdigest(),
+        extension="pdf",
+    )
+    manifest_path = _write_manifest(
+        output_dir,
+        stem=pdf_path.stem,
+        paper_id=pdf_path.stem,
+        source_pdf_key=old_source_pdf_key,
+    )
+    run_mineru_mock = Mock(return_value=True)
+
+    def fake_run_mineru_batch(
+        pdf_paths: list[Path],
+        output_dir: Path,
+        method: str = "auto",
+        backend: str = "hybrid-auto-engine",
+        lang: str = "en",
+    ) -> bool:
+        del method, backend, lang
+        run_mineru_mock(pdf_paths, output_dir)
+        for path in pdf_paths:
+            _write_mineru_outputs(output_dir, stem=path.stem)
+        return True
+
+    monkeypatch.setattr(convert_papers, "run_mineru_batch", fake_run_mineru_batch)
+    monkeypatch.setenv("OBJECT_STORAGE_PROVIDER", "local")
+    monkeypatch.setenv("OBJECT_STORAGE_LOCAL_ROOT", str(tmp_path / "store"))
+    monkeypatch.setenv("OBJECT_STORAGE_DEV_PRESIGN_SECRET", "dev-secret")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["convert_papers.py", str(pdf_dir), str(output_dir), "--strict-upload"],
+    )
+
+    convert_papers.main()
+
+    run_mineru_mock.assert_called_once()
+    assert run_mineru_mock.call_args.args[0] == [pdf_path]
+    new_manifest = ArtifactManifest.from_json(manifest_path.read_text(encoding="utf-8"))
+    assert new_manifest.source_pdf_key != old_source_pdf_key
+    assert new_manifest.source_pdf_key == sha256_blob_key(
+        sha256_hex=hashlib.sha256(b"new-pdf-bytes").hexdigest(),
+        extension="pdf",
+    )
 
 
 def test_main_strict_upload_rejects_duplicate_content_lists_despite_manifest(
