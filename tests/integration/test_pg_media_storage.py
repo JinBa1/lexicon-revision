@@ -58,8 +58,8 @@ def _fixture_copy_with_manifests(tmp_path: Path) -> Path:
                     "kind": "image",
                     "key": f"artifacts/mineru/run-{stem}/images/{image.name}",
                     "content_type": "image/png",
-                    "sha256_hex": "b" * 64,
-                    "size_bytes": 3,
+                    "sha256_hex": hashlib.sha256(image.read_bytes()).hexdigest(),
+                    "size_bytes": image.stat().st_size,
                 }
                 for image in images
                 if image.is_file()
@@ -74,22 +74,15 @@ def _fixture_copy_with_manifests(tmp_path: Path) -> Path:
 
 def test_pg_search_returns_object_key_and_access_url(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
 
     fixture_dir = _fixture_copy_with_manifests(tmp_path)
-    media_dir = tmp_path / "media"
     storage = LocalObjectStorage(
         root=tmp_path / "object-store",
         dev_presign_secret=b"secret",
-    )
-
-    monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
-        str(media_dir),
     )
 
     engine = create_engine(database_url, future=True)
@@ -106,22 +99,32 @@ def test_pg_search_returns_object_key_and_access_url(
         recreate_collection=True,
     )
 
-    sidecar_path = media_dir / f"{collection}_media_map.json"
-    media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
-    assert media_map
-    media_chunk_id = next(iter(media_map))
+    assert not (tmp_path / "media").exists()
 
     with engine.connect() as conn:
-        query_text = conn.execute(
-            text("SELECT text FROM chunks WHERE chunk_id = :chunk_id"),
-            {"chunk_id": media_chunk_id},
-        ).scalar_one()
+        media_row = conn.execute(
+            text(
+                """
+                select chunk_id, text
+                from chunks
+                where collection_id = (
+                    select id from collections where name = :collection
+                )
+                  and jsonb_array_length(media_refs) > 0
+                order by chunk_id
+                limit 1
+                """
+            ),
+            {"collection": collection},
+        ).one()
+        media_chunk_id = media_row.chunk_id
+        query_text = media_row.text
+        assert media_chunk_id
 
     service = PgSearchService(
         repository=PgSearchRepository(engine=engine),
         embedding_model=embedder,
         embedding_dimension=8,
-        media_dir=str(media_dir),
         object_storage=storage,
     )
     response = service.search(

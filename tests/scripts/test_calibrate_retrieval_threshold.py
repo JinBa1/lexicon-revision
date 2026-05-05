@@ -106,17 +106,14 @@ def test_create_real_search_service_disables_collection_thresholds(
         fake_create_search_service,
     )
 
-    service = create_real_search_service(
-        media_dir="media",
-        rerank=True,
-    )
+    service = create_real_search_service(rerank=True)
 
     assert service == "service"
     assert captured["database_settings"] == "db"
     assert captured["embedding_model"] == "embedder"
     assert captured["reranker"] == "reranker"
-    assert captured["media_dir"] == "media"
     assert captured["apply_collection_thresholds"] is False
+    assert "_".join(("media", "dir")) not in captured
     assert "retrieval_vector_min_score" not in captured
     assert "retrieval_rerank_min_score" not in captured
 

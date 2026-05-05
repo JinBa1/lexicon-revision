@@ -110,7 +110,7 @@ def test_main_forwards_repeatable_filter_conditions(
     )
     monkeypatch.setattr(
         "scripts.inspect_study.create_real_search_service",
-        lambda media_dir, rerank, reranker_device=None: _FakeSearchService(),
+        lambda rerank, reranker_device=None: _FakeSearchService(),
     )
     monkeypatch.setattr(
         "scripts.inspect_study.OllamaProvider",

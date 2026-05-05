@@ -688,10 +688,7 @@ def create_app(
                 detail=f"Chunk '{chunk_id}' not found in collection '{collection}'",
             )
 
-        media_refs_raw = []
-        get_media_refs = getattr(service, "get_media_refs", None)
-        if callable(get_media_refs):
-            media_refs_raw = get_media_refs(collection=collection, chunk_id=chunk_id)
+        media_refs_raw = row.media_refs or []
         storage = getattr(request.app.state, "object_storage", None)
         media = materialize_media_refs(
             refs=media_refs_raw,

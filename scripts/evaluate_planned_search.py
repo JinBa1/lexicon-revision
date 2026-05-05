@@ -23,7 +23,6 @@ from scripts.inspect_search import (  # noqa: E402
 from scripts.search_tooling import dump_filters, parse_authored_filters  # noqa: E402
 from src.metadata_schema.models import FilterCondition  # noqa: E402
 from src.search.errors import (  # noqa: E402
-    DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
     InvalidMetadataFilterError,
 )
@@ -237,7 +236,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("eval_path", type=Path)
     parser.add_argument("--collection", default=None)
     parser.add_argument("--top-k", type=int, default=None)
-    parser.add_argument("--media-dir", default=DEFAULT_MEDIA_DIR)
     parser.add_argument("--json", action="store_true")
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
@@ -271,7 +269,6 @@ async def _run(args: argparse.Namespace) -> None:
 
     settings = load_study_settings()
     search_service = create_real_search_service(
-        args.media_dir,
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )

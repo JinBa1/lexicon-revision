@@ -24,7 +24,6 @@ from scripts.search_tooling import (  # noqa: E402
 )
 from src.db.config import load_database_settings  # noqa: E402
 from src.search.base import SearchBackend  # noqa: E402
-from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
 from src.search.factory import create_search_service  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
     RetrievalProviderSettings,
@@ -76,11 +75,6 @@ def parse_args() -> argparse.Namespace:
         type=_positive_int,
         default=None,
         help="Base positive/negative retrieval limit; effective minimum is 10",
-    )
-    parser.add_argument(
-        "--media-dir",
-        default=DEFAULT_MEDIA_DIR,
-        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
     )
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
@@ -142,7 +136,6 @@ def _positive_int(value: str) -> int:
 
 def create_real_search_service(
     *,
-    media_dir: str,
     rerank: bool,
 ) -> SearchBackend:
     """Create a real service for raw calibration with thresholds disabled."""
@@ -159,7 +152,6 @@ def create_real_search_service(
         database_settings=load_database_settings(),
         embedding_model=embedding_model,
         reranker=reranker,
-        media_dir=media_dir,
         apply_collection_thresholds=False,
     )
 
@@ -422,10 +414,7 @@ def main() -> None:
     if collection is None:
         raise SystemExit("Eval file does not declare a collection; pass --collection")
     limit = args.limit or spec.default_top_k
-    service = create_real_search_service(
-        media_dir=args.media_dir,
-        rerank=args.rerank,
-    )
+    service = create_real_search_service(rerank=args.rerank)
     assert_expected_models(
         service=service,
         expected_embedding_model_id=args.expect_embedding_model_id,

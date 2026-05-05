@@ -23,7 +23,6 @@ from src.metadata_schema.models import FilterCondition  # noqa: E402
 from src.search.base import SearchBackend  # noqa: E402
 from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
-    DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
     InvalidMetadataFilterError,
 )
@@ -43,11 +42,6 @@ def parse_args() -> argparse.Namespace:
         description="Inspect local search results",
     )
     parser.add_argument("query", help="Search query text")
-    parser.add_argument(
-        "--media-dir",
-        default=DEFAULT_MEDIA_DIR,
-        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
-    )
     parser.add_argument(
         "--collection",
         default=DEFAULT_COLLECTION,
@@ -111,7 +105,6 @@ def _positive_int(value: str) -> int:
 
 
 def create_real_search_service(
-    media_dir: str,
     rerank: bool,
     reranker_device: str | None = None,
 ) -> SearchBackend:
@@ -135,7 +128,6 @@ def create_real_search_service(
         database_settings=db_settings,
         embedding_model=embedding_model,
         reranker=reranker,
-        media_dir=media_dir,
         apply_collection_thresholds=True,
     )
 
@@ -261,7 +253,6 @@ def main() -> None:
 
     try:
         service = create_real_search_service(
-            args.media_dir,
             args.rerank,
         )
         payload = build_search_payload(

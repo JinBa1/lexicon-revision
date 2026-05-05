@@ -1,25 +1,19 @@
 from __future__ import annotations
 
-import json
 import logging
 import math
 from contextvars import ContextVar
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.errors import (
     DEFAULT_COLLECTION,
-    DEFAULT_MEDIA_DIR,
     RERANK_CANDIDATE_CAP,
 )
 from src.search.filtering import validate_filter_conditions
-from src.search.media_sidecar import (
-    materialize_media_refs,
-    validate_storage_media_map,
-)
+from src.search.media_sidecar import materialize_media_refs
 from src.search.models import SearchResponse, SearchResult
 from src.search.pg_repository import PgSearchRepository
 from src.search.providers.base import EmbeddingProvider, RerankProvider
@@ -42,7 +36,6 @@ class PgSearchService:
         embedding_model: EmbeddingProvider,
         embedding_dimension: int,
         reranker: RerankProvider | None = None,
-        media_dir: str = DEFAULT_MEDIA_DIR,
         object_storage: ObjectStorage | None = None,
         apply_collection_thresholds: bool = True,
     ) -> None:
@@ -50,10 +43,8 @@ class PgSearchService:
         self._embedding_model = embedding_model
         self._embedding_dimension = embedding_dimension
         self._reranker = reranker
-        self._media_dir = media_dir
         self._object_storage = object_storage
         self._apply_collection_thresholds = apply_collection_thresholds
-        self._media_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
         self._schema_cache: dict[str, CollectionMetadataSchema] = {}
         self._last_execution_telemetry_var: ContextVar[
             SearchExecutionTelemetry | None
@@ -82,15 +73,6 @@ class PgSearchService:
                 collection
             )
         return self._schema_cache[collection]
-
-    def get_media_refs(
-        self,
-        *,
-        collection: str,
-        chunk_id: str,
-    ) -> list[dict[str, Any]]:
-        media_map = self._load_media_map(collection)
-        return list(media_map.get(chunk_id, []))
 
     def search(
         self,
@@ -212,7 +194,6 @@ class PgSearchService:
                 total=0,
             )
 
-        media_map = self._load_media_map(collection)
         results = []
         for row, score in zip(rows, scores, strict=True):
             if not _is_valid_chunk_level(row.chunk_level):
@@ -234,7 +215,7 @@ class PgSearchService:
                     metadata=row.metadata,
                     render_blocks=row.render_blocks,
                     media=materialize_media_refs(
-                        refs=media_map.get(row.chunk_id, []),
+                        refs=row.media_refs or [],
                         object_storage=self._object_storage,
                     ),
                 )
@@ -259,37 +240,6 @@ class PgSearchService:
         telemetry = self._last_execution_telemetry_var.get()
         self._last_execution_telemetry_var.set(None)
         return telemetry
-
-    def _load_media_map(self, collection: str) -> dict[str, list[dict[str, Any]]]:
-        if collection in self._media_cache:
-            return self._media_cache[collection]
-
-        sidecar_path = Path(self._media_dir) / f"{collection}_media_map.json"
-        if not sidecar_path.exists():
-            self._media_cache[collection] = {}
-            return self._media_cache[collection]
-
-        try:
-            raw_payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            logger.warning(
-                "Failed to load media sidecar at %s; returning empty media lists",
-                sidecar_path,
-            )
-            self._media_cache[collection] = {}
-            return self._media_cache[collection]
-
-        media_map = validate_storage_media_map(raw_payload)
-        if media_map is None:
-            logger.warning(
-                "Media sidecar at %s has invalid shape; returning empty media lists",
-                sidecar_path,
-            )
-            self._media_cache[collection] = {}
-            return self._media_cache[collection]
-
-        self._media_cache[collection] = media_map
-        return media_map
 
 
 def _is_valid_chunk_level(value: Any) -> bool:

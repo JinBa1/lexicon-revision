@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import sys
@@ -47,8 +48,8 @@ def _fixture_copy_with_manifests(tmp_path: Path) -> str:
                     "kind": "image",
                     "key": f"artifacts/mineru/run-{stem}/images/{image.name}",
                     "content_type": "image/png",
-                    "sha256_hex": "b" * 64,
-                    "size_bytes": 3,
+                    "sha256_hex": hashlib.sha256(image.read_bytes()).hexdigest(),
+                    "size_bytes": image.stat().st_size,
                 }
                 for image in sorted((content_list.parent / "images").glob("*"))
                 if image.is_file()
@@ -65,6 +66,10 @@ def _uoe_fixture_copy_with_manifest(tmp_path: Path) -> str:
     fixture_copy = tmp_path / "uoe_mineru_fixtures"
     shutil.copytree(UOE_MINERU_FIXTURES, fixture_copy)
     stem = "2019937_MECE10017"
+    image_path = fixture_copy / stem / "hybrid_auto" / "images" / "fig_001.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    if not image_path.exists():
+        image_path.write_bytes(b"uoe-fig-001")
     manifest = {
         "conversion_run_id": "run-2019937-mece10017",
         "paper_id": stem,
@@ -76,8 +81,8 @@ def _uoe_fixture_copy_with_manifest(tmp_path: Path) -> str:
                 "kind": "image",
                 "key": "artifacts/mineru/run-2019937-mece10017/images/fig_001.png",
                 "content_type": "image/png",
-                "sha256_hex": "b" * 64,
-                "size_bytes": 3,
+                "sha256_hex": hashlib.sha256(image_path.read_bytes()).hexdigest(),
+                "size_bytes": image_path.stat().st_size,
             }
         ],
     }
@@ -226,12 +231,12 @@ def test_build_embedding_text_uses_schema_rendering() -> None:
     assert "Year:" not in rendered
 
 
-def test_index_collection_postgres_writes_storage_backed_sidecar(
+def test_index_collection_postgres_passes_storage_backed_media_refs_to_repository(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     fixture_dir = _fixture_copy_with_manifests(tmp_path)
-    media_dir = tmp_path / "media"
+    media_dir = tmp_path / "media-sidecar-trap"
     calls: dict[str, object] = {}
 
     class _FakeRepo:
@@ -257,17 +262,20 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            media_refs_by_chunk_id=None,
         ) -> None:
             calls["indexed_collection"] = collection_name
             calls["chunk_count"] = len(chunks)
             calls["vector_count"] = len(vectors)
             calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
             calls["community_id"] = community_id
+            calls["media_refs_by_chunk_id"] = media_refs_by_chunk_id
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
         str(media_dir),
+        raising=False,
     )
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.ensure_metadata_indexes",
@@ -289,9 +297,10 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
         recreate_collection=True,
     )
 
+    media_map = calls["media_refs_by_chunk_id"]
+    assert isinstance(media_map, dict)
+    sample_ref = next(refs for refs in media_map.values() if refs)[0]
     sidecar_path = media_dir / "cam-cs-tripos-fixture_media_map.json"
-    media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
-    sample_ref = next(iter(media_map.values()))[0]
 
     assert calls["recreated"] == "cam-cs-tripos-fixture"
     assert calls["indexed_collection"] == "cam-cs-tripos-fixture"
@@ -302,6 +311,8 @@ def test_index_collection_postgres_writes_storage_backed_sidecar(
     assert calls["community_id"] == "cambridge"
     assert sample_ref["object_key"].startswith("artifacts/mineru/run-")
     assert "file_path" not in sample_ref
+    assert "access_url" not in sample_ref
+    assert not sidecar_path.exists()
 
 
 def test_index_collection_postgres_missing_manifest_raises_before_indexing(
@@ -333,9 +344,10 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            media_refs_by_chunk_id=None,
         ) -> None:
             del collection_name, chunks, vectors
-            del metadata_schema, community_id
+            del metadata_schema, community_id, media_refs_by_chunk_id
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
@@ -363,7 +375,6 @@ def test_index_collection_postgres_passes_configured_community(
     monkeypatch,
 ) -> None:
     fixture_dir = _fixture_copy_with_manifests(tmp_path)
-    media_dir = tmp_path / "media"
     collection_config_path = tmp_path / "uoe-mece10017.collection.json"
     collection_config_path.write_text(
         '{"name": "uoe-mece10017", "community_id": "edinburgh"}',
@@ -392,7 +403,9 @@ def test_index_collection_postgres_passes_configured_community(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None,
+            media_refs_by_chunk_id=None,
         ) -> None:
+            del media_refs_by_chunk_id
             calls["indexed_collection"] = collection_name
             calls["chunk_count"] = len(chunks)
             calls["vector_count"] = len(vectors)
@@ -400,10 +413,6 @@ def test_index_collection_postgres_passes_configured_community(
             calls["community_id"] = community_id
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
-    monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
-        str(media_dir),
-    )
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
@@ -429,7 +438,6 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
     monkeypatch,
 ) -> None:
     fixture_dir = _uoe_fixture_copy_with_manifest(tmp_path)
-    media_dir = tmp_path / "media"
     calls: dict[str, object] = {}
     embedder = _FakeEmbedder()
 
@@ -454,18 +462,16 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None,
+            media_refs_by_chunk_id=None,
         ) -> None:
             calls["indexed_collection"] = collection_name
             calls["chunks"] = chunks
             calls["vector_count"] = len(vectors)
             calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
             calls["community_id"] = community_id
+            calls["media_refs_by_chunk_id"] = media_refs_by_chunk_id
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
-    monkeypatch.setattr(
-        "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
-        str(media_dir),
-    )
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
@@ -482,8 +488,7 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
     )
 
     chunks = calls["chunks"]
-    sidecar_path = media_dir / "uoe-mece10017_media_map.json"
-    media_map = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    media_map = calls["media_refs_by_chunk_id"]
     schema_keys = {field["key"] for field in calls["metadata_schema"]["fields"]}
 
     assert calls["indexed_collection"] == "uoe-mece10017"
@@ -496,7 +501,143 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
         in text
         for text in embedder.last_texts
     )
-    sample_ref = next(iter(media_map.values()))[0]
+    assert isinstance(media_map, dict)
+    sample_ref = next(refs for refs in media_map.values() if refs)[0]
     assert sample_ref["object_key"].startswith(
         "artifacts/mineru/run-2019937-mece10017/"
     )
+
+
+def test_index_collection_postgres_rejects_stale_manifest_before_indexing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
+    manifest_path = None
+    manifest = None
+    for candidate_path in sorted(Path(fixture_dir).glob("**/*_artifact_manifest.json")):
+        candidate_manifest = json.loads(candidate_path.read_text(encoding="utf-8"))
+        if candidate_manifest.get("artifacts"):
+            manifest_path = candidate_path
+            manifest = candidate_manifest
+            break
+
+    assert manifest_path is not None
+    assert manifest is not None
+    manifest["artifacts"][0]["sha256_hex"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    calls: dict[str, object] = {}
+
+    class _FakeRepo:
+        def __init__(
+            self,
+            *,
+            engine,
+            embedding_model_id: str,
+            embedding_dimension: int,
+        ) -> None:
+            del engine, embedding_model_id, embedding_dimension
+
+        def recreate_collection(self, collection_name: str) -> None:
+            calls["recreated"] = collection_name
+
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+            community_id: str | None = None,
+            media_refs_by_chunk_id=None,
+        ) -> None:
+            del collection_name, chunks, vectors
+            del metadata_schema, community_id, media_refs_by_chunk_id
+            calls["indexed"] = True
+
+    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: None,
+    )
+
+    with pytest.raises(ValueError, match="manifest hash mismatch"):
+        index_collection_postgres(
+            mineru_output_dir=fixture_dir,
+            collection_name="cam-cs-tripos-fixture",
+            engine=object(),
+            embedding_model=_FakeEmbedder(),
+            embedding_dimension=2,
+            recreate_collection=True,
+        )
+
+    assert "recreated" not in calls
+    assert "indexed" not in calls
+
+
+def test_index_collection_postgres_validates_media_refs_before_recreate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fixture_dir = _fixture_copy_with_manifests(tmp_path)
+    calls: dict[str, object] = {}
+
+    class _FakeRepo:
+        def __init__(
+            self,
+            *,
+            engine,
+            embedding_model_id: str,
+            embedding_dimension: int,
+        ) -> None:
+            del engine, embedding_model_id, embedding_dimension
+
+        def recreate_collection(self, collection_name: str) -> None:
+            calls["recreated"] = collection_name
+
+        def index_chunks(
+            self,
+            *,
+            collection_name: str,
+            chunks,
+            vectors,
+            metadata_schema: CollectionMetadataSchema,
+            community_id: str | None = None,
+            media_refs_by_chunk_id=None,
+        ) -> None:
+            del collection_name, chunks, vectors
+            del metadata_schema, community_id, media_refs_by_chunk_id
+            calls["indexed"] = True
+
+    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.build_storage_media_map",
+        lambda *, chunks, manifests, verify_local_files: {
+            chunks[0].id: [
+                {
+                    "media_id": "fig-1",
+                    "kind": "image",
+                    "relation": "direct",
+                    "object_key": "artifacts/mineru/run-fixture/images/fig-1.png",
+                    "access_url": "https://signed.example/old",
+                }
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        lambda engine, *, collection_name, schema: None,
+    )
+
+    with pytest.raises(ValueError, match="access_url"):
+        index_collection_postgres(
+            mineru_output_dir=fixture_dir,
+            collection_name="cam-cs-tripos-fixture",
+            engine=object(),
+            embedding_model=_FakeEmbedder(),
+            embedding_dimension=2,
+            recreate_collection=True,
+        )
+
+    assert "recreated" not in calls
+    assert "indexed" not in calls

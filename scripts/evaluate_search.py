@@ -26,7 +26,6 @@ from scripts.search_tooling import (  # noqa: E402
     truncate_text,
 )
 from src.search.errors import (  # noqa: E402
-    DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
     InvalidMetadataFilterError,
 )
@@ -38,11 +37,6 @@ def parse_args() -> argparse.Namespace:
         description="Run YAML-authored search evaluations",
     )
     parser.add_argument("eval_path", type=Path, help="Path to the YAML eval file")
-    parser.add_argument(
-        "--media-dir",
-        default=DEFAULT_MEDIA_DIR,
-        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
-    )
     parser.add_argument(
         "--collection",
         default=None,
@@ -322,7 +316,7 @@ def main() -> None:
             )
 
         limit = args.limit if args.limit is not None else spec.default_top_k
-        service = create_real_search_service(args.media_dir, args.rerank)
+        service = create_real_search_service(args.rerank)
         report = evaluate_cases(
             service=service,
             cases=spec.cases,

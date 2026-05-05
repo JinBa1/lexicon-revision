@@ -30,11 +30,8 @@ from src.metadata_schema import (  # noqa: E402
     load_collection_schema,
     render_metadata_summary,
 )
-from src.search.errors import DEFAULT_MEDIA_DIR  # noqa: E402
-from src.search.media_sidecar import (  # noqa: E402
-    build_storage_media_map,
-    write_storage_media_map,
-)
+from src.search.media_refs import validate_media_refs_by_chunk_id  # noqa: E402
+from src.search.media_sidecar import build_storage_media_map  # noqa: E402
 from src.search.pg_repository import PgIndexRepository  # noqa: E402
 from src.search.providers.config import (  # noqa: E402
     build_embedding_provider,
@@ -138,7 +135,15 @@ def index_collection_postgres(
         source_pdf: ArtifactManifest.from_json(path.read_text(encoding="utf-8"))
         for source_pdf, path in load_local_manifests(Path(mineru_output_dir)).items()
     }
-    media_map = build_storage_media_map(chunks=chunks, manifests=manifests)
+    raw_media_refs_by_chunk_id = build_storage_media_map(
+        chunks=chunks,
+        manifests=manifests,
+        verify_local_files=True,
+    )
+    media_refs_by_chunk_id = validate_media_refs_by_chunk_id(
+        chunks=chunks,
+        media_refs_by_chunk_id=raw_media_refs_by_chunk_id,
+    )
 
     schema_path = metadata_schema_path or default_schema_path(collection_name)
     metadata_schema = load_collection_schema(schema_path)
@@ -169,36 +174,13 @@ def index_collection_postgres(
         vectors=vectors,
         metadata_schema=metadata_schema,
         community_id=collection_config.community_id,
+        media_refs_by_chunk_id=media_refs_by_chunk_id,
     )
     ensure_metadata_indexes(
         engine,
         collection_name=collection_name,
         schema=metadata_schema,
     )
-    _write_media_sidecar(
-        collection_name=collection_name,
-        media_map=media_map,
-        media_dir=DEFAULT_MEDIA_DIR,
-    )
-
-
-def _write_media_sidecar(
-    *,
-    collection_name: str,
-    media_map: dict[str, list[dict[str, Any]]],
-    media_dir: str = DEFAULT_MEDIA_DIR,
-) -> None:
-    media_root = Path(media_dir)
-    media_root.mkdir(parents=True, exist_ok=True)
-    sidecar_path = media_root / f"{collection_name}_media_map.json"
-    try:
-        write_storage_media_map(
-            output_path=sidecar_path,
-            media_map=media_map,
-        )
-    except OSError:
-        logger.exception("Failed to write Postgres media sidecar to %s", sidecar_path)
-        raise
 
 
 def main() -> None:

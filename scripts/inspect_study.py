@@ -26,7 +26,6 @@ from scripts.search_tooling import (  # noqa: E402
 )
 from src.search.errors import (  # noqa: E402
     DEFAULT_COLLECTION,
-    DEFAULT_MEDIA_DIR,
     CollectionNotFoundError,
     InvalidMetadataFilterError,
 )
@@ -105,11 +104,6 @@ def parse_args() -> argparse.Namespace:
         description="Inspect local study generation output"
     )
     parser.add_argument("query", help="Study query text")
-    parser.add_argument(
-        "--media-dir",
-        default=DEFAULT_MEDIA_DIR,
-        help=f"Media sidecar directory (default: {DEFAULT_MEDIA_DIR})",
-    )
     parser.add_argument(
         "--collection",
         default=DEFAULT_COLLECTION,
@@ -548,7 +542,6 @@ def main() -> None:
         top_k = args.top_k or settings.context.retrieval_top_k_default
 
         search_service = create_real_search_service(
-            args.media_dir,
             rerank=args.rerank,
             reranker_device=args.reranker_device,
         )
