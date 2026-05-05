@@ -59,6 +59,10 @@ def test_chunks_use_canonical_metadata_jsonb_column() -> None:
     assert "render_blocks" in chunks.c
     assert isinstance(chunks.c.render_blocks.type, JSONB)
     assert chunks.c.render_blocks.nullable is True
+    assert "media_refs" in chunks.c
+    assert isinstance(chunks.c.media_refs.type, JSONB)
+    assert chunks.c.media_refs.nullable is False
+    assert str(chunks.c.media_refs.server_default.arg) == "'[]'::jsonb"
 
 
 def test_chunks_drop_legacy_filter_columns() -> None:

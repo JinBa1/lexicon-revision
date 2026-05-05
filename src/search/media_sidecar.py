@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -9,7 +10,7 @@ from src.chunking.models import Chunk
 from src.search.models import MediaRefResponse
 from src.storage.base import ObjectStorage
 from src.storage.keys import validate_key
-from src.storage.manifest import ArtifactManifest
+from src.storage.manifest import ArtifactManifest, ManifestArtifact
 
 SUPPORTED_MEDIA_KINDS = {"image", "table"}
 SUPPORTED_MEDIA_RELATIONS = {
@@ -29,7 +30,7 @@ class StoredMediaRef(TypedDict, total=False):
     bbox: list[float] | None
     owner_level: str
     owner_label: str | None
-    order_index: int
+    order_index: int | None
     text_payload: str | None
     description: str | None
 
@@ -38,9 +39,10 @@ def build_storage_media_map(
     *,
     chunks: list[Chunk],
     manifests: dict[str, ArtifactManifest],
+    verify_local_files: bool = False,
 ) -> dict[str, list[StoredMediaRef]]:
     media_map: dict[str, list[StoredMediaRef]] = {}
-    manifest_indexes: dict[str, dict[str, str]] = {}
+    manifest_indexes: dict[str, dict[str, ManifestArtifact]] = {}
 
     for chunk in chunks:
         if not chunk.media:
@@ -59,12 +61,16 @@ def build_storage_media_map(
                 if basename_to_key is None:
                     basename_to_key = _build_artifact_basename_index(manifest)
                     manifest_indexes[chunk.source_pdf] = basename_to_key
-                object_key = basename_to_key.get(Path(ref.file_path).name)
-                if object_key is None:
+                local_path = Path(ref.file_path)
+                artifact = basename_to_key.get(local_path.name)
+                if artifact is None:
                     raise ValueError(
                         f"missing object key mapping for {chunk.source_pdf}: "
                         f"{ref.file_path}"
                     )
+                if verify_local_files:
+                    _verify_local_file_matches_artifact(local_path, artifact)
+                object_key = artifact.key
 
             refs.append(
                 {
@@ -183,23 +189,44 @@ def materialize_media_refs(
     return materialized
 
 
-def _build_artifact_basename_index(manifest: ArtifactManifest) -> dict[str, str]:
-    basename_to_key: dict[str, str] = {}
+def _build_artifact_basename_index(
+    manifest: ArtifactManifest,
+) -> dict[str, ManifestArtifact]:
+    basename_to_artifact: dict[str, ManifestArtifact] = {}
     for artifact in manifest.artifacts:
         if artifact.kind != "image":
             continue
         basename = Path(artifact.key).name
-        if basename in basename_to_key:
+        if basename in basename_to_artifact:
             raise ValueError(
                 f"duplicate image artifact basename in manifest for "
                 f"{manifest.paper_id}: {basename}"
             )
-        basename_to_key[basename] = artifact.key
-    return basename_to_key
+        basename_to_artifact[basename] = artifact
+    return basename_to_artifact
+
+
+def _verify_local_file_matches_artifact(
+    local_path: Path,
+    artifact: ManifestArtifact,
+) -> None:
+    data = local_path.read_bytes()
+    sha256_hex = hashlib.sha256(data).hexdigest()
+    if sha256_hex != artifact.sha256_hex:
+        raise ValueError(
+            f"manifest hash mismatch for {local_path}: "
+            f"expected {artifact.sha256_hex}, got {sha256_hex}"
+        )
+    size_bytes = len(data)
+    if size_bytes != artifact.size_bytes:
+        raise ValueError(
+            f"manifest size mismatch for {local_path}: "
+            f"expected {artifact.size_bytes}, got {size_bytes}"
+        )
 
 
 def _validate_stored_media_ref(ref: dict[str, Any]) -> StoredMediaRef | None:
-    if "file_path" in ref:
+    if "file_path" in ref or "access_url" in ref:
         return None
 
     media_id = ref.get("media_id")

@@ -277,6 +277,12 @@ chunks = Table(
         server_default=sql_text("'{}'::jsonb"),
     ),
     Column("render_blocks", JSONB, nullable=True),
+    Column(
+        "media_refs",
+        JSONB,
+        nullable=False,
+        server_default=sql_text("'[]'::jsonb"),
+    ),
     Column("source_pdf", Text, nullable=False),
     UniqueConstraint(
         "collection_id",

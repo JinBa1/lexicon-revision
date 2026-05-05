@@ -32,6 +32,7 @@ from src.search.errors import (
     InvalidMetadataFilterError,
 )
 from src.search.filtering import build_pg_conditions, validate_filter_conditions
+from src.search.media_refs import validate_media_refs_by_chunk_id
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class PgChunkRow:
     score: float
     metadata: dict[str, Any]
     render_blocks: list[dict[str, Any]] | None = None
+    media_refs: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,7 @@ class ChunkDetailRow:
     metadata: dict[str, Any]
     parent: ChunkParentRow | None
     render_blocks: list[dict[str, Any]] | None = None
+    media_refs: list[dict[str, Any]] | None = None
 
 
 class PgIndexRepository:
@@ -124,6 +127,7 @@ class PgIndexRepository:
         vectors: list[list[float]],
         metadata_schema: CollectionMetadataSchema,
         community_id: str | None = None,
+        media_refs_by_chunk_id: dict[str, list[dict[str, Any]]] | None = None,
     ) -> None:
         if len(vectors) != len(chunks):
             raise ValueError(f"Got {len(chunks)} chunks but {len(vectors)} vectors")
@@ -133,6 +137,20 @@ class PgIndexRepository:
                     "embedding dimension mismatch: "
                     f"expected {self.embedding_dimension}, got {len(vector)}"
                 )
+
+        try:
+            media_refs_by_chunk_id = validate_media_refs_by_chunk_id(
+                chunks=chunks,
+                media_refs_by_chunk_id=media_refs_by_chunk_id,
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if message.startswith("unknown chunk id in media refs:"):
+                unknown = message.removeprefix("unknown chunk id in media refs: ")
+                raise ValueError(
+                    "media_refs_by_chunk_id contains unknown chunk ids: " + unknown
+                ) from exc
+            raise
 
         with Session(self.engine) as session:
             collection_row = _load_collection_row(session, collection_name)
@@ -236,6 +254,7 @@ class PgIndexRepository:
                         sub_question_label=chunk.sub_question_label,
                         text=chunk.text,
                         render_blocks=chunk.render_blocks or None,
+                        media_refs=media_refs_by_chunk_id[chunk.id],
                         metadata=build_chunk_metadata(chunk, metadata_schema),
                         source_pdf=chunk.source_pdf,
                     )
@@ -291,6 +310,7 @@ class PgSearchRepository:
                     chunks_table.c.sub_question_label,
                     chunks_table.c.text,
                     chunks_table.c.render_blocks,
+                    chunks_table.c.media_refs,
                     chunks_table.c.metadata,
                 )
                 .where(
@@ -342,6 +362,7 @@ class PgSearchRepository:
                 metadata=_result_metadata_from_row(row, schema),
                 parent=parent,
                 render_blocks=row.render_blocks,
+                media_refs=list(row.media_refs or []),
             )
 
     def get_collection_retrieval_thresholds(
@@ -423,6 +444,7 @@ class PgSearchRepository:
                     distance_expr,
                     chunks_table.c.metadata,
                     chunks_table.c.render_blocks,
+                    chunks_table.c.media_refs,
                 )
                 .select_from(
                     chunks_table.join(
@@ -448,6 +470,7 @@ class PgSearchRepository:
                     score=1.0 - row.distance,
                     metadata=_result_metadata_from_row(row, collection_schema),
                     render_blocks=row.render_blocks,
+                    media_refs=list(row.media_refs or []),
                 )
                 for row in results
             ]
