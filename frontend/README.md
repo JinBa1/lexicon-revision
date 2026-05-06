@@ -1,7 +1,6 @@
-# RAG Exam Revision Tool Frontend
+# Lexicon Revision Frontend
 
-Vite + React + TypeScript single-page app for the RAG Exam Revision Tool
-frontend.
+Vite + React + TypeScript single-page app for the Lexicon Revision frontend.
 
 ## Develop
 
@@ -47,7 +46,7 @@ corepack pnpm test:e2e
 ## Deployment Coordination
 
 The frontend is intended for Cloudflare Pages as a static SPA with no Pages
-Functions or SSR. Do not hardcode the eventual production frontend origin yet.
+Functions or SSR. The production frontend origin is `https://lexiconrevision.uk`.
 Cloudflare Pages provides SPA fallback when there is no top-level `404.html`;
 do not add a catch-all `_redirects` rule, because Pages redirect rules also
 match existing assets.

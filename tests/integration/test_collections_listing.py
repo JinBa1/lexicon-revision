@@ -506,7 +506,9 @@ def test_list_collections_prefers_stored_display_name():
         engine,
         name="uoe-mece10017",
         community_id=None,
-        display_name="Edinburgh MECE10017",
+        display_name=(
+            "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4"
+        ),
     )
 
     rows = repository.list_collections_with_access(
@@ -516,4 +518,7 @@ def test_list_collections_prefers_stored_display_name():
     )
 
     assert len(rows) == 1
-    assert rows[0].display_name == "Edinburgh MECE10017"
+    assert (
+        rows[0].display_name
+        == "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4"
+    )

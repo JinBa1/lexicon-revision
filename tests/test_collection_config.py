@@ -24,7 +24,8 @@ def test_load_collection_config_reads_private_community_and_display_name(
         (
             '{"name": "uoe-mece10017", '
             '"community_id": "edinburgh", '
-            '"display_name": "Edinburgh MECE10017"}'
+            '"display_name": "MECE10017 - Design of Surgical Tools and '
+            'Implanted Medical Devices 4"}'
         ),
         encoding="utf-8",
     )
@@ -33,7 +34,10 @@ def test_load_collection_config_reads_private_community_and_display_name(
 
     assert config.name == "uoe-mece10017"
     assert config.community_id == "edinburgh"
-    assert config.display_name == "Edinburgh MECE10017"
+    assert (
+        config.display_name
+        == "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4"
+    )
 
 
 @pytest.mark.parametrize("display_name", ["", "   "])
@@ -63,3 +67,26 @@ def test_cambridge_fixture_collection_config_is_restricted_to_cambridge() -> Non
     assert config.name == "cam-cs-tripos-fixture"
     assert config.community_id == "cambridge"
     assert config.display_name == "Cambridge CS Tripos"
+
+
+@pytest.mark.parametrize(
+    ("collection_name", "display_name", "community_id"),
+    [
+        ("cambridge-cs-tripos", "Cambridge CS Tripos", "cambridge"),
+        (
+            "edinburgh-mece10017",
+            "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4",
+            "edinburgh",
+        ),
+    ],
+)
+def test_production_collection_configs_are_restricted(
+    collection_name: str,
+    display_name: str,
+    community_id: str,
+) -> None:
+    config = load_collection_config(collection_name)
+
+    assert config.name == collection_name
+    assert config.community_id == community_id
+    assert config.display_name == display_name

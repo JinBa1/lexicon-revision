@@ -18,11 +18,11 @@ describe("document routes", () => {
     expect(screen.getByText("Last updated")).toBeInTheDocument();
     expect(screen.getByTestId("doc-content-panel")).toBeInTheDocument();
     expect(screen.queryByText("jin.bai@outlook.com")).not.toBeInTheDocument();
-    expect(
-      screen.getAllByText(
-        "the privacy contact address that will be published before public deployment",
-      ),
-    ).toHaveLength(2);
+    const privacyLinks = screen.getAllByRole("link", {
+      name: "privacy@lexiconrevision.uk",
+    });
+    expect(privacyLinks).toHaveLength(2);
+    expect(privacyLinks[0]).toHaveAttribute("href", "mailto:privacy@lexiconrevision.uk");
     expect(screen.getByRole("link", { name: "Contact the ICO ↗" })).toHaveAttribute(
       "href",
       "https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/",

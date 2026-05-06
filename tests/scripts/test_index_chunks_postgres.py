@@ -383,7 +383,8 @@ def test_index_collection_postgres_passes_configured_community(
         (
             '{"name": "uoe-mece10017", '
             '"community_id": "edinburgh", '
-            '"display_name": "Edinburgh MECE10017"}'
+            '"display_name": "MECE10017 - Design of Surgical Tools and '
+            'Implanted Medical Devices 4"}'
         ),
         encoding="utf-8",
     )
@@ -440,7 +441,10 @@ def test_index_collection_postgres_passes_configured_community(
     assert calls["chunk_count"] == calls["vector_count"]
     assert calls["metadata_schema"]["fields"][0]["key"] == "year"
     assert calls["community_id"] == "edinburgh"
-    assert calls["display_name"] == "Edinburgh MECE10017"
+    assert (
+        calls["display_name"]
+        == "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4"
+    )
 
 
 def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
@@ -505,7 +509,10 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
 
     assert calls["indexed_collection"] == "uoe-mece10017"
     assert calls["community_id"] == "edinburgh"
-    assert calls["display_name"] == "Edinburgh MECE10017"
+    assert (
+        calls["display_name"]
+        == "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4"
+    )
     assert len(chunks) == calls["vector_count"]
     assert {"course_code", "course_title", "document_id"}.issubset(schema_keys)
     assert any("Course Code: MECE10017" in text for text in embedder.last_texts)

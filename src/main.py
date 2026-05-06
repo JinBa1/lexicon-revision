@@ -271,7 +271,7 @@ def create_app(
                 "Injected apps must provide access_service or set "
                 "allow_unauthorized_test_mode=True"
             )
-        application = FastAPI(title="RAG Exam Revision Tool")
+        application = FastAPI(title="Lexicon Revision API")
         _configure_runtime_state(
             application,
             runtime_settings=runtime_settings,
@@ -289,7 +289,7 @@ def create_app(
         application.state.generation_provider = generation_provider
     else:
         application = FastAPI(
-            title="RAG Exam Revision Tool",
+            title="Lexicon Revision API",
             lifespan=_default_lifespan,
         )
         _configure_runtime_state(
@@ -422,7 +422,7 @@ def create_app(
 
     @application.get("/")
     async def root() -> dict[str, str]:
-        return {"message": "Backend is running. Add your endpoints here."}
+        return {"message": "Lexicon Revision API is running."}
 
     @application.get("/_dev/object/{method}/{expires}/{sig}/{key:path}")
     async def dev_get_object(

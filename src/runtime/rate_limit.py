@@ -19,7 +19,7 @@ from src.runtime.telemetry import HealthStatus
 RateLimitEndpoint = Literal["search", "study"]
 RateLimitScope = Literal["user", "ip"]
 
-RATE_LIMIT_NAMESPACE = "rag-exam:rate-limit"
+RATE_LIMIT_NAMESPACE = "lexicon-revision:rate-limit"
 RATE_LIMIT_RESPONSE_HEADERS = [
     "Retry-After",
     "X-RateLimit-Limit",

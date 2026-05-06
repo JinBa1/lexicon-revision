@@ -11,7 +11,7 @@ import requests
 
 BASE_URL = "https://www.cl.cam.ac.uk/teaching/exams/pastpapers/"
 INDEX_URL = urljoin(BASE_URL, "index.csv")
-USER_AGENT = "rag-exam-tool/0.1 (+https://github.com/)"
+USER_AGENT = "lexicon-revision/0.1 (+https://github.com/JinBa1/lexicon-revision)"
 DEFAULT_DELAY = 0.5
 TIMEOUT_SECONDS = 30
 MAX_RETRIES = 3
