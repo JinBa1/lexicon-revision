@@ -52,7 +52,7 @@ def test_ci_lints_github_actions_workflows() -> None:
     } in steps
     assert {
         "name": "Lint GitHub Actions workflows",
-        "run": "$(go env GOPATH)/bin/actionlint",
+        "run": '"$(go env GOPATH)/bin/actionlint"',
     } in steps
 
 

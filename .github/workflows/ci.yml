@@ -31,7 +31,7 @@ jobs:
         run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
       - name: Lint GitHub Actions workflows
-        run: $(go env GOPATH)/bin/actionlint
+        run: '"$(go env GOPATH)/bin/actionlint"'
 
   backend:
     runs-on: ubuntu-latest
