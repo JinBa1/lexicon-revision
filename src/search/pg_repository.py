@@ -127,6 +127,7 @@ class PgIndexRepository:
         vectors: list[list[float]],
         metadata_schema: CollectionMetadataSchema,
         community_id: str | None = None,
+        display_name: str | None = None,
         media_refs_by_chunk_id: dict[str, list[dict[str, Any]]] | None = None,
     ) -> None:
         if len(vectors) != len(chunks):
@@ -165,6 +166,7 @@ class PgIndexRepository:
                         embedding_dimension=self.embedding_dimension,
                         metadata_schema=metadata_schema_payload,
                         community_id=community_id,
+                        display_name=display_name,
                     )
                 )
             else:
@@ -179,6 +181,12 @@ class PgIndexRepository:
                         update(collections)
                         .where(collections.c.id == collection_id)
                         .values(community_id=community_id)
+                    )
+                if collection_row.display_name != display_name:
+                    session.execute(
+                        update(collections)
+                        .where(collections.c.id == collection_id)
+                        .values(display_name=display_name)
                     )
                 _validate_collection_settings(
                     collection_name=collection_name,
@@ -483,6 +491,7 @@ def _load_collection_row(session: Session, collection_name: str):
         collections.c.embedding_dimension,
         collections.c.metadata_schema,
         collections.c.community_id,
+        collections.c.display_name,
     ).where(collections.c.name == collection_name)
     return session.execute(stmt).first()
 

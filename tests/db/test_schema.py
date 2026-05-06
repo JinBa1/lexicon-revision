@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import CheckConstraint, Float, String
+from sqlalchemy import CheckConstraint, Float, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from src.db.schema import (
     chunk_embeddings,
@@ -35,14 +35,17 @@ def test_schema_has_expected_tables() -> None:
 def test_collections_embedding_columns() -> None:
     assert "embedding_model_id" in collections.c
     assert "embedding_dimension" in collections.c
+    assert "display_name" in collections.c
     assert "metadata_schema" in collections.c
     assert "community_id" in collections.c
     assert "retrieval_vector_min_score" in collections.c
     assert "retrieval_rerank_min_score" in collections.c
+    assert isinstance(collections.c.display_name.type, Text)
     assert isinstance(collections.c.metadata_schema.type, JSONB)
     assert isinstance(collections.c.retrieval_vector_min_score.type, Float)
     assert isinstance(collections.c.retrieval_rerank_min_score.type, Float)
     assert collections.c.metadata_schema.server_default is None
+    assert collections.c.display_name.nullable is True
     assert collections.c.community_id.nullable is True
     assert collections.c.retrieval_vector_min_score.nullable is True
     assert collections.c.retrieval_rerank_min_score.nullable is True

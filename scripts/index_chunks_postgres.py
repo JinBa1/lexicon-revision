@@ -246,6 +246,7 @@ def index_collection_postgres(
         vectors=vectors,
         metadata_schema=metadata_schema,
         community_id=collection_config.community_id,
+        display_name=collection_config.display_name,
         media_refs_by_chunk_id=media_refs_by_chunk_id,
     )
     ensure_metadata_indexes(

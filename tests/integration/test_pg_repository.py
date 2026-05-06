@@ -148,6 +148,58 @@ def test_index_repository_indexes_fixture_chunks() -> None:
     assert results[0].render_blocks is not None
 
 
+def test_index_repository_persists_collection_display_name() -> None:
+    engine = _engine()
+    chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]
+    vectors = _vectors(len(chunks), 8)
+
+    repo = PgIndexRepository(
+        engine=engine, embedding_model_id="fake-v1", embedding_dimension=8
+    )
+    repo.recreate_collection("fixture-display-name")
+    repo.index_chunks(
+        collection_name="fixture-display-name",
+        chunks=chunks,
+        vectors=vectors,
+        metadata_schema=_schema(),
+        display_name="Cambridge CS Tripos",
+    )
+
+    with engine.connect() as conn:
+        stored_display_name = conn.execute(
+            text(
+                """
+                select display_name
+                from collections
+                where name = 'fixture-display-name'
+                """
+            )
+        ).scalar_one()
+
+    assert stored_display_name == "Cambridge CS Tripos"
+
+    repo.index_chunks(
+        collection_name="fixture-display-name",
+        chunks=chunks,
+        vectors=vectors,
+        metadata_schema=_schema(),
+        display_name="Cambridge Computer Science Tripos",
+    )
+
+    with engine.connect() as conn:
+        updated_display_name = conn.execute(
+            text(
+                """
+                select display_name
+                from collections
+                where name = 'fixture-display-name'
+                """
+            )
+        ).scalar_one()
+
+    assert updated_display_name == "Cambridge Computer Science Tripos"
+
+
 def test_index_repository_rejects_dimension_mismatch() -> None:
     engine = _engine()
     chunks = run_pipeline(MINERU_FIXTURES, university="cam")[:1]

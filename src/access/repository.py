@@ -186,6 +186,7 @@ class PgCollectionAccessRepository:
         stmt = (
             select(
                 collections.c.name,
+                collections.c.display_name,
                 collections.c.community_id,
                 collections.c.metadata_schema,
                 communities.c.name.label("community_name"),
@@ -238,7 +239,11 @@ class PgCollectionAccessRepository:
             listings.append(
                 CollectionAccessListing(
                     collection_name=str(row.name),
-                    display_name=self._derive_collection_display_name(str(row.name)),
+                    display_name=(
+                        str(row.display_name)
+                        if row.display_name is not None
+                        else self._derive_collection_display_name(str(row.name))
+                    ),
                     community_id=community_id,
                     community_display_name=community_name,
                     paper_count=int(row.paper_count or 0),

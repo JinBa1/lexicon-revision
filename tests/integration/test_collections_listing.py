@@ -24,6 +24,7 @@ def _seed_collection(
     *,
     name: str,
     community_id: str | None,
+    display_name: str | None = None,
     metadata_schema: dict | None = None,
     paper_rows: int = 0,
     chunk_years: list[int] | None = None,
@@ -39,13 +40,17 @@ def _seed_collection(
         conn.execute(
             text(
                 "INSERT INTO collections "
-                "(id, name, community_id, embedding_model_id, "
+                "(id, name, display_name, community_id, embedding_model_id, "
                 "embedding_dimension, metadata_schema) "
-                "VALUES (:id, :name, :cid, 'test-model', 3, CAST(:schema AS JSONB))"
+                "VALUES ("
+                ":id, :name, :display_name, :cid, 'test-model', 3, "
+                "CAST(:schema AS JSONB)"
+                ")"
             ),
             {
                 "id": collection_id,
                 "name": name,
+                "display_name": display_name,
                 "cid": community_id,
                 "schema": _json_dumps(schema),
             },
@@ -492,3 +497,23 @@ def test_list_collections_derives_display_name_from_collection_name():
 
     assert len(rows) == 1
     assert rows[0].display_name == "Algorithms Papers"
+
+
+def test_list_collections_prefers_stored_display_name():
+    engine = _engine()
+    repository = PgCollectionAccessRepository(engine=engine)
+    _seed_collection(
+        engine,
+        name="uoe-mece10017",
+        community_id=None,
+        display_name="Edinburgh MECE10017",
+    )
+
+    rows = repository.list_collections_with_access(
+        request_identity=RequestIdentity.anonymous(),
+        resolved_user_id=None,
+        affiliation_community_id=None,
+    )
+
+    assert len(rows) == 1
+    assert rows[0].display_name == "Edinburgh MECE10017"

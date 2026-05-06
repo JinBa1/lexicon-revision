@@ -262,8 +262,10 @@ def test_index_collection_postgres_passes_storage_backed_media_refs_to_repositor
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            display_name: str | None = None,
             media_refs_by_chunk_id=None,
         ) -> None:
+            calls["display_name"] = display_name
             calls["indexed_collection"] = collection_name
             calls["chunk_count"] = len(chunks)
             calls["vector_count"] = len(vectors)
@@ -344,10 +346,11 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            display_name: str | None = None,
             media_refs_by_chunk_id=None,
         ) -> None:
             del collection_name, chunks, vectors
-            del metadata_schema, community_id, media_refs_by_chunk_id
+            del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
@@ -377,7 +380,11 @@ def test_index_collection_postgres_passes_configured_community(
     fixture_dir = _fixture_copy_with_manifests(tmp_path)
     collection_config_path = tmp_path / "uoe-mece10017.collection.json"
     collection_config_path.write_text(
-        '{"name": "uoe-mece10017", "community_id": "edinburgh"}',
+        (
+            '{"name": "uoe-mece10017", '
+            '"community_id": "edinburgh", '
+            '"display_name": "Edinburgh MECE10017"}'
+        ),
         encoding="utf-8",
     )
     calls: dict[str, object] = {}
@@ -403,6 +410,7 @@ def test_index_collection_postgres_passes_configured_community(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None,
+            display_name: str | None,
             media_refs_by_chunk_id=None,
         ) -> None:
             del media_refs_by_chunk_id
@@ -411,6 +419,7 @@ def test_index_collection_postgres_passes_configured_community(
             calls["vector_count"] = len(vectors)
             calls["metadata_schema"] = metadata_schema.model_dump(mode="json")
             calls["community_id"] = community_id
+            calls["display_name"] = display_name
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
@@ -431,6 +440,7 @@ def test_index_collection_postgres_passes_configured_community(
     assert calls["chunk_count"] == calls["vector_count"]
     assert calls["metadata_schema"]["fields"][0]["key"] == "year"
     assert calls["community_id"] == "edinburgh"
+    assert calls["display_name"] == "Edinburgh MECE10017"
 
 
 def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
@@ -462,8 +472,10 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None,
+            display_name: str | None,
             media_refs_by_chunk_id=None,
         ) -> None:
+            calls["display_name"] = display_name
             calls["indexed_collection"] = collection_name
             calls["chunks"] = chunks
             calls["vector_count"] = len(vectors)
@@ -493,6 +505,7 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
 
     assert calls["indexed_collection"] == "uoe-mece10017"
     assert calls["community_id"] == "edinburgh"
+    assert calls["display_name"] == "Edinburgh MECE10017"
     assert len(chunks) == calls["vector_count"]
     assert {"course_code", "course_title", "document_id"}.issubset(schema_keys)
     assert any("Course Code: MECE10017" in text for text in embedder.last_texts)
@@ -550,10 +563,11 @@ def test_index_collection_postgres_rejects_foreign_manifest_before_indexing(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            display_name: str | None = None,
             media_refs_by_chunk_id=None,
         ) -> None:
             del collection_name, chunks, vectors
-            del metadata_schema, community_id, media_refs_by_chunk_id
+            del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
@@ -617,10 +631,11 @@ def test_index_collection_postgres_rejects_stale_manifest_before_indexing(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            display_name: str | None = None,
             media_refs_by_chunk_id=None,
         ) -> None:
             del collection_name, chunks, vectors
-            del metadata_schema, community_id, media_refs_by_chunk_id
+            del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
@@ -671,10 +686,11 @@ def test_index_collection_postgres_validates_media_refs_before_recreate(
             vectors,
             metadata_schema: CollectionMetadataSchema,
             community_id: str | None = None,
+            display_name: str | None = None,
             media_refs_by_chunk_id=None,
         ) -> None:
             del collection_name, chunks, vectors
-            del metadata_schema, community_id, media_refs_by_chunk_id
+            del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
     monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_COLLECTION_CONFIG_DIR = REPO_ROOT / "config" / "collections"
@@ -12,7 +12,18 @@ class CollectionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
+    display_name: str | None = None
     community_id: str | None = None
+
+    @field_validator("display_name")
+    @classmethod
+    def _validate_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("display_name must not be blank")
+        return stripped
 
 
 def default_collection_config_path(

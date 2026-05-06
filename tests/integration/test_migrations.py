@@ -852,3 +852,63 @@ def test_alembic_upgrade_from_0011_adds_chunk_media_refs() -> None:
     finally:
         command.upgrade(config, "head")
         engine.dispose()
+
+
+def test_alembic_upgrade_from_0012_adds_nullable_collection_display_name() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is required for pgvector integration tests")
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260505_0012")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    insert into collections (
+                        id,
+                        name,
+                        embedding_model_id,
+                        embedding_dimension,
+                        metadata_schema
+                    ) values (
+                        'collection-display-name',
+                        'fixture-display-name',
+                        'fake-v1',
+                        8,
+                        '{}'::jsonb
+                    )
+                    """
+                )
+            )
+
+        command.upgrade(config, "head")
+
+        with engine.connect() as conn:
+            columns = {
+                column["name"]: column
+                for column in inspect(conn).get_columns("collections")
+            }
+            stored_display_name = conn.execute(
+                text(
+                    """
+                    select display_name
+                    from collections
+                    where id = 'collection-display-name'
+                    """
+                )
+            ).scalar_one()
+
+        assert columns["display_name"]["nullable"] is True
+        assert stored_display_name is None
+    finally:
+        command.upgrade(config, "head")
+        engine.dispose()

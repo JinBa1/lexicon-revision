@@ -207,6 +207,7 @@ collections = Table(
     metadata,
     Column("id", String, primary_key=True, default=lambda: str(uuid.uuid4())),
     Column("name", Text, nullable=False, unique=True),
+    Column("display_name", Text, nullable=True),
     Column("community_id", String, ForeignKey("communities.id"), nullable=True),
     Column("embedding_model_id", Text, nullable=False),
     Column("embedding_dimension", Integer, nullable=False),
