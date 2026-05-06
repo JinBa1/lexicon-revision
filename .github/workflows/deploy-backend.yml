@@ -1,0 +1,130 @@
+name: Deploy Backend
+
+"on":
+  workflow_run:
+    workflows: ["CI"]
+    types: ["completed"]
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://lexiconrevision.uk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy Fly backend
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_ORIGIN: https://lexicon-revision-api.fly.dev
+      FRONTEND_ORIGIN: https://lexiconrevision.uk
+
+    steps:
+      - name: Smoke deployed backend
+        run: |
+          set -euo pipefail
+
+          curl -fsS "$API_ORIGIN/healthz"
+
+          ready_json="$(mktemp)"
+          curl -fsS "$API_ORIGIN/readyz" -o "$ready_json"
+          python - "$ready_json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          if payload.get("status") != "ok":
+              raise SystemExit(f"readyz status is not ok: {payload!r}")
+
+          failed = {
+              name: state
+              for name, state in payload.get("checks", {}).items()
+              if state != "ok"
+          }
+          if failed:
+              raise SystemExit(f"readyz checks failed: {failed!r}")
+          PY
+
+      - name: Smoke public catalogue and CORS
+        run: |
+          set -euo pipefail
+
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          curl -fsS -D "$headers" -o "$body" \
+            -H "Origin: https://lexiconrevision.uk" \
+            "$API_ORIGIN/collections"
+
+          grep -Fi "access-control-allow-origin: https://lexiconrevision.uk" "$headers"
+
+          python - "$body" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              collections = json.load(handle)
+
+          expected = {
+              "cambridge-cs-tripos": ("Cambridge CS Tripos", 744),
+              "edinburgh-mece10017": (
+                  "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4",
+                  7,
+              ),
+          }
+          by_name = {collection["name"]: collection for collection in collections}
+
+          for name, (display_name, paper_count) in expected.items():
+              collection = by_name.get(name)
+              if collection is None:
+                  raise SystemExit(f"missing collection: {name}")
+              if collection.get("display_name") != display_name:
+                  raise SystemExit(f"unexpected display name for {name}: {collection!r}")
+              if collection.get("paper_count") != paper_count:
+                  raise SystemExit(f"unexpected paper count for {name}: {collection!r}")
+              if collection.get("access_state") != "locked_requires_signin":
+                  raise SystemExit(f"unexpected access state for {name}: {collection!r}")
+          PY
+
+      - name: Smoke frontend shell
+        run: |
+          set -euo pipefail
+
+          headers="$(mktemp)"
+          html="$(mktemp)"
+          curl -fsS -D "$headers" -o "$html" "$FRONTEND_ORIGIN"
+
+          grep -F "Lexicon Revision" "$html"
+          grep -F "/assets/index-" "$html"
