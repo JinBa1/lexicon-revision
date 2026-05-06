@@ -16,6 +16,7 @@ from src.search.providers.base import (
 )
 
 _HEALTH_TIMEOUT_SECONDS = 1.0
+_EMBEDDING_BATCH_SIZE = 1000
 
 
 def _handle_request(
@@ -90,6 +91,26 @@ class VoyageEmbedder:
                 latency_ms=0,
             )
 
+        vectors: list[list[float]] = []
+        usage: TokenUsage | None = None
+        model_id = self.model_id
+        for batch_start in range(0, len(texts), _EMBEDDING_BATCH_SIZE):
+            batch = texts[batch_start : batch_start + _EMBEDDING_BATCH_SIZE]
+            batch_result = self._embed_batch(batch, input_type=input_type)
+            vectors.extend(batch_result.vectors)
+            model_id = batch_result.model_id
+            usage = _combine_usage(usage, batch_result.usage)
+
+        return EmbeddingResult(
+            vectors=vectors,
+            model_id=model_id,
+            provider="voyage",
+            latency_ms=_elapsed_ms(started),
+            usage=usage,
+        )
+
+    def _embed_batch(self, texts: list[str], *, input_type: str) -> EmbeddingResult:
+        started = time.perf_counter()
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -338,6 +359,26 @@ def _usage_from_payload(payload: Any) -> TokenUsage | None:
         output_tokens=_as_int_or_none(output_tokens),
         total_tokens=_as_int_or_none(total_tokens),
     )
+
+
+def _combine_usage(
+    left: TokenUsage | None, right: TokenUsage | None
+) -> TokenUsage | None:
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return TokenUsage(
+        input_tokens=_sum_optional_int(left.input_tokens, right.input_tokens),
+        output_tokens=_sum_optional_int(left.output_tokens, right.output_tokens),
+        total_tokens=_sum_optional_int(left.total_tokens, right.total_tokens),
+    )
+
+
+def _sum_optional_int(left: int | None, right: int | None) -> int | None:
+    if left is None and right is None:
+        return None
+    return (left or 0) + (right or 0)
 
 
 def _as_int_or_none(value: Any) -> int | None:

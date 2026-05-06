@@ -107,6 +107,37 @@ def test_embed_rows_sorted_by_index() -> None:
     assert result.vectors == [[0.1, 0.2], [0.3, 0.4]]
 
 
+def test_embed_documents_batches_large_inputs() -> None:
+    batch_lengths: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        batch = body["input"]
+        batch_lengths.append(len(batch))
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": index, "embedding": [float(len(text))]}
+                    for index, text in enumerate(batch)
+                ],
+                "model": "voyage-4-lite",
+                "usage": {"total_tokens": len(batch)},
+            },
+        )
+
+    embedder = VoyageEmbedder(api_key="k", client=_client(handler))
+    texts = [str(index) for index in range(1001)]
+
+    result = embedder.embed_documents(texts)
+
+    assert batch_lengths == [1000, 1]
+    assert result.vectors == [[float(len(text))] for text in texts]
+    assert result.model_id == "voyage-4-lite"
+    assert result.provider == "voyage"
+    assert result.usage == TokenUsage(total_tokens=1001)
+
+
 def test_embed_documents_wrong_vector_count_raises_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
