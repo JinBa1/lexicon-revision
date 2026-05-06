@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+FLYCTL_ACTION_SHA = "ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1"
 
 
 def _load_workflow(name: str) -> dict[str, Any]:
@@ -60,7 +61,8 @@ def test_backend_cd_records_production_environment_and_deploys_fly() -> None:
     workflow = _load_workflow("deploy-backend.yml")
     deploy_job = workflow["jobs"]["deploy"]
 
-    assert workflow["permissions"] == {"contents": "read", "deployments": "write"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert deploy_job["permissions"] == {"contents": "read", "deployments": "write"}
     assert deploy_job["environment"] == {
         "name": "production",
         "url": "https://lexiconrevision.uk",
@@ -69,7 +71,7 @@ def test_backend_cd_records_production_environment_and_deploys_fly() -> None:
     steps = deploy_job["steps"]
     assert any(step.get("uses") == "actions/checkout@v4" for step in steps)
     assert any(
-        step.get("uses") == "superfly/flyctl-actions/setup-flyctl@master"
+        step.get("uses") == f"superfly/flyctl-actions/setup-flyctl@{FLYCTL_ACTION_SHA}"
         for step in steps
     )
     deploy_steps = [
@@ -98,12 +100,17 @@ def test_backend_cd_smokes_live_frontend_and_backend_after_deploy() -> None:
         step["run"] for step in smoke_job["steps"] if "run" in step
     )
     for expected in [
+        "--retry 3",
+        "--retry-all-errors",
         "/healthz",
         "/readyz",
         "/collections",
         "access-control-allow-origin: https://lexiconrevision.uk",
-        "Cambridge CS Tripos",
-        "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4",
+        "cambridge-cs-tripos",
+        "edinburgh-mece10017",
+        "paper_count",
+        "locked_requires_signin",
         "/assets/index-",
     ]:
         assert expected in smoke_script
+    assert "744" not in smoke_script

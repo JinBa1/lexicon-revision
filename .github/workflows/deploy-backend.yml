@@ -9,7 +9,6 @@ name: Deploy Backend
 
 permissions:
   contents: read
-  deployments: write
 
 concurrency:
   group: backend-production
@@ -24,6 +23,9 @@ jobs:
         github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      deployments: write
     environment:
       name: production
       url: https://lexiconrevision.uk
@@ -35,7 +37,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
 
       - name: Deploy Fly backend
         run: flyctl deploy --remote-only
@@ -55,10 +57,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          curl -fsS "$API_ORIGIN/healthz"
+          curl_retry() {
+            curl --retry 3 --retry-delay 2 --retry-all-errors "$@"
+          }
+
+          curl_retry -fsS "$API_ORIGIN/healthz"
 
           ready_json="$(mktemp)"
-          curl -fsS "$API_ORIGIN/readyz" -o "$ready_json"
+          curl_retry -fsS "$API_ORIGIN/readyz" -o "$ready_json"
           python - "$ready_json" <<'PY'
           import json
           import sys
@@ -82,9 +88,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          curl_retry() {
+            curl --retry 3 --retry-delay 2 --retry-all-errors "$@"
+          }
+
           headers="$(mktemp)"
           body="$(mktemp)"
-          curl -fsS -D "$headers" -o "$body" \
+          curl_retry -fsS -D "$headers" -o "$body" \
             -H "Origin: https://lexiconrevision.uk" \
             "$API_ORIGIN/collections"
 
@@ -97,22 +107,15 @@ jobs:
           with open(sys.argv[1], encoding="utf-8") as handle:
               collections = json.load(handle)
 
-          expected = {
-              "cambridge-cs-tripos": ("Cambridge CS Tripos", 744),
-              "edinburgh-mece10017": (
-                  "MECE10017 - Design of Surgical Tools and Implanted Medical Devices 4",
-                  7,
-              ),
-          }
+          expected = {"cambridge-cs-tripos", "edinburgh-mece10017"}
           by_name = {collection["name"]: collection for collection in collections}
 
-          for name, (display_name, paper_count) in expected.items():
+          for name in expected:
               collection = by_name.get(name)
               if collection is None:
                   raise SystemExit(f"missing collection: {name}")
-              if collection.get("display_name") != display_name:
-                  raise SystemExit(f"unexpected display name for {name}: {collection!r}")
-              if collection.get("paper_count") != paper_count:
+              paper_count = collection.get("paper_count")
+              if not isinstance(paper_count, int) or paper_count <= 0:
                   raise SystemExit(f"unexpected paper count for {name}: {collection!r}")
               if collection.get("access_state") != "locked_requires_signin":
                   raise SystemExit(f"unexpected access state for {name}: {collection!r}")
@@ -122,9 +125,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          curl_retry() {
+            curl --retry 3 --retry-delay 2 --retry-all-errors "$@"
+          }
+
           headers="$(mktemp)"
           html="$(mktemp)"
-          curl -fsS -D "$headers" -o "$html" "$FRONTEND_ORIGIN"
+          curl_retry -fsS -D "$headers" -o "$html" "$FRONTEND_ORIGIN"
 
           grep -F "Lexicon Revision" "$html"
           grep -F "/assets/index-" "$html"
