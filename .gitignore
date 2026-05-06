@@ -6,7 +6,9 @@ __pycache__/
 .mypy_cache/
 
 # Local environment and virtualenvs
-.env
+/.env
+/.env.*
+!/.env.example
 .venv/
 
 # Local generated project state
