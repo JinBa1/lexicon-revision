@@ -110,18 +110,19 @@ def _build_chunks(
     year = parsed_question.year or downloader_meta.get("year")
     paper = parsed_question.paper or downloader_meta.get("paper")
     question_number = parsed_question.question_number or downloader_meta.get("question")
-    topic = downloader_meta.get("topic") or parsed_question.topic
-    author = downloader_meta.get("author") or parsed_question.author
+    topic = _strip_nul_bytes(downloader_meta.get("topic") or parsed_question.topic)
+    author = _strip_nul_bytes(downloader_meta.get("author") or parsed_question.author)
+    tripos_part = _strip_nul_bytes(parsed_question.tripos_part)
 
     render_blocks_by_label = {
-        segment.label: segment.blocks
+        segment.label: _strip_nul_bytes(segment.blocks)
         for segment in logical_segments or []
         if segment.label is not None
     }
     preamble_render_blocks: list[dict[str, Any]] = []
     for segment in logical_segments or []:
         if segment.label is None:
-            preamble_render_blocks.extend(segment.blocks)
+            preamble_render_blocks.extend(_strip_nul_bytes(segment.blocks))
 
     question_render_blocks = deepcopy(preamble_render_blocks)
     for sq in parsed_question.sub_questions:
@@ -141,6 +142,7 @@ def _build_chunks(
         question_text = "\n\n".join(
             part for part in question_text_parts if part
         ).strip()
+    question_text = _strip_nul_bytes(question_text)
 
     if year and paper and question_number:
         question_id = make_chunk_id(university, year, paper, question_number)
@@ -157,7 +159,7 @@ def _build_chunks(
         question_number=question_number,
         topic=topic,
         author=author,
-        tripos_part=parsed_question.tripos_part,
+        tripos_part=tripos_part,
         sub_question_label=None,
         marks=None,
         total_marks=parsed_question.total_marks,
@@ -166,9 +168,9 @@ def _build_chunks(
         has_table=parsed_question.has_table,
         media=[],
         source_pdf=filename,
-        warnings=list(parsed_question.warnings),
+        warnings=_strip_nul_bytes(list(parsed_question.warnings)),
         render_blocks=question_render_blocks,
-        metadata=dict(parsed_question.metadata),
+        metadata=_strip_nul_bytes(dict(parsed_question.metadata)),
     )
 
     chunks = [question_chunk]
@@ -185,6 +187,7 @@ def _build_chunks(
             if sub_render_blocks
             else sq.text
         )
+        sub_text = _strip_nul_bytes(sub_text)
 
         chunks.append(
             Chunk(
@@ -197,7 +200,7 @@ def _build_chunks(
                 question_number=question_number,
                 topic=topic,
                 author=author,
-                tripos_part=parsed_question.tripos_part,
+                tripos_part=tripos_part,
                 sub_question_label=sq.label,
                 marks=sq.marks,
                 total_marks=parsed_question.total_marks,
@@ -208,7 +211,7 @@ def _build_chunks(
                 source_pdf=filename,
                 warnings=[],
                 render_blocks=sub_render_blocks,
-                metadata=dict(parsed_question.metadata),
+                metadata=_strip_nul_bytes(dict(parsed_question.metadata)),
             )
         )
 
@@ -217,6 +220,16 @@ def _build_chunks(
 
 def _flatten_validated_render_blocks(render_blocks: list[dict[str, Any]]) -> str:
     return flatten_render_blocks(RENDER_BLOCKS_ADAPTER.validate_python(render_blocks))
+
+
+def _strip_nul_bytes(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, list):
+        return [_strip_nul_bytes(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _strip_nul_bytes(item) for key, item in value.items()}
+    return value
 
 
 def _attach_media_refs(
@@ -261,7 +274,7 @@ def _attach_media_refs(
                     owner_level=owner_level,
                     owner_label=owner_label,
                     order_index=media_block.order_index,
-                    text_payload=media_block.text_payload,
+                    text_payload=_strip_nul_bytes(media_block.text_payload),
                     description=None,
                 )
             )

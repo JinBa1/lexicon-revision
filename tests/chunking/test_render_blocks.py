@@ -283,6 +283,65 @@ def test_parent_chunk_label_prefix_falls_back_before_equation_first_segment() ->
     assert sub_question.render_blocks == [{"type": "equation", "latex": "x = y"}]
 
 
+def test_build_chunks_strips_nul_bytes_from_text_and_render_blocks() -> None:
+    parsed_question = ParsedQuestion(
+        tripos_part="Part IA",
+        year=2020,
+        paper=2,
+        question_number=7,
+        topic="Topic",
+        author="abc",
+        preamble="",
+        sub_questions=[SubQuestion(label="a", text="fallback\x00 text", marks=None)],
+        total_marks=None,
+        has_code=True,
+        has_figure=False,
+        has_table=True,
+    )
+    segments = [
+        LogicalSegment(
+            label=None,
+            blocks=[
+                {
+                    "type": "paragraph",
+                    "runs": [{"type": "text", "text": "preamble\x00 text"}],
+                },
+            ],
+        ),
+        LogicalSegment(
+            label="a",
+            blocks=[
+                {
+                    "type": "paragraph",
+                    "runs": [{"type": "text", "text": "part\x00 a"}],
+                },
+                {"type": "equation", "latex": "x\x00 = y"},
+                {"type": "table", "rows": [["left\x00", "right"]], "media_id": None},
+                {"type": "code", "code": "print('bad\x00')", "language": None},
+            ],
+        ),
+    ]
+
+    chunks = _build_chunks(parsed_question, {}, "q.pdf", "cam", segments)
+
+    for chunk in chunks:
+        assert "\x00" not in chunk.text
+        _assert_no_nul_strings(chunk.render_blocks)
+
+
+def _assert_no_nul_strings(value: object) -> None:
+    if isinstance(value, str):
+        assert "\x00" not in value
+        return
+    if isinstance(value, list):
+        for item in value:
+            _assert_no_nul_strings(item)
+        return
+    if isinstance(value, dict):
+        for item in value.values():
+            _assert_no_nul_strings(item)
+
+
 def test_run_pipeline_populates_render_blocks_matching_chunk_text_for_q1(
     tmp_path,
 ) -> None:
