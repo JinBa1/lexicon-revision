@@ -17,12 +17,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import Engine, text
 from src.access import (
+    STUB_EMAIL_IDENTITY_PROVIDER,
     AuthorizationContext,
     CollectionAccessDeniedError,
     CollectionAccessService,
     CommunityAffiliationResolver,
     HeaderEmailRequestIdentityResolver,
     IdentityProvisioningError,
+    RequestIdentity,
     RequestIdentityResolver,
     build_request_identity_resolver,
     load_access_auth_settings,
@@ -35,6 +37,14 @@ from src.access.models import (
 )
 from src.access.repository import PgCollectionAccessRepository
 from src.db.config import create_database_engine, load_database_settings
+from src.jobs import (
+    IngestJobMessage,
+    IngestJobQueue,
+    IngestSubmissionRequest,
+    IngestSubmissionResponse,
+    build_ingest_job_queue,
+    load_ingest_queue_settings,
+)
 from src.runtime import (
     RATE_LIMIT_RESPONSE_HEADERS,
     AppRuntimeSettings,
@@ -107,6 +117,17 @@ UNKNOWN_COLLECTION_NAME = "<unknown>"
 RATE_LIMIT_CHECK_TIMEOUT_SECONDS = 5.0
 
 
+def _is_admin_identity(identity: RequestIdentity, settings: AppRuntimeSettings) -> bool:
+    if identity.email is None or identity.email not in settings.admin_emails:
+        return False
+    if identity.email_verified:
+        return True
+    return (
+        identity.provider == STUB_EMAIL_IDENTITY_PROVIDER
+        and settings.environment != "prod"
+    )
+
+
 @asynccontextmanager
 async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Production lifespan: load real models into app.state."""
@@ -129,11 +150,13 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         storage_settings = load_object_storage_settings()
         study_settings = load_study_settings()
         auth_settings = load_access_auth_settings()
+        ingest_queue_settings = load_ingest_queue_settings()
         validate_production_profile(
             runtime_settings=runtime_settings,
             retrieval_settings=provider_settings,
             study_settings=study_settings,
             storage_settings=storage_settings,
+            ingest_queue_settings=ingest_queue_settings,
         )
         _validate_access_auth_settings(
             runtime_settings=runtime_settings,
@@ -143,6 +166,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         if rate_limiter is None:
             rate_limiter = RedisCostRateLimiter(settings=runtime_settings.rate_limit)
         app.state.rate_limiter = rate_limiter
+        app.state.ingest_queue = build_ingest_job_queue(ingest_queue_settings)
         embedding_model = build_embedding_provider(provider_settings)
         reranker = build_rerank_provider(provider_settings)
 
@@ -216,6 +240,7 @@ async def _default_lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.study_service = None
         app.state.planning_provider = None
         app.state.generation_provider = None
+        app.state.ingest_queue = None
 
 
 def _close_if_supported(provider: object | None) -> None:
@@ -261,6 +286,7 @@ def create_app(
     readiness_dependencies: ReadinessDependencies | None = None,
     usage_log_repository: PgRequestUsageLogRepository | None = None,
     rate_limiter: CostRateLimiter | None = None,
+    ingest_queue: "IngestJobQueue | None" = None,
     allow_unauthorized_test_mode: bool = False,
 ) -> FastAPI:
     """Create the FastAPI app with optional injected services for testing."""
@@ -287,6 +313,7 @@ def create_app(
         application.state.search_service = search_service
         application.state.study_service = study_service
         application.state.generation_provider = generation_provider
+        application.state.ingest_queue = ingest_queue
     else:
         application = FastAPI(
             title="Lexicon Revision API",
@@ -872,6 +899,59 @@ def create_app(
                 detail={"status_code": 422},
             )
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @application.post(
+        "/admin/ingest",
+        response_model=IngestSubmissionResponse,
+        status_code=202,
+    )
+    async def admin_ingest(
+        request: Request, payload: IngestSubmissionRequest
+    ) -> IngestSubmissionResponse:
+        resolver: RequestIdentityResolver = request.app.state.auth_resolver
+        identity = resolver.resolve_request_identity(request)
+        settings: AppRuntimeSettings = request.app.state.runtime_settings
+        if identity.email is None:
+            raise HTTPException(status_code=401, detail="authentication required")
+        if not _is_admin_identity(identity, settings):
+            raise HTTPException(status_code=403, detail="admin access required")
+
+        queue = getattr(request.app.state, "ingest_queue", None)
+        if queue is None:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "ingest_queue_unavailable",
+                    "message": "ingest queue is not configured",
+                },
+            )
+
+        message = IngestJobMessage(
+            collection=payload.collection,
+            paper_object_key=payload.paper_object_key,
+            parser=payload.parser,
+            university=payload.university,
+        )
+        try:
+            queue.enqueue(message)
+        except Exception as exc:
+            logger.exception("ingest enqueue failed")
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "ingest_queue_unavailable",
+                    "message": "ingest enqueue failed",
+                },
+            ) from exc
+        logger.info(
+            "ingest job enqueued",
+            extra={
+                "job_id": message.job_id,
+                "collection": message.collection,
+                "paper_object_key": message.paper_object_key,
+            },
+        )
+        return IngestSubmissionResponse(job_id=message.job_id)
 
     @application.get("/healthz")
     async def healthz() -> dict[str, str]:
