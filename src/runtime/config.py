@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
+    # Type-only import: validate_production_profile only annotates this type;
+    # keeping it out of runtime imports is a choice, not cycle avoidance.
     from src.jobs.config import IngestQueueSettings
 
 from limits import parse

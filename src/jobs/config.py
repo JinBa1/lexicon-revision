@@ -43,7 +43,8 @@ def build_ingest_job_queue(
         return None
     if settings.provider == "memory":
         return InMemoryIngestJobQueue()
-    assert settings.queue_url is not None  # enforced at load time
+    if settings.queue_url is None:
+        raise ValueError("sqs provider requires queue_url")
     return SqsIngestJobQueue(
         queue_url=settings.queue_url,
         client=sqs_client,
