@@ -82,6 +82,30 @@ Past-paper PDFs
       +--> citation validation and fallback responses
 ```
 
+### Service architecture
+
+Ingestion is decomposed into a queue-backed worker service on AWS,
+provisioned with Terraform (`infra/terraform/`):
+
+```text
+  API service (FastAPI, Fly.io)
+      |  POST /admin/ingest (operator-only) enqueues per-paper jobs
+      v
+  AWS SQS queue --redrive(3)--> DLQ --> CloudWatch alarm
+      |
+      v
+  Ingestion worker (ECS Fargate, scales 0<->1 on queue depth)
+      |  fetch PDF from R2 -> MinerU (CPU) -> chunk -> embed -> index
+      v
+  Neon Postgres + Cloudflare R2 (shared stores)
+```
+
+Jobs are idempotent per paper: re-delivery converges through upserts, failed
+or malformed messages are never deleted by the worker and land in the
+dead-letter queue after three strikes, and the worker scales to zero when the
+queue is empty. Design notes and trade-offs live in
+[`infra/terraform/README.md`](infra/terraform/README.md).
+
 The study pipeline has explicit fallback paths. Planner errors fall back to the
 raw query. Empty or filtered retrieval returns an insufficient-evidence state.
 When retrieval succeeds but context building, generation, schema repair, or
@@ -204,11 +228,12 @@ back to cited source chunks.
 | Local AI | sentence-transformers embeddings, Ollama planning/generation defaults |
 | Study pipeline | LLM query planning, schema-validated JSON output, citation ID validation |
 | Ingestion | MinerU OCR, parser-routed chunking, storage-backed media artifacts |
+| Ingestion service | AWS SQS + ECS Fargate worker (scale-to-zero), Terraform-provisioned, GitHub OIDC image deploys |
 | Auth/access | Clerk in production, stub-header identity in development |
 | Runtime | Valkey/Redis-compatible rate limiting, readiness checks, usage logging |
 | Storage | S3-compatible object storage, local object storage for development |
 | Frontend | React 19.2, TypeScript ~6.0, Vite 8, Tailwind 3.4 |
-| Deploy | Fly.io backend, Cloudflare Pages frontend |
+| Deploy | Fly.io backend, Cloudflare Pages frontend, AWS ECS Fargate ingestion worker |
 
 ---
 
