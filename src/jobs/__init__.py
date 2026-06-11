@@ -11,6 +11,7 @@ from src.jobs.queue import (
     InMemoryIngestJobQueue,
     ReceivedJob,
 )
+from src.jobs.sqs import SqsIngestJobQueue
 
 __all__ = [
     "INGEST_JOB_SCHEMA_VERSION",
@@ -22,4 +23,5 @@ __all__ = [
     "IngestSubmissionResponse",
     "InMemoryIngestJobQueue",
     "ReceivedJob",
+    "SqsIngestJobQueue",
 ]
