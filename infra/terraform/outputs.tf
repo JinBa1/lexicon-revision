@@ -13,3 +13,13 @@ output "worker_ecr_repository_url" {
 output "github_image_push_role_arn" {
   value = aws_iam_role.github_image_push.arn
 }
+
+output "api_producer_access_key_id" {
+  value     = aws_iam_access_key.api_producer.id
+  sensitive = true
+}
+
+output "api_producer_secret_access_key" {
+  value     = aws_iam_access_key.api_producer.secret
+  sensitive = true
+}
