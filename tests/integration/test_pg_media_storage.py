@@ -7,8 +7,8 @@ import shutil
 from pathlib import Path
 
 import pytest
-from scripts.index_chunks_postgres import index_collection_postgres
 from sqlalchemy import create_engine, text
+from src.ingestion.indexing import index_collection_postgres
 from src.metadata_schema import default_schema_path
 from src.search.pg_repository import PgSearchRepository
 from src.search.pg_service import PgSearchService

@@ -6,7 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from src.chunking.models import Chunk
+from sqlalchemy import Engine
+from src.chunking.models import Chunk  # noqa: E402 (sorted after sqlalchemy)
 from src.chunking.pipeline import run_pipeline
 from src.collection_config import load_collection_config
 from src.db.metadata_indexes import ensure_metadata_indexes
@@ -113,7 +114,7 @@ def _validate_manifest_artifact_namespace(
 def index_collection_postgres(
     mineru_output_dir: str,
     collection_name: str,
-    engine: Any,
+    engine: Engine,
     embedding_model: Any,
     embedding_dimension: int,
     metadata_path: str | None = None,

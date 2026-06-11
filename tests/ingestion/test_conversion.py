@@ -60,3 +60,23 @@ def test_convert_single_pdf_raises_on_mineru_failure(
             output_dir=tmp_path / "out",
             storage=object(),
         )
+
+
+def test_convert_single_pdf_raises_when_upload_yields_no_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pdf_path = tmp_path / "y2023p7q8.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 stub")
+    monkeypatch.setattr(conversion, "run_mineru_batch", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        conversion,
+        "upload_batch_artifacts",
+        lambda **kwargs: [],
+    )
+
+    with pytest.raises(ConversionFailedError, match="no manifest"):
+        convert_single_pdf(
+            pdf_path=pdf_path,
+            output_dir=tmp_path / "out",
+            storage=object(),
+        )

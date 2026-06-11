@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import logging
 import sys
 from pathlib import Path
 from typing import Literal
@@ -368,8 +369,6 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
-
-    import logging
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
