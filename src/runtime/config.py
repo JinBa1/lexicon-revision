@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from src.jobs.config import IngestQueueSettings
 
 from limits import parse
+from src.access.email import normalize_email
 from src.search.providers.config import RetrievalProviderSettings
 from src.storage.config import ObjectStorageSettings
 from src.study.config import StudySettings
@@ -46,6 +47,7 @@ class AppRuntimeSettings:
     study_generation_max_output_tokens: int
     study_wall_clock_timeout_seconds: float
     rate_limit: RateLimitSettings
+    admin_emails: frozenset[str] = frozenset()
 
 
 def load_app_runtime_settings() -> AppRuntimeSettings:
@@ -97,6 +99,7 @@ def load_app_runtime_settings() -> AppRuntimeSettings:
             env_var="STUDY_WALL_CLOCK_TIMEOUT_SECONDS",
         ),
         rate_limit=_load_rate_limit_settings(environment),
+        admin_emails=_parse_admin_emails(os.environ.get("ADMIN_EMAILS")),
     )
 
 
@@ -147,6 +150,11 @@ def _parse_csv(value: str | None) -> list[str]:
     if value is None:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_admin_emails(value: str | None) -> frozenset[str]:
+    normalized = (normalize_email(item) for item in _parse_csv(value))
+    return frozenset(email for email in normalized if email)
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:

@@ -236,6 +236,22 @@ def test_invalid_rate_limit_redis_scheme_fails_clearly(
         load_app_runtime_settings()
 
 
+def test_admin_emails_default_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ADMIN_EMAILS", raising=False)
+    settings = load_app_runtime_settings()
+    assert settings.admin_emails == frozenset()
+
+
+def test_admin_emails_parsed_and_normalized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ADMIN_EMAILS", " Owner@Example.com , second@example.com ,")
+    settings = load_app_runtime_settings()
+    assert settings.admin_emails == frozenset(
+        {"owner@example.com", "second@example.com"}
+    )
+
+
 def _set_valid_prod_rate_limit_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "RATE_LIMIT_REDIS_URL", "rediss://default:secret@example.upstash.io:6379"
