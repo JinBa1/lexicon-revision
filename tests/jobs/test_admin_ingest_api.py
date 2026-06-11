@@ -157,6 +157,16 @@ def test_unverified_stub_admin_rejected_in_prod() -> None:
     assert _is_admin_identity(identity, _settings_with_env("test")) is True
 
 
+async def test_non_pdf_object_key_is_422() -> None:
+    payload = _payload() | {"paper_object_key": "source-pdfs/c/notes.txt"}
+    response = await _post(
+        _build_app(InMemoryIngestJobQueue()),
+        headers={"X-User-Email": ADMIN},
+        json=payload,
+    )
+    assert response.status_code == 422
+
+
 def test_verified_non_admin_email_rejected() -> None:
     from src.access.models import RequestIdentity
     from src.main import _is_admin_identity

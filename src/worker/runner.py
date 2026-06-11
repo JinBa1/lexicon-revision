@@ -54,7 +54,10 @@ def run_worker(
         except Exception:
             logger.exception(
                 "ingest job failed; leaving for redelivery",
-                extra={"job_id": received.message.job_id},
+                extra={
+                    "job_id": received.message.job_id,
+                    "collection": received.message.collection,
+                },
             )
             continue
         queue.delete(received.receipt)

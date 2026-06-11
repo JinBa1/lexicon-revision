@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from src.jobs.config import IngestQueueSettings
 from src.runtime.config import (
     AppRuntimeSettings,
     RateLimitSettings,
     allowed_cors_origins,
     load_app_runtime_settings,
     validate_production_profile,
+    validate_worker_production_profile,
 )
-from src.search.providers.config import load_retrieval_provider_settings
-from src.storage.config import load_object_storage_settings
+from src.search.providers.config import (
+    EmbeddingProviderSettings,
+    RerankProviderSettings,
+    RetrievalProviderSettings,
+    load_retrieval_provider_settings,
+)
+from src.storage.config import ObjectStorageSettings, load_object_storage_settings
 from src.study.config import load_study_settings
 
 
@@ -315,3 +322,80 @@ def test_production_profile_validation_rejects_local_runtime_shapes(
             study_settings,
             storage_settings,
         )
+
+
+# ---------------------------------------------------------------------------
+# validate_worker_production_profile unit tests
+# ---------------------------------------------------------------------------
+
+
+def _voyage_retrieval_settings() -> RetrievalProviderSettings:
+    return RetrievalProviderSettings(
+        embedding=EmbeddingProviderSettings(provider="voyage", model="voyage-3"),
+        rerank=RerankProviderSettings(provider="voyage", model="rerank-2"),
+        rerank_enabled=False,
+        voyage_api_key="test-key",
+    )
+
+
+def _local_retrieval_settings() -> RetrievalProviderSettings:
+    return RetrievalProviderSettings(
+        embedding=EmbeddingProviderSettings(
+            provider="local", model="BAAI/bge-base-en-v1.5"
+        ),
+        rerank=RerankProviderSettings(
+            provider="local", model="cross-encoder/ms-marco-MiniLM-L-6-v2"
+        ),
+        rerank_enabled=False,
+        voyage_api_key=None,
+    )
+
+
+def _s3_storage_settings() -> ObjectStorageSettings:
+    return ObjectStorageSettings(provider="s3", local=None, s3=None)
+
+
+def _local_storage_settings() -> ObjectStorageSettings:
+    return ObjectStorageSettings(provider="local", local=None, s3=None)
+
+
+def _sqs_queue_settings() -> IngestQueueSettings:
+    return IngestQueueSettings(
+        provider="sqs",
+        queue_url="https://sqs.eu-west-2.amazonaws.com/123456789012/lexicon-ingest",
+    )
+
+
+def _memory_queue_settings() -> IngestQueueSettings:
+    return IngestQueueSettings(provider="memory", queue_url=None)
+
+
+def test_worker_validator_prod_local_embedding_raises() -> None:
+    with pytest.raises(ValueError, match="local embedding provider"):
+        validate_worker_production_profile(
+            environment="prod",
+            retrieval_settings=_local_retrieval_settings(),
+            storage_settings=_s3_storage_settings(),
+            ingest_queue_settings=_sqs_queue_settings(),
+        )
+
+
+def test_worker_validator_non_prod_is_noop() -> None:
+    # Should not raise for dev or test even with all-local settings
+    for env in ("dev", "test"):
+        validate_worker_production_profile(
+            environment=env,  # type: ignore[arg-type]
+            retrieval_settings=_local_retrieval_settings(),
+            storage_settings=_local_storage_settings(),
+            ingest_queue_settings=_memory_queue_settings(),
+        )
+
+
+def test_worker_validator_prod_all_clean_passes() -> None:
+    # voyage embedding + s3 + sqs should pass silently
+    validate_worker_production_profile(
+        environment="prod",
+        retrieval_settings=_voyage_retrieval_settings(),
+        storage_settings=_s3_storage_settings(),
+        ingest_queue_settings=_sqs_queue_settings(),
+    )

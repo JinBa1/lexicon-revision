@@ -113,6 +113,35 @@ def allowed_cors_origins(settings: AppRuntimeSettings) -> list[str]:
     return []
 
 
+def validate_worker_production_profile(
+    *,
+    environment: Environment,
+    retrieval_settings: RetrievalProviderSettings,
+    storage_settings: ObjectStorageSettings,
+    ingest_queue_settings: "IngestQueueSettings",
+) -> None:
+    """Prod guardrails for the ingestion worker's settings surface.
+
+    The worker loads no study or rate-limit settings, so it cannot use
+    validate_production_profile; this covers the providers it does use.
+    """
+    if environment != "prod":
+        return
+
+    violations: list[str] = []
+    if retrieval_settings.embedding.provider == "local":
+        violations.append("local embedding provider")
+    if storage_settings.provider == "local":
+        violations.append("local object storage")
+    if ingest_queue_settings.provider == "memory":
+        violations.append("memory ingest queue")
+
+    if violations:
+        raise ValueError(
+            "production profile validation failed: " + ", ".join(violations)
+        )
+
+
 def validate_production_profile(
     runtime_settings: AppRuntimeSettings,
     retrieval_settings: RetrievalProviderSettings,

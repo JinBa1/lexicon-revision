@@ -8,6 +8,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from inspect import isawaitable
+from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -922,6 +923,12 @@ def create_app(
             validate_key(payload.paper_object_key)
         except InvalidKeyError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        if not Path(payload.paper_object_key).name.lower().endswith(".pdf"):
+            raise HTTPException(
+                status_code=422,
+                detail="paper_object_key must end in a PDF filename",
+            )
 
         queue = getattr(request.app.state, "ingest_queue", None)
         if queue is None:

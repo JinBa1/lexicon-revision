@@ -8,6 +8,7 @@ import threading
 
 from src.db.config import create_database_engine, load_database_settings
 from src.jobs.config import build_ingest_job_queue, load_ingest_queue_settings
+from src.runtime.config import validate_worker_production_profile
 from src.search.providers.config import (
     build_embedding_provider,
     load_retrieval_provider_settings,
@@ -24,11 +25,29 @@ def main() -> None:
     configure_json_logging()
 
     queue_settings = load_ingest_queue_settings()
-    if (
-        os.environ.get("APP_ENV", "dev").lower() == "prod"
-        and queue_settings.provider == "memory"
-    ):
-        raise SystemExit("memory ingest queue is not allowed in prod")
+    if queue_settings.provider == "none":
+        raise SystemExit(
+            "worker requires INGEST_QUEUE_PROVIDER=sqs (or memory for local dev)"
+        )
+
+    environment_raw = os.environ.get("APP_ENV", "dev").lower()
+    if environment_raw not in ("dev", "test", "prod"):
+        raise SystemExit(f"Invalid APP_ENV: {environment_raw}")
+    from src.runtime.config import Environment
+
+    environment: Environment = environment_raw  # type: ignore[assignment]
+    storage_settings = load_object_storage_settings()
+    retrieval_settings = load_retrieval_provider_settings()
+    try:
+        validate_worker_production_profile(
+            environment=environment,
+            retrieval_settings=retrieval_settings,
+            storage_settings=storage_settings,
+            ingest_queue_settings=queue_settings,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     queue = build_ingest_job_queue(queue_settings)
     if queue is None:
         raise SystemExit(
@@ -37,8 +56,8 @@ def main() -> None:
 
     db_settings = load_database_settings()
     engine = create_database_engine(db_settings)
-    storage = build_object_storage(load_object_storage_settings())
-    embedding_model = build_embedding_provider(load_retrieval_provider_settings())
+    storage = build_object_storage(storage_settings)
+    embedding_model = build_embedding_provider(retrieval_settings)
 
     handler = IngestJobHandler(
         storage=storage,
