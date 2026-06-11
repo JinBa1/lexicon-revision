@@ -1,3 +1,8 @@
+from src.jobs.config import (
+    IngestQueueSettings,
+    build_ingest_job_queue,
+    load_ingest_queue_settings,
+)
 from src.jobs.models import (
     INGEST_JOB_SCHEMA_VERSION,
     IngestJobMessage,
@@ -19,9 +24,12 @@ __all__ = [
     "IngestJobMessage",
     "IngestJobQueue",
     "IngestQueueError",
+    "IngestQueueSettings",
     "IngestSubmissionRequest",
     "IngestSubmissionResponse",
     "InMemoryIngestJobQueue",
     "ReceivedJob",
     "SqsIngestJobQueue",
+    "build_ingest_job_queue",
+    "load_ingest_queue_settings",
 ]

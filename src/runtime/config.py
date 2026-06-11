@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from src.jobs.config import IngestQueueSettings
 
 from limits import parse
 from src.search.providers.config import RetrievalProviderSettings
@@ -110,6 +113,7 @@ def validate_production_profile(
     retrieval_settings: RetrievalProviderSettings,
     study_settings: StudySettings,
     storage_settings: ObjectStorageSettings,
+    ingest_queue_settings: "IngestQueueSettings | None" = None,
 ) -> None:
     if runtime_settings.environment != "prod":
         return
@@ -130,6 +134,8 @@ def validate_production_profile(
         violations.append("local Ollama planning")
     if storage_settings.provider == "local":
         violations.append("local object storage")
+    if ingest_queue_settings is not None and ingest_queue_settings.provider == "memory":
+        violations.append("memory ingest queue")
 
     if violations:
         raise ValueError(
