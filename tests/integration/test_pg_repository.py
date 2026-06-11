@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 
 import pytest
-from scripts.index_chunks_postgres import build_embedding_text
 from sqlalchemy import create_engine, text
 from src.chunking.pipeline import run_pipeline
 from src.db.metadata_indexes import ensure_metadata_indexes
+from src.ingestion.indexing import build_embedding_text
 from src.metadata_schema import (
     CollectionMetadataSchema,
     FilterCondition,

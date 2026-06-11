@@ -273,14 +273,14 @@ def test_index_collection_postgres_passes_storage_backed_media_refs_to_repositor
             calls["community_id"] = community_id
             calls["media_refs_by_chunk_id"] = media_refs_by_chunk_id
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
         "scripts.index_chunks_postgres.DEFAULT_MEDIA_DIR",
         str(media_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: calls.update(
             {
                 "indexed_engine": engine,
@@ -353,9 +353,9 @@ def test_index_collection_postgres_missing_manifest_raises_before_indexing(
             del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
     )
 
@@ -422,9 +422,9 @@ def test_index_collection_postgres_passes_configured_community(
             calls["community_id"] = community_id
             calls["display_name"] = display_name
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
     )
 
@@ -487,9 +487,9 @@ def test_index_collection_postgres_indexes_uoe_fixture_with_private_metadata(
             calls["community_id"] = community_id
             calls["media_refs_by_chunk_id"] = media_refs_by_chunk_id
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
     )
 
@@ -577,9 +577,9 @@ def test_index_collection_postgres_rejects_foreign_manifest_before_indexing(
             del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
     )
 
@@ -645,9 +645,9 @@ def test_index_collection_postgres_rejects_stale_manifest_before_indexing(
             del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
     )
 
@@ -700,9 +700,9 @@ def test_index_collection_postgres_validates_media_refs_before_recreate(
             del metadata_schema, community_id, display_name, media_refs_by_chunk_id
             calls["indexed"] = True
 
-    monkeypatch.setattr("scripts.index_chunks_postgres.PgIndexRepository", _FakeRepo)
+    monkeypatch.setattr("src.ingestion.indexing.PgIndexRepository", _FakeRepo)
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.build_storage_media_map",
+        "src.ingestion.indexing.build_storage_media_map",
         lambda *, chunks, manifests, verify_local_files: {
             chunks[0].id: [
                 {
@@ -716,7 +716,7 @@ def test_index_collection_postgres_validates_media_refs_before_recreate(
         },
     )
     monkeypatch.setattr(
-        "scripts.index_chunks_postgres.ensure_metadata_indexes",
+        "src.ingestion.indexing.ensure_metadata_indexes",
         lambda engine, *, collection_name, schema: None,
     )
 

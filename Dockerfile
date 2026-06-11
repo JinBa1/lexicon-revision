@@ -30,3 +30,19 @@ COPY requirements.txt requirements-local.txt requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-local.txt -r requirements-dev.txt
 COPY . .
 CMD ["uvicorn", "src.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+
+FROM python:3.12-slim AS worker
+WORKDIR /app
+ENV PIP_DEFAULT_TIMEOUT=600 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_ENV=prod
+# MinerU's pipeline backend needs OpenCV system libraries.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt requirements-worker.txt ./
+RUN pip install --no-cache-dir -r requirements-worker.txt
+COPY src ./src
+COPY config ./config
+CMD ["python", "-m", "src.worker"]

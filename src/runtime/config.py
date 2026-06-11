@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
+if TYPE_CHECKING:
+    # Type-only import: validate_production_profile only annotates this type;
+    # keeping it out of runtime imports is a choice, not cycle avoidance.
+    from src.jobs.config import IngestQueueSettings
+
 from limits import parse
+from src.access.email import normalize_email
 from src.search.providers.config import RetrievalProviderSettings
 from src.storage.config import ObjectStorageSettings
 from src.study.config import StudySettings
@@ -43,6 +49,7 @@ class AppRuntimeSettings:
     study_generation_max_output_tokens: int
     study_wall_clock_timeout_seconds: float
     rate_limit: RateLimitSettings
+    admin_emails: frozenset[str] = frozenset()
 
 
 def load_app_runtime_settings() -> AppRuntimeSettings:
@@ -94,6 +101,7 @@ def load_app_runtime_settings() -> AppRuntimeSettings:
             env_var="STUDY_WALL_CLOCK_TIMEOUT_SECONDS",
         ),
         rate_limit=_load_rate_limit_settings(environment),
+        admin_emails=_parse_admin_emails(os.environ.get("ADMIN_EMAILS")),
     )
 
 
@@ -105,11 +113,41 @@ def allowed_cors_origins(settings: AppRuntimeSettings) -> list[str]:
     return []
 
 
+def validate_worker_production_profile(
+    *,
+    environment: Environment,
+    retrieval_settings: RetrievalProviderSettings,
+    storage_settings: ObjectStorageSettings,
+    ingest_queue_settings: "IngestQueueSettings",
+) -> None:
+    """Prod guardrails for the ingestion worker's settings surface.
+
+    The worker loads no study or rate-limit settings, so it cannot use
+    validate_production_profile; this covers the providers it does use.
+    """
+    if environment != "prod":
+        return
+
+    violations: list[str] = []
+    if retrieval_settings.embedding.provider == "local":
+        violations.append("local embedding provider")
+    if storage_settings.provider == "local":
+        violations.append("local object storage")
+    if ingest_queue_settings.provider == "memory":
+        violations.append("memory ingest queue")
+
+    if violations:
+        raise ValueError(
+            "production profile validation failed: " + ", ".join(violations)
+        )
+
+
 def validate_production_profile(
     runtime_settings: AppRuntimeSettings,
     retrieval_settings: RetrievalProviderSettings,
     study_settings: StudySettings,
     storage_settings: ObjectStorageSettings,
+    ingest_queue_settings: "IngestQueueSettings | None" = None,
 ) -> None:
     if runtime_settings.environment != "prod":
         return
@@ -130,6 +168,8 @@ def validate_production_profile(
         violations.append("local Ollama planning")
     if storage_settings.provider == "local":
         violations.append("local object storage")
+    if ingest_queue_settings is not None and ingest_queue_settings.provider == "memory":
+        violations.append("memory ingest queue")
 
     if violations:
         raise ValueError(
@@ -141,6 +181,11 @@ def _parse_csv(value: str | None) -> list[str]:
     if value is None:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_admin_emails(value: str | None) -> frozenset[str]:
+    normalized = (normalize_email(item) for item in _parse_csv(value))
+    return frozenset(email for email in normalized if email)
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:

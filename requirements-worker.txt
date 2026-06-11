@@ -1,0 +1,8 @@
+# Ingestion worker image: API deps + MinerU on CPU torch.
+# requirements-ingest.txt is the GPU/local-dev variant (CUDA torch); this
+# file must stay CPU-only -- Fargate has no GPU and prod embeds via Voyage.
+-r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.0+cpu
+torchvision==0.24.0+cpu
+mineru[all]==3.0.8
