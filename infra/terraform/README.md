@@ -111,7 +111,7 @@ Deployment prerequisites beyond Terraform:
 |---|---|---|
 | SQS | $0 (free tier: 1M req/mo) | ~$0 |
 | ECS Fargate (2 vCPU / 8 GB, eu-west-2) | $0 (scaled to zero) | ≈ $0.11/task-hour |
-| ECR storage (~2 GB compressed × ≤5 images) | ≈ $1/mo | — |
+| ECR storage (≈0.8 GB compressed × ≤5 images) | < $1/mo | — |
 | CloudWatch logs + alarms | < $1/mo at this volume | — |
 
 ## Verified behavior (2026-06-11)
