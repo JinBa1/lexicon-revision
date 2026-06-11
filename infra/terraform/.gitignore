@@ -1,0 +1,8 @@
+# State and operator-local inputs hold secrets; lockfile IS tracked.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tf.plan
+terraform.tfvars
+crash.log
