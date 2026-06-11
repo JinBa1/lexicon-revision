@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 INGEST_JOB_SCHEMA_VERSION = "ingest_job_v1"
 
@@ -22,6 +22,8 @@ def _utc_now() -> datetime:
 class IngestJobMessage(BaseModel):
     """One per-paper ingestion job. Carries object keys, never local paths."""
 
+    model_config = ConfigDict(extra="forbid")
+
     schema_version: Literal["ingest_job_v1"] = INGEST_JOB_SCHEMA_VERSION
     job_id: str = Field(default_factory=_new_job_id)
     collection: str = Field(min_length=1)
@@ -32,6 +34,8 @@ class IngestJobMessage(BaseModel):
 
 
 class IngestSubmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     collection: str = Field(min_length=1)
     paper_object_key: str = Field(min_length=1)
     parser: ParserName
@@ -39,4 +43,6 @@ class IngestSubmissionRequest(BaseModel):
 
 
 class IngestSubmissionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     job_id: str

@@ -46,3 +46,14 @@ def test_two_messages_get_distinct_job_ids() -> None:
         university="cam",
     )
     assert IngestJobMessage(**kwargs).job_id != IngestJobMessage(**kwargs).job_id
+
+
+def test_message_rejects_unknown_fields() -> None:
+    with pytest.raises(ValidationError):
+        IngestJobMessage(
+            collection="cam-cs-tripos",
+            paper_object_key="source-pdfs/cam-cs-tripos/y2023p7q8.pdf",
+            parser="cambridge",
+            university="cam",
+            evil="x",
+        )

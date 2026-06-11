@@ -56,6 +56,8 @@ class SqsIngestJobQueue:
         )
 
     def extend_visibility(self, receipt: str, *, seconds: int) -> None:
+        if seconds <= 0:
+            raise ValueError("seconds must be positive")
         self._client.change_message_visibility(
             QueueUrl=self._queue_url,
             ReceiptHandle=receipt,

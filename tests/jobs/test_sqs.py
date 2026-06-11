@@ -110,3 +110,20 @@ def test_delete_and_extend_visibility_pass_through() -> None:
 
     assert client.deleted[0]["ReceiptHandle"] == "rh-1"
     assert client.visibility_changes[0]["VisibilityTimeout"] == 900
+
+
+def test_receive_body_with_unknown_field_raises_decode_error() -> None:
+    client = FakeSqsClient()
+    body = _message().model_dump_json()[:-1] + ', "evil": "x"}'
+    client.receive_payload = {"Messages": [{"Body": body, "ReceiptHandle": "rh-extra"}]}
+    queue = SqsIngestJobQueue(queue_url=QUEUE_URL, client=client)
+
+    with pytest.raises(IngestJobDecodeError) as excinfo:
+        queue.receive()
+    assert excinfo.value.receipt == "rh-extra"
+
+
+def test_extend_visibility_rejects_non_positive_seconds() -> None:
+    queue = SqsIngestJobQueue(queue_url=QUEUE_URL, client=FakeSqsClient())
+    with pytest.raises(ValueError, match="seconds must be positive"):
+        queue.extend_visibility("rh-1", seconds=0)
