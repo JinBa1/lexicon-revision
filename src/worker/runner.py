@@ -60,7 +60,16 @@ def run_worker(
                 },
             )
             continue
-        queue.delete(received.receipt)
+        try:
+            queue.delete(received.receipt)
+        except Exception:
+            logger.exception(
+                "failed to delete completed job; redelivery will re-run it",
+                extra={
+                    "job_id": received.message.job_id,
+                    "collection": received.message.collection,
+                },
+            )
 
 
 def install_sigterm_handler(stop_event: threading.Event) -> None:

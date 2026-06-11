@@ -80,3 +80,27 @@ def test_convert_single_pdf_raises_when_upload_yields_no_manifest(
             output_dir=tmp_path / "out",
             storage=object(),
         )
+
+
+def test_run_mineru_batch_discards_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+
+    captured: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    monkeypatch.setattr(conversion.subprocess, "run", fake_run)
+    pdf_path = tmp_path / "y2023p7q8.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 stub")
+
+    assert conversion.run_mineru_batch([pdf_path], tmp_path / "out") is True
+    assert captured["stdout"] == subprocess.DEVNULL
+    assert captured["stderr"] == subprocess.PIPE

@@ -67,7 +67,11 @@ def run_mineru_batch(
             backend,
             method,
         )
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Discard stdout: MinerU is verbose and only stderr is reported on
+        # failure; buffering full stdout risks memory pressure in the worker.
+        result = subprocess.run(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
+        )
         if result.returncode != 0:
             logger.error("MinerU batch failed: %s", result.stderr[-500:])
             return False

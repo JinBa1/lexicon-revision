@@ -116,3 +116,27 @@ def test_poison_receipt_is_never_deleted() -> None:
 
     assert "rh-poison" not in queue.deleted
     assert len(queue.deleted) == 1  # only the good job's receipt
+
+
+def test_delete_failure_does_not_crash_loop() -> None:
+    class FlakyDeleteQueue(InMemoryIngestJobQueue):
+        def __init__(self) -> None:
+            super().__init__()
+            self.delete_attempts = 0
+
+        def delete(self, receipt: str) -> None:
+            self.delete_attempts += 1
+            if self.delete_attempts == 1:
+                raise RuntimeError("sqs throttled")
+            super().delete(receipt)
+
+    queue = FlakyDeleteQueue()
+    queue.enqueue(_message("source-pdfs/c/a.pdf"))
+    queue.enqueue(_message("source-pdfs/c/b.pdf"))
+    handler = RecordingHandler()
+
+    run_worker(queue=queue, handler=handler, max_iterations=2)
+
+    # first delete raised but both jobs still processed; second delete worked
+    assert handler.handled == ["source-pdfs/c/a.pdf", "source-pdfs/c/b.pdf"]
+    assert queue.delete_attempts == 2
