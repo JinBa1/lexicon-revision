@@ -30,7 +30,7 @@ def test_successful_job_is_deleted() -> None:
     queue.enqueue(_message("source-pdfs/c/a.pdf"))
     handler = RecordingHandler()
 
-    run_worker(queue=queue, handler=handler, max_iterations=2)
+    run_worker(queue=queue, handler=handler, max_iterations=2, idle_wait_seconds=0.01)
 
     assert handler.handled == ["source-pdfs/c/a.pdf"]
     assert queue.in_flight_count() == 0
@@ -87,3 +87,32 @@ def test_stop_event_exits_loop() -> None:
     run_worker(queue=queue, handler=handler, stop_event=stop)  # returns at once
 
     assert handler.handled == []
+
+
+def test_poison_receipt_is_never_deleted() -> None:
+    class SpyPoisonQueue(InMemoryIngestJobQueue):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+            self.deleted: list[str] = []
+
+        def receive(self):
+            self.calls += 1
+            if self.calls == 1:
+                from src.jobs.queue import IngestJobDecodeError
+
+                raise IngestJobDecodeError("rh-poison", "bad body")
+            return super().receive()
+
+        def delete(self, receipt: str) -> None:
+            self.deleted.append(receipt)
+            super().delete(receipt)
+
+    queue = SpyPoisonQueue()
+    queue.enqueue(_message("source-pdfs/c/good.pdf"))
+    handler = RecordingHandler()
+
+    run_worker(queue=queue, handler=handler, max_iterations=2)
+
+    assert "rh-poison" not in queue.deleted
+    assert len(queue.deleted) == 1  # only the good job's receipt

@@ -21,12 +21,16 @@ def run_worker(
     handler: JobHandler,
     stop_event: threading.Event | None = None,
     max_iterations: int | None = None,
+    idle_wait_seconds: float = 1.0,
 ) -> None:
     """Poll the queue and process jobs until stopped.
 
     Success deletes the message. Failure leaves it for visibility-timeout
     redelivery; the broker's redrive policy moves repeat offenders to the
-    DLQ. `max_iterations` bounds the loop for tests.
+    DLQ. `max_iterations` bounds the loop for tests. `idle_wait_seconds`
+    paces the loop on empty receives — SQS already long-polls, but queue
+    implementations that return immediately (in-memory) would hot-spin
+    without it.
     """
     stop = stop_event or threading.Event()
     iterations = 0
@@ -43,6 +47,7 @@ def run_worker(
             )
             continue
         if received is None:
+            stop.wait(idle_wait_seconds)
             continue
         try:
             handler.handle(received.message)
