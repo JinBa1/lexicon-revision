@@ -1,0 +1,42 @@
+name: worker-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "config/**"
+      - "requirements.txt"
+      - "requirements-worker.txt"
+      - "Dockerfile"
+      - ".github/workflows/worker-image.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space for the multi-GB image
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_WORKER_IMAGE_PUSH_ROLE_ARN }}
+          aws-region: eu-west-2
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push worker image
+        env:
+          REPO: ${{ steps.ecr.outputs.registry }}/lexicon-worker
+        run: |
+          docker build --target worker --platform linux/amd64 \
+            -t "$REPO:${GITHUB_SHA::12}" -t "$REPO:latest" .
+          docker push "$REPO:${GITHUB_SHA::12}"
+          docker push "$REPO:latest"
