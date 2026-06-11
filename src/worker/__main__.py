@@ -24,6 +24,11 @@ def main() -> None:
     configure_json_logging()
 
     queue_settings = load_ingest_queue_settings()
+    if (
+        os.environ.get("APP_ENV", "dev").lower() == "prod"
+        and queue_settings.provider == "memory"
+    ):
+        raise SystemExit("memory ingest queue is not allowed in prod")
     queue = build_ingest_job_queue(queue_settings)
     if queue is None:
         raise SystemExit(
