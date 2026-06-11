@@ -4,6 +4,8 @@ primary_region = "lhr"
 [env]
   APP_ENV = "prod"
   ENABLE_DEV_ROUTES = "false"
+  # INGEST_QUEUE_URL, AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (SendMessage-only
+  # producer user), and ADMIN_EMAILS are Fly secrets, not [env] entries.
   INGEST_QUEUE_PROVIDER = "sqs"
   AWS_REGION = "eu-west-2"
   ACCESS_AUTH_PROVIDER = "clerk"

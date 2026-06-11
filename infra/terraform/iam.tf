@@ -15,6 +15,10 @@ resource "aws_iam_role_policy_attachment" "worker_execution_managed" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# SecureStrings use the AWS-managed `aws/ssm` KMS key, which account
+# principals may decrypt via SSM without an explicit kms:Decrypt grant
+# (verified: tasks resolve secrets in production). If these parameters ever
+# move to a customer-managed key, add kms:Decrypt on that key here.
 resource "aws_iam_role_policy" "worker_execution_ssm" {
   name = "ssm-secrets-read"
   role = aws_iam_role.worker_execution.id
