@@ -88,6 +88,7 @@ from src.search.providers.config import (
     load_retrieval_provider_settings,
 )
 from src.storage import (
+    InvalidKeyError,
     LocalObjectStorage,
     ObjectNotFoundError,
     ObjectStorage,
@@ -95,6 +96,7 @@ from src.storage import (
     ObjectStorageError,
     build_object_storage,
     load_object_storage_settings,
+    validate_key,
     validate_local_presigned_url,
 )
 from src.study.config import load_study_settings
@@ -915,6 +917,11 @@ def create_app(
             raise HTTPException(status_code=401, detail="authentication required")
         if not _is_admin_identity(identity, settings):
             raise HTTPException(status_code=403, detail="admin access required")
+
+        try:
+            validate_key(payload.paper_object_key)
+        except InvalidKeyError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         queue = getattr(request.app.state, "ingest_queue", None)
         if queue is None:

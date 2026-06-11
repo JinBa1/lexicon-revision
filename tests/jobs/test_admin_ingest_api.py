@@ -111,3 +111,60 @@ async def test_unknown_parser_is_422() -> None:
         json=payload,
     )
     assert response.status_code == 422
+
+
+async def test_traversal_object_key_is_422() -> None:
+    payload = _payload() | {"paper_object_key": "../secrets/creds.pdf"}
+    response = await _post(
+        _build_app(InMemoryIngestJobQueue()),
+        headers={"X-User-Email": ADMIN},
+        json=payload,
+    )
+    assert response.status_code == 422
+
+
+def _settings_with_env(environment: str):
+    settings = _runtime_settings()
+    from dataclasses import replace
+
+    return replace(settings, environment=environment)
+
+
+def test_verified_clerk_admin_passes_gate() -> None:
+    from src.access.models import RequestIdentity
+    from src.main import _is_admin_identity
+
+    identity = RequestIdentity(
+        provider="clerk",
+        external_subject="user_123",
+        email=ADMIN,
+        email_verified=True,
+    )
+    assert _is_admin_identity(identity, _settings_with_env("prod")) is True
+
+
+def test_unverified_stub_admin_rejected_in_prod() -> None:
+    from src.access.models import RequestIdentity
+    from src.main import _is_admin_identity
+
+    identity = RequestIdentity(
+        provider="stub_header",
+        external_subject=ADMIN,
+        email=ADMIN,
+        email_verified=False,
+    )
+    assert _is_admin_identity(identity, _settings_with_env("prod")) is False
+    assert _is_admin_identity(identity, _settings_with_env("test")) is True
+
+
+def test_verified_non_admin_email_rejected() -> None:
+    from src.access.models import RequestIdentity
+    from src.main import _is_admin_identity
+
+    identity = RequestIdentity(
+        provider="clerk",
+        external_subject="user_456",
+        email="student@example.com",
+        email_verified=True,
+    )
+    assert _is_admin_identity(identity, _settings_with_env("prod")) is False
