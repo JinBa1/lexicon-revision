@@ -4,6 +4,8 @@ primary_region = "lhr"
 [env]
   APP_ENV = "prod"
   ENABLE_DEV_ROUTES = "false"
+  INGEST_QUEUE_PROVIDER = "sqs"
+  AWS_REGION = "eu-west-2"
   ACCESS_AUTH_PROVIDER = "clerk"
   CLERK_AUTHORIZED_PARTIES = "https://lexiconrevision.uk"
   CORS_ALLOWED_ORIGINS = "https://lexiconrevision.uk"
