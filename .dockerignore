@@ -9,7 +9,7 @@ __pycache__/
 # Backend container builds do not deploy frontend, docs, tests, or local data.
 # The production Dockerfile also copies its runtime surface explicitly.
 frontend/
-docs/
+dev/
 tests/
 data/
 chroma_data/
