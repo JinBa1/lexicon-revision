@@ -13,8 +13,9 @@ from scripts.evaluate_planned_search import (
     render_report,
 )
 from src.metadata_schema.models import FilterCondition
+from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.models import SearchResponse, SearchResult
-from src.study.planning.models import QueryPlan
+from src.study.planning.models import PlannerExecution, QueryPlan
 
 
 class _FakeSearchService:
@@ -39,12 +40,17 @@ class _FakePlanner:
         self,
         raw_query: str,
         hard_filters: list[FilterCondition] | None,
-    ) -> QueryPlan:
+    ) -> PlannerExecution:
         self.calls.append({"raw_query": raw_query, "hard_filters": hard_filters})
         outcome = self.plans[raw_query]
         if isinstance(outcome, Exception):
             raise outcome
-        return outcome
+        return PlannerExecution(
+            plan=outcome,
+            telemetry=ProviderCallTelemetry(
+                provider="fake", model="fake", latency_ms=0, usage=None
+            ),
+        )
 
 
 def _result(chunk_id: str, topic: str | None = None) -> SearchResult:
