@@ -408,6 +408,7 @@ describe("AnswerStatusBanner", () => {
       "Retrieval failed",
       "Try broadening your filters or switching collection.",
     ],
+    ["no_corpus_answer", "No answer from the corpus", "See the note above for what to try next."],
   ])("shows exact title and body copy for %s status", (status, title, body) => {
     render(<AnswerStatusBanner status={status} />);
 

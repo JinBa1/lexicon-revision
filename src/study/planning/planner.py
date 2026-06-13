@@ -17,6 +17,7 @@ from src.study.planning.prompts import PlannerPromptTemplate, load_planner_promp
 from src.study.providers.base import GenerationProvider
 
 _MAX_SEMANTIC_QUERY_WORDS = 40
+_MAX_GUIDANCE_WORDS = 100
 
 
 class QueryPlanner(Protocol):
@@ -115,8 +116,15 @@ def _build_plan(
             raise InvalidPlanError(
                 f"semantic query exceeds {_MAX_SEMANTIC_QUERY_WORDS} word limit"
             )
+    guidance = draft.generation_guidance.strip()
+    if len(guidance.split()) > _MAX_GUIDANCE_WORDS:
+        raise InvalidPlanError(
+            f"generation_guidance exceeds {_MAX_GUIDANCE_WORDS} word limit"
+        )
     return QueryPlan(
         planner_version=planner_version,
         original_query=raw_query,
         semantic_queries=semantic_queries,
+        intent=draft.intent,
+        generation_guidance=guidance,
     )

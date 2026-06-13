@@ -1,0 +1,42 @@
+name: query_planner_intent_v1
+description: |
+  Intent-classification cases for the v2 planner. content_retrieval controls
+  must never be misrouted to a decline; off-domain cases have no chunk
+  expectations (the fixture corpus has no off-domain chunks).
+collection: cam-cs-tripos-fixture
+default_top_k: 15
+cases:
+  - id: control-databases
+    expected_intent: content_retrieval
+    expected:
+      any_topics: [Databases]
+    variants:
+      - id: messy
+        query: 2025 paper 3 databases outer join thing
+  - id: control-virtual-memory
+    expected_intent: content_retrieval
+    expected:
+      any_topics: [Operating Systems]
+    variants:
+      - id: messy
+        query: questions about VM paging and page table PTE stuff
+  - id: analytics-counts
+    expected_intent: corpus_analytics
+    variants:
+      - id: messy
+        query: how many database questions have there been since 2019
+  - id: analytics-trend
+    expected_intent: corpus_analytics
+    variants:
+      - id: messy
+        query: what is the most commonly examined topic in paper 3
+  - id: ambiguous-revise
+    expected_intent: ambiguous
+    variants:
+      - id: messy
+        query: help me revise the hard ones
+  - id: out-of-scope-general
+    expected_intent: out_of_scope
+    variants:
+      - id: messy
+        query: what is the capital of France

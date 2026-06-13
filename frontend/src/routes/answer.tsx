@@ -18,6 +18,7 @@ import type {
   CollectionMetadataSchema,
   FilterCondition,
   StudyAnswerStatus,
+  StudyResponse,
 } from "@/lib/api/types";
 import { useCollections } from "@/lib/hooks/useCollections";
 import { useStudy } from "@/lib/hooks/useStudy";
@@ -270,7 +271,7 @@ function AnswerContent({
               metadataSchema={schema}
               registerRef={registerRef}
             />
-            {shouldShowQuestionsFallback(data.answer_status) ? (
+            {shouldShowQuestionsFallback(data.answer_status, data.planning.intent) ? (
               <div className="mt-10 rounded-[4px] border border-rule bg-paper-raised px-6 py-4 text-center">
                 <Link
                   to={buildQuestionsHref({ collection: collectionName, query, filters })}
@@ -291,10 +292,17 @@ function AnswerMain({ children }: { children: ReactNode }) {
   return <main className="mx-auto max-w-[1240px] px-6 py-8 pb-24 sm:px-10">{children}</main>;
 }
 
-function shouldShowQuestionsFallback(status: StudyAnswerStatus): boolean {
-  return (
+function shouldShowQuestionsFallback(
+  status: StudyAnswerStatus,
+  intent: StudyResponse["planning"]["intent"],
+): boolean {
+  if (
     status === "insufficient_evidence" ||
     status === "generation_failed" ||
     status === "retrieval_failed"
-  );
+  ) {
+    return true;
+  }
+  // no_corpus_answer is terminal except for ambiguous, which is recoverable
+  return status === "no_corpus_answer" && intent === "ambiguous";
 }

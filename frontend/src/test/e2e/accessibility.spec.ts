@@ -188,6 +188,7 @@ const studyResponse: StudyResponse = {
     planner_version: "planner-v1",
     original_query: "graphs",
     semantic_queries: ["graph traversal exam questions"],
+    intent: "content_retrieval",
     error_category: null,
     latency_ms: 11,
   },

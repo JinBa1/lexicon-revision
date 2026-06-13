@@ -1,0 +1,373 @@
+{
+  "aggregate": {
+    "fallback_rate": 0.0,
+    "hit_delta_sum": 0,
+    "variant_count": 6
+  },
+  "cases": [
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p3-q1-c"
+        ],
+        "any_topics": [
+          "Databases"
+        ]
+      },
+      "filters": [
+        {
+          "field": "year",
+          "op": "eq",
+          "value": 2025
+        },
+        {
+          "field": "paper",
+          "op": "eq",
+          "value": 3
+        }
+      ],
+      "id": "pinpoint-databases/messy",
+      "planned": {
+        "hit": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "databases outer join",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2025-p3-q1-a",
+          "cam-2025-p3-q2-b",
+          "cam-2025-p3-q2",
+          "cam-2025-p3-q2-a",
+          "cam-2025-p3-q1-b",
+          "cam-2025-p3-q8-c",
+          "cam-2025-p3-q8-e",
+          "cam-2025-p3-q8-g",
+          "cam-2025-p3-q8-d",
+          "cam-2025-p3-q8-b",
+          "cam-2025-p3-q8-f",
+          "cam-2025-p3-q9-f",
+          "cam-2025-p3-q9-a"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "2025 paper 3 databases outer join thing",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2025-p3-q1-a",
+          "cam-2025-p3-q2-b",
+          "cam-2025-p3-q2",
+          "cam-2025-p3-q2-a",
+          "cam-2025-p3-q1-b",
+          "cam-2025-p3-q8-c",
+          "cam-2025-p3-q8-g",
+          "cam-2025-p3-q8-e",
+          "cam-2025-p3-q8-b",
+          "cam-2025-p3-q8-d",
+          "cam-2025-p3-q8-f",
+          "cam-2025-p3-q9-f",
+          "cam-2025-p3-q8-a"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2024-p1-q4"
+        ],
+        "any_topics": []
+      },
+      "filters": [
+        {
+          "field": "has_code",
+          "op": "eq",
+          "value": true
+        }
+      ],
+      "id": "surface-code-oop/messy",
+      "planned": {
+        "hit": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "past questions on OOP class hierarchy",
+        "top_ids": [
+          "cam-2024-p1-q4-a",
+          "cam-2024-p1-q4",
+          "cam-2024-p1-q4-d",
+          "cam-2025-p1-q4-b",
+          "cam-2025-p1-q4-a",
+          "cam-2025-p1-q4",
+          "cam-2025-p1-q3-b",
+          "cam-2024-p1-q4-c",
+          "cam-2025-p1-q3-a",
+          "cam-2025-p1-q3",
+          "cam-2025-p1-q4-c",
+          "cam-2024-p1-q4-b",
+          "cam-2023-p3-q4-c",
+          "cam-2023-p3-q4-d",
+          "cam-2023-p3-q4-a"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "show me any past question with code about OOP class hierarchy",
+        "top_ids": [
+          "cam-2024-p1-q4-a",
+          "cam-2024-p1-q4",
+          "cam-2024-p1-q4-d",
+          "cam-2025-p1-q4-b",
+          "cam-2025-p1-q4",
+          "cam-2024-p1-q4-c",
+          "cam-2025-p1-q3-b",
+          "cam-2025-p1-q4-a",
+          "cam-2025-p1-q3",
+          "cam-2025-p1-q4-c",
+          "cam-2025-p1-q3-a",
+          "cam-2024-p1-q4-b",
+          "cam-2023-p3-q4-c",
+          "cam-2023-p3-q4-a",
+          "cam-2025-p1-q2-d"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": [
+          "Discrete Mathematics"
+        ]
+      },
+      "filters": [
+        {
+          "field": "paper",
+          "op": "eq",
+          "value": 2
+        }
+      ],
+      "id": "scoped-discrete-maths/messy",
+      "planned": {
+        "hit": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "discrete maths proof by induction past questions",
+        "top_ids": [
+          "cam-2023-p2-q9-b",
+          "cam-2023-p2-q8",
+          "cam-2024-p2-q8-b",
+          "cam-2023-p2-q9",
+          "cam-2023-p2-q8-b",
+          "cam-2025-p2-q8",
+          "cam-2024-p2-q8",
+          "cam-2023-p2-q8-a",
+          "cam-2023-p2-q9-a",
+          "cam-2025-p2-q8-b",
+          "cam-2023-p2-q7",
+          "cam-2025-p2-q8-a",
+          "cam-2025-p2-q7-b",
+          "cam-2023-p2-q7-a",
+          "cam-2024-p2-q7-a"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "paper 2 discrete maths proof by induction past questions",
+        "top_ids": [
+          "cam-2023-p2-q8",
+          "cam-2023-p2-q9-b",
+          "cam-2023-p2-q8-b",
+          "cam-2024-p2-q8-b",
+          "cam-2023-p2-q9",
+          "cam-2023-p2-q8-a",
+          "cam-2023-p2-q9-a",
+          "cam-2025-p2-q8",
+          "cam-2024-p2-q8",
+          "cam-2025-p2-q7-b",
+          "cam-2025-p2-q8-a",
+          "cam-2025-p2-q8-b",
+          "cam-2023-p2-q7",
+          "cam-2023-p2-q7-a",
+          "cam-2023-p2-q8-c"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p2-q4"
+        ],
+        "any_topics": [
+          "Operating Systems"
+        ]
+      },
+      "filters": [],
+      "id": "concept-virtual-memory/messy",
+      "planned": {
+        "hit": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "questions about VM paging and page table PTE",
+        "top_ids": [
+          "cam-2025-p2-q4",
+          "cam-2025-p2-q4-d",
+          "cam-2025-p2-q4-b",
+          "cam-2023-p2-q3-c",
+          "cam-2023-p2-q3",
+          "cam-2024-p2-q4-d",
+          "cam-2023-p2-q3-b",
+          "cam-2024-p2-q4",
+          "cam-2024-p2-q4-b",
+          "cam-2025-p2-q4-c",
+          "cam-2025-p2-q4-a",
+          "cam-2025-p1-q8-d",
+          "cam-2024-p2-q4-a",
+          "cam-2024-p2-q4-c",
+          "cam-2023-p1-q10-c"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "questions about VM paging and page table PTE stuff",
+        "top_ids": [
+          "cam-2025-p2-q4",
+          "cam-2025-p2-q4-d",
+          "cam-2025-p2-q4-b",
+          "cam-2023-p2-q3-c",
+          "cam-2023-p2-q3",
+          "cam-2024-p2-q4-d",
+          "cam-2024-p2-q4",
+          "cam-2023-p2-q3-b",
+          "cam-2025-p2-q4-c",
+          "cam-2024-p2-q4-b",
+          "cam-2025-p2-q4-a",
+          "cam-2024-p2-q4-a",
+          "cam-2024-p2-q4-c",
+          "cam-2023-p1-q10-c",
+          "cam-2025-p1-q8-d"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p3-q1-c"
+        ],
+        "any_topics": []
+      },
+      "filters": [
+        {
+          "field": "topic",
+          "op": "eq",
+          "value": "Databases"
+        }
+      ],
+      "id": "topic-pair-databases-with-filter/messy",
+      "planned": {
+        "hit": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "past questions on outer join",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2024-p3-q1-b",
+          "cam-2023-p3-q2-a",
+          "cam-2023-p3-q2",
+          "cam-2025-p3-q1-a",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1-a",
+          "cam-2024-p3-q1",
+          "cam-2023-p3-q2-b",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q1-b",
+          "cam-2023-p3-q1",
+          "cam-2024-p3-q2-b",
+          "cam-2023-p3-q1-e"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "past questions on databases outer join",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2023-p3-q2-a",
+          "cam-2024-p3-q1-b",
+          "cam-2023-p3-q2",
+          "cam-2025-p3-q1-a",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1-a",
+          "cam-2024-p3-q1",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q2-b",
+          "cam-2023-p3-q1",
+          "cam-2024-p3-q2-b",
+          "cam-2023-p3-q1-b",
+          "cam-2023-p3-q1-e"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [
+          "cam-2025-p3-q1-c"
+        ],
+        "any_topics": []
+      },
+      "filters": [],
+      "id": "topic-pair-databases-without-filter/messy",
+      "planned": {
+        "hit": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "past exam questions on databases outer join",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2023-p3-q2-a",
+          "cam-2024-p3-q1-b",
+          "cam-2023-p3-q2",
+          "cam-2025-p3-q1-a",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1-a",
+          "cam-2024-p3-q1",
+          "cam-2023-p3-q2-b",
+          "cam-2024-p3-q2-b",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q1",
+          "cam-2023-p3-q1-e",
+          "cam-2023-p3-q1-b"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "past questions on databases outer join",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2023-p3-q2-a",
+          "cam-2024-p3-q1-b",
+          "cam-2023-p3-q2",
+          "cam-2025-p3-q1-a",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1-a",
+          "cam-2024-p3-q1",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q2-b",
+          "cam-2023-p3-q1",
+          "cam-2024-p3-q2-b",
+          "cam-2023-p3-q1-b",
+          "cam-2023-p3-q1-e"
+        ]
+      }
+    }
+  ],
+  "collection": "cam-cs-tripos-fixture",
+  "name": "query_planner_messy_v1",
+  "providers": {
+    "embedding_model_id": "voyage-4-lite",
+    "rerank_model_id": null
+  },
+  "top_k": 15
+}

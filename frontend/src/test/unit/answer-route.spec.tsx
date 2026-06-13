@@ -48,7 +48,10 @@ function LocationProbe() {
   );
 }
 
-function studyResponse(status: StudyAnswerStatus = "ok"): StudyResponse {
+function studyResponse(
+  status: StudyAnswerStatus = "ok",
+  intent: StudyResponse["planning"]["intent"] = "content_retrieval",
+): StudyResponse {
   return {
     schema_version: "study_answer_v2",
     request_id: "study-1",
@@ -95,6 +98,7 @@ function studyResponse(status: StudyAnswerStatus = "ok"): StudyResponse {
       planner_version: "planner-v1",
       original_query: "dynamic tables",
       semantic_queries: ["dynamic tables"],
+      intent,
       error_category: null,
       latency_ms: 12,
     },
@@ -359,6 +363,24 @@ describe("AnswerRoute", () => {
       );
     },
   );
+
+  test.each<[StudyResponse["planning"]["intent"], boolean]>([
+    ["ambiguous", true],
+    ["out_of_scope", false],
+  ])("intent-gates the questions fallback for no_corpus_answer (%s)", (intent, shouldShow) => {
+    setStudyState({ data: studyResponse("no_corpus_answer", intent) });
+
+    renderAnswer("/c/cam-cs-tripos/answer?q=dynamic");
+
+    const fallbackLink = screen.queryByRole("link", {
+      name: "Retrieve matching questions instead →",
+    });
+    if (shouldShow) {
+      expect(fallbackLink).toBeInTheDocument();
+    } else {
+      expect(fallbackLink).not.toBeInTheDocument();
+    }
+  });
 
   test("citation click scrolls and animates the matching source", async () => {
     const scrollIntoView = vi.fn();

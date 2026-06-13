@@ -48,6 +48,7 @@ class MessyCase:
     any_chunk_ids: list[str]
     any_topics: list[str]
     variants: list[MessyVariant]
+    expected_intent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ def load_messy_eval_spec(path: Path) -> MessyEvalSpec:
                 any_chunk_ids=list(expected.get("any_chunk_ids") or []),
                 any_topics=list(expected.get("any_topics") or []),
                 variants=variants,
+                expected_intent=entry.get("expected_intent"),
             )
         )
 
@@ -127,8 +129,10 @@ async def compare_cases(
             planning_status = "ok"
             planning_error: str | None = None
             planned_query = variant.query
+            planned_intent: str | None = None
             try:
                 plan = (await planner.plan(variant.query, filters)).plan
+                planned_intent = plan.intent
                 planned_result = planned_retrieval.retrieve(
                     plan,
                     hard_filters=filters,
@@ -169,6 +173,12 @@ async def compare_cases(
                     "planned": {
                         "query": planned_query,
                         "hit": planned_hit,
+                        "intent": planned_intent,
+                        "expected_intent": case.expected_intent,
+                        "intent_match": (
+                            case.expected_intent is None
+                            or planned_intent == case.expected_intent
+                        ),
                         "planning_status": planning_status,
                         "planning_error": planning_error,
                         "top_ids": [
@@ -183,6 +193,20 @@ async def compare_cases(
         (1 if case["planned"]["hit"] else 0) - (1 if case["raw"]["hit"] else 0)
         for case in case_reports
     )
+    intent_cases = [
+        c for c in case_reports if c["planned"]["expected_intent"] is not None
+    ]
+    intent_accuracy = (
+        sum(1 for c in intent_cases if c["planned"]["intent_match"]) / len(intent_cases)
+        if intent_cases
+        else None
+    )
+    control_misroutes = [
+        c
+        for c in case_reports
+        if c["planned"]["expected_intent"] == "content_retrieval"
+        and c["planned"]["intent"] != "content_retrieval"
+    ]
     return {
         "name": spec.name,
         "collection": collection,
@@ -193,6 +217,8 @@ async def compare_cases(
             "variant_count": total_variants,
             "fallback_rate": fallback_count / total_variants if total_variants else 0.0,
             "hit_delta_sum": hit_delta_sum,
+            "intent_accuracy": intent_accuracy,
+            "content_retrieval_misroutes": [c["id"] for c in control_misroutes],
         },
     }
 
@@ -210,23 +236,41 @@ def _hit(response: SearchResponse, case: MessyCase) -> bool:
 
 
 def render_report(report: dict[str, Any]) -> str:
+    agg = report["aggregate"]
+    intent_accuracy = agg.get("intent_accuracy")
+    misroutes = agg.get("content_retrieval_misroutes", [])
+    intent_line = (
+        f"intent_accuracy={intent_accuracy:.2f} content_retrieval_misroutes={misroutes}"
+        if intent_accuracy is not None
+        else ""
+    )
     lines = [
         f"# Planner A/B report: {report['name']}",
         f"collection={report['collection']} top_k={report['top_k']}",
         (
-            f"variants={report['aggregate']['variant_count']} "
-            f"fallback_rate={report['aggregate']['fallback_rate']:.2f} "
-            f"hit_delta_sum={report['aggregate']['hit_delta_sum']}"
+            f"variants={agg['variant_count']} "
+            f"fallback_rate={agg['fallback_rate']:.2f} "
+            f"hit_delta_sum={agg['hit_delta_sum']}"
         ),
-        "",
     ]
+    if intent_line:
+        lines.append(intent_line)
+    lines.append("")
     for case in report["cases"]:
         lines.append(f"## {case['id']}")
         lines.append(f"raw hit={case['raw']['hit']} q={case['raw']['query']!r}")
+        planned = case["planned"]
+        intent_info = ""
+        if planned.get("expected_intent") is not None:
+            intent_info = (
+                f" intent={planned['intent']!r}"
+                f" expected={planned['expected_intent']!r}"
+                f" match={planned['intent_match']}"
+            )
         lines.append(
-            f"planned hit={case['planned']['hit']} "
-            f"status={case['planned']['planning_status']} "
-            f"q={case['planned']['query']!r}"
+            f"planned hit={planned['hit']} "
+            f"status={planned['planning_status']} "
+            f"q={planned['query']!r}" + intent_info
         )
     return "\n".join(lines)
 
