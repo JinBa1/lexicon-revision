@@ -38,7 +38,7 @@ from src.study.config import load_study_settings  # noqa: E402
 from src.study.models import StudyRequest, StudyScope  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, RawQueryPlanner  # noqa: E402
 from src.study.planning.retrieval import PlannedRetrievalService  # noqa: E402
-from src.study.providers.ollama import OllamaProvider  # noqa: E402
+from src.study.providers.config import build_generation_provider  # noqa: E402
 from src.study.service import StudyService  # noqa: E402
 
 
@@ -565,11 +565,7 @@ async def _run_real_report(args: argparse.Namespace) -> dict[str, Any]:
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )
-    inner_provider = OllamaProvider(
-        base_url=settings.generation.base_url,
-        model=settings.generation.model,
-        max_retries=settings.generation.max_provider_retries,
-    )
+    inner_provider = build_generation_provider(settings.generation, role="generation")
     provider = RecordingProvider(inner=inner_provider)
     query_planner = (
         RawQueryPlanner()

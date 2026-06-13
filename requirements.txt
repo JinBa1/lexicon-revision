@@ -4,6 +4,7 @@ requests==2.33.1
 pydantic-settings==2.13.1
 jinja2==3.1.6
 pyyaml==6.0.3
+langgraph==1.2.5
 clerk-backend-api==5.0.6
 httpx==0.28.1
 boto3==1.42.83

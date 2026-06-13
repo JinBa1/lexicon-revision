@@ -62,18 +62,6 @@ class FakeQueryPlanner:
         return result
 
 
-class LegacyQueryPlanner:
-    def __init__(self, plan: QueryPlan) -> None:
-        self._plan = plan
-
-    async def plan(
-        self,
-        raw_query: str,
-        hard_filters: list[FilterCondition] | None,
-    ) -> QueryPlan:
-        return self._plan
-
-
 class FakePlannedRetrieval:
     def __init__(
         self,
@@ -392,40 +380,6 @@ async def test_orchestrate_uses_provided_request_id() -> None:
     )
 
     assert response.request_id == "req-study-123"
-
-
-@pytest.mark.anyio
-async def test_orchestrate_accepts_legacy_query_plan_planner() -> None:
-    plan = QueryPlan(original_query="legacy", semantic_queries=["legacy semantic"])
-    query_planner = LegacyQueryPlanner(plan)
-    planned_retrieval = FakePlannedRetrieval(
-        PlannedRetrievalResult(
-            search_response=SearchResponse(
-                query="legacy semantic",
-                collection="cam-cs-tripos",
-                results=[search_result("a")],
-                total=1,
-            ),
-            executed_queries=["legacy semantic"],
-            filters_applied=[],
-        )
-    )
-    provider = FakeProvider(valid_generation_result(chunk_id="a"))
-    service = StudyService(
-        query_planner=query_planner,
-        planned_retrieval=planned_retrieval,
-        provider=provider,
-        settings=study_settings(),
-    )
-
-    response = await service.orchestrate(
-        StudyRequest(query="legacy", scope={"collection": "cam-cs-tripos"})
-    )
-
-    assert response.answer_status == "ok"
-    assert response.planning.status == "ok"
-    assert response.planning.semantic_queries == ["legacy semantic"]
-    assert response.planning.latency_ms >= 0
 
 
 @pytest.mark.anyio
