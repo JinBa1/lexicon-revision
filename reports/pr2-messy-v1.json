@@ -1,0 +1,8 @@
+{
+  "_deferred": true,
+  "_reason": "Live eval run requires local fixture DB on :5434 and Ollama qwen2.5:7b-instruct. Deferred per subagent working rules. Run manually: DATABASE_URL=postgresql://raguser:ragpass@localhost:5434/ragdb OBJECT_STORAGE_PROVIDER=local OBJECT_STORAGE_DEV_PRESIGN_SECRET=dummy .venv/bin/python scripts/evaluate_planned_search.py evals/query_planner_messy_v1.yaml --reranker-device cpu --json > reports/pr2-messy-v1.json",
+  "_gate": {
+    "hit_delta_sum": ">= baseline (pr2-baseline-messy-v1.json aggregate.hit_delta_sum)",
+    "fallback_rate": "<= baseline (pr2-baseline-messy-v1.json aggregate.fallback_rate)"
+  }
+}

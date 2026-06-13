@@ -1,0 +1,8 @@
+{
+  "_deferred": true,
+  "_reason": "Live eval run requires local fixture DB on :5434 and Ollama qwen2.5:7b-instruct. Deferred per subagent working rules. Harness code (scripts/evaluate_planned_search.py) and eval YAML (evals/query_planner_intent_v1.yaml) are fully implemented and tested. Run manually: DATABASE_URL=postgresql://raguser:ragpass@localhost:5434/ragdb OBJECT_STORAGE_PROVIDER=local OBJECT_STORAGE_DEV_PRESIGN_SECRET=dummy .venv/bin/python scripts/evaluate_planned_search.py evals/query_planner_intent_v1.yaml --reranker-device cpu --json > reports/pr2-intent-v1.json",
+  "_gate": {
+    "intent_accuracy": ">= 0.80",
+    "content_retrieval_misroutes": "== []"
+  }
+}
