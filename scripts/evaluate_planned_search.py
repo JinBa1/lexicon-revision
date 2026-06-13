@@ -128,7 +128,7 @@ async def compare_cases(
             planning_error: str | None = None
             planned_query = variant.query
             try:
-                plan = await planner.plan(variant.query, filters)
+                plan = (await planner.plan(variant.query, filters)).plan
                 planned_result = planned_retrieval.retrieve(
                     plan,
                     hard_filters=filters,
