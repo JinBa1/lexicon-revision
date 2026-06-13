@@ -30,7 +30,7 @@ from src.search.models import SearchResponse  # noqa: E402
 from src.study.config import load_study_settings  # noqa: E402
 from src.study.planning.planner import LLMQueryPlanner, QueryPlanner  # noqa: E402
 from src.study.planning.retrieval import PlannedRetrievalService  # noqa: E402
-from src.study.providers.ollama import OllamaProvider  # noqa: E402
+from src.study.providers.config import build_generation_provider  # noqa: E402
 
 _PLANNER_ERRORS = (Exception,)
 
@@ -272,11 +272,7 @@ async def _run(args: argparse.Namespace) -> None:
         rerank=args.rerank,
         reranker_device=args.reranker_device,
     )
-    provider = OllamaProvider(
-        base_url=settings.generation.base_url,
-        model=settings.generation.model,
-        max_retries=settings.generation.max_provider_retries,
-    )
+    provider = build_generation_provider(settings.planning, role="planning")
     planner = LLMQueryPlanner(provider=provider, settings=settings.planning)
     try:
         report = await compare_cases(
