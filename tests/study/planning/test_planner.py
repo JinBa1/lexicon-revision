@@ -257,3 +257,44 @@ async def test_raw_query_planner_returns_raw_query_without_provider_call() -> No
     assert result.plan.original_query == "messy original query"
     assert result.plan.semantic_queries == ["messy original query"]
     assert provider.calls == []
+
+
+def _draft_payload(**over: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "semantic_queries": ["binary search"],
+        "intent": "content_retrieval",
+        "generation_guidance": "",
+    }
+    base.update(over)
+    return base
+
+
+@pytest.mark.anyio
+async def test_build_plan_propagates_intent_and_guidance() -> None:
+    provider = FakeProvider(
+        _draft_payload(intent="corpus_analytics", generation_guidance="be concise")
+    )
+    planner = LLMQueryPlanner(provider, _settings())
+
+    result = await planner.plan("how many db questions since 2019", None)
+
+    assert result.plan.intent == "corpus_analytics"
+    assert result.plan.generation_guidance == "be concise"
+
+
+@pytest.mark.anyio
+async def test_build_plan_rejects_overlong_guidance() -> None:
+    provider = FakeProvider(
+        _draft_payload(generation_guidance=" ".join(f"w{i}" for i in range(101)))
+    )
+    planner = LLMQueryPlanner(provider, _settings())
+
+    with pytest.raises(InvalidPlanError):
+        await planner.plan("q", None)
+
+
+@pytest.mark.anyio
+async def test_raw_query_planner_defaults_intent() -> None:
+    result = await RawQueryPlanner().plan("messy query", None)
+    assert result.plan.intent == "content_retrieval"
+    assert result.plan.generation_guidance == ""
