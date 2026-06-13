@@ -260,7 +260,7 @@ async def test_generation_deadline_breach_returns_provider_timeout() -> None:
             schema_repair_retries=1,
         ),
         context=ContextSettings(budget_tokens=4000, max_single_chunk_tokens=1200),
-        prompt=PromptSettings(version="study_aid_v2", path="prompts/study_aid_v2.yaml"),
+        prompt=PromptSettings(version="study_aid_v3", path="prompts/study_aid_v3.yaml"),
         planning=PlanningSettings(
             request_timeout_seconds=5,
             total_planning_deadline_seconds=10,

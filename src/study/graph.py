@@ -273,6 +273,7 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
         query=request.query,
         retrieval_queries=list(state.plan.semantic_queries),
         context_blocks=format_context_blocks(packing.chunks, state.collection_schema),
+        generation_guidance=state.plan.generation_guidance,
     )
     generation_request = GenerationRequest(
         messages=messages,

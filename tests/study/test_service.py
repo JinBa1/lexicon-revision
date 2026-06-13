@@ -163,8 +163,8 @@ def study_settings() -> StudySettings:
         ),
         context=ContextSettings(budget_tokens=4000, max_single_chunk_tokens=1200),
         prompt=PromptSettings(
-            version="study_aid_v2",
-            path="prompts/study_aid_v2.yaml",
+            version="study_aid_v3",
+            path="prompts/study_aid_v3.yaml",
         ),
         planning=PlanningSettings(
             request_timeout_seconds=5,
@@ -1199,3 +1199,36 @@ async def test_content_retrieval_routes_through_retrieval_workflow() -> None:
     )
     assert response.answer_status != "no_corpus_answer"
     assert retrieval.calls  # retrieval actually ran
+
+
+@pytest.mark.anyio
+async def test_generation_guidance_reaches_the_prompt() -> None:
+    plan = QueryPlan(
+        original_query="paging",
+        semantic_queries=["virtual memory paging"],
+        intent="content_retrieval",
+        generation_guidance="Emphasise recurring patterns.",
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=provider,
+    )
+    await service.orchestrate(StudyRequest(query="paging", scope={"collection": "c"}))
+    user_msg = provider.calls[0].messages[1]["content"]
+    assert "Emphasise recurring patterns." in user_msg
+
+
+@pytest.mark.anyio
+async def test_empty_guidance_adds_no_guidance_block() -> None:
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=FakeQueryPlanner(
+            planner_execution(_plan())
+        ),  # guidance defaults ""
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=provider,
+    )
+    await service.orchestrate(StudyRequest(query="2025 dp", scope={"collection": "c"}))
+    assert "Guidance for this answer" not in provider.calls[0].messages[1]["content"]
