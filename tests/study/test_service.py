@@ -1149,3 +1149,53 @@ async def test_orchestrate_enforces_runtime_context_and_output_caps() -> None:
 
     assert response.retrieval.context_budget_tokens == 40
     assert provider.calls[0].max_tokens == 120
+
+
+@pytest.mark.parametrize(
+    "intent,kind_fragment",
+    [
+        ("corpus_analytics", "statistics"),
+        ("ambiguous", "a bit broad"),
+        ("out_of_scope", "outside this past-paper collection"),
+    ],
+)
+@pytest.mark.anyio
+async def test_direct_response_intents_short_circuit(intent, kind_fragment) -> None:
+    plan = QueryPlan(original_query="x", semantic_queries=["x"], intent=intent)
+    retrieval = FakePlannedRetrieval(_retrieval_with_results())
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=retrieval,
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="x", scope={"collection": "c"})
+    )
+
+    assert response.answer_status == "no_corpus_answer"
+    assert response.retrieval.status == "skipped"
+    assert response.planning.intent == intent
+    assert kind_fragment in response.answer.overview
+    # retrieval + generation are skipped entirely
+    assert retrieval.calls == []
+    assert service.provider.calls == []  # type: ignore[attr-defined]
+
+
+@pytest.mark.anyio
+async def test_content_retrieval_routes_through_retrieval_workflow() -> None:
+    # Misrouting guard (routing-deterministic half): content_retrieval must run
+    # retrieval/generation and never produce no_corpus_answer.
+    plan = QueryPlan(
+        original_query="2025 dp", semantic_queries=["dynamic programming recurrence"]
+    )
+    retrieval = FakePlannedRetrieval(_retrieval_with_results())
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=retrieval,
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="2025 dp", scope={"collection": "c"})
+    )
+    assert response.answer_status != "no_corpus_answer"
+    assert retrieval.calls  # retrieval actually ran

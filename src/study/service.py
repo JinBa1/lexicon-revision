@@ -30,6 +30,7 @@ from src.study.models import (
     StudySource,
     ValidationResult,
 )
+from src.study.planning.intent import DIRECT_RESPONSE_MESSAGES, INTENT_REGISTRY
 from src.study.planning.models import (
     InvalidPlanError,
     PlanningErrorCategory,
@@ -208,6 +209,44 @@ class StudyService:
             ),
         )
         return response
+
+    def _direct_response(
+        self,
+        *,
+        request: StudyRequest,
+        request_id: str,
+        plan: QueryPlan,
+        planning: PlanningMetadata,
+    ) -> StudyResponse:
+        response_kind = INTENT_REGISTRY[plan.intent].response_kind or "out_of_scope"
+        message = DIRECT_RESPONSE_MESSAGES[response_kind]
+        return StudyResponse(
+            request_id=request_id,
+            query=request.query,
+            scope=request.scope,
+            answer_status="no_corpus_answer",
+            answer=StudyAnswer(overview=message, patterns=[], limitations=[]),
+            sources=[],
+            retrieval=RetrievalMetadata(
+                status="skipped",
+                top_k=request.top_k,
+                returned_result_count=0,
+                context_budget_tokens=self._context_budget_tokens(),
+                context_chunk_ids=[],
+                omitted_chunk_ids=[],
+                truncated_chunk_ids=[],
+                filters_applied=list(request.filters),
+                rerank=True,
+                search_telemetry=None,
+            ),
+            planning=planning,
+            generation=self._generation_metadata(
+                attempt_count=0,
+                citation_drops=0,
+                error_category=None,
+                generation_result=None,
+            ),
+        )
 
     def _generation_failed_response(
         self,
