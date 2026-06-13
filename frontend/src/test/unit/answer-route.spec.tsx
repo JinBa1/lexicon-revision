@@ -95,6 +95,7 @@ function studyResponse(status: StudyAnswerStatus = "ok"): StudyResponse {
       planner_version: "planner-v1",
       original_query: "dynamic tables",
       semantic_queries: ["dynamic tables"],
+      intent: "content_retrieval",
       error_category: null,
       latency_ms: 12,
     },
