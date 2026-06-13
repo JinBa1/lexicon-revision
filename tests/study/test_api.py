@@ -22,7 +22,7 @@ from src.study.config import (
     StudySettings,
 )
 from src.study.models import StudyResponse
-from src.study.planning.models import QueryPlan
+from src.study.planning.models import PlannerExecution, QueryPlan
 from src.study.service import StudyService
 from tests.runtime.fakes_rate_limit import (
     FakeCostRateLimiter,
@@ -340,9 +340,17 @@ class SchemaCapableSearchService(FakeSearchService):
 class InvalidFilterQueryPlanner:
     async def plan(self, raw_query, hard_filters):
         del hard_filters
-        return QueryPlan(
-            original_query=raw_query,
-            semantic_queries=[raw_query],
+        return PlannerExecution(
+            plan=QueryPlan(
+                original_query=raw_query,
+                semantic_queries=[raw_query],
+            ),
+            telemetry=ProviderCallTelemetry(
+                provider="raw_query",
+                model="raw_query",
+                latency_ms=0,
+                usage=None,
+            ),
         )
 
 

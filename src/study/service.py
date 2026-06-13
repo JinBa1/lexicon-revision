@@ -10,8 +10,6 @@ from typing import Any
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
 from src.runtime.config import AppRuntimeSettings
-from src.runtime.telemetry import ProviderCallTelemetry
-from src.search.errors import InvalidMetadataFilterError
 from src.search.models import SearchResponse, SearchResult
 from src.search.pg_service import SearchExecutionTelemetry
 from src.study.config import StudySettings
@@ -32,15 +30,8 @@ from src.study.models import (
     StudySource,
     ValidationResult,
 )
-from src.study.packing import (
-    HeuristicTokenEstimator,
-    dedupe_parent_child,
-    format_context_blocks,
-    pack_chunks,
-)
 from src.study.planning.models import (
     InvalidPlanError,
-    PlannerExecution,
     PlanningErrorCategory,
     PlanningMetadata,
     QueryPlan,
@@ -55,7 +46,6 @@ from src.study.providers.base import (
     ProviderHTTPError,
     ProviderTimeoutError,
 )
-from src.study.validation import validate_citations
 
 logger = logging.getLogger(__name__)
 PROVIDER_ERRORS = (
@@ -83,6 +73,10 @@ class StudyService:
         self.settings = settings
         self.runtime_settings = runtime_settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
+        # Lazy import to avoid a module import cycle (graph imports this module).
+        from src.study.graph import build_study_graph
+
+        self._graph = build_study_graph(self)
 
     async def orchestrate(
         self,
@@ -90,238 +84,16 @@ class StudyService:
         *,
         request_id: str | None = None,
     ) -> StudyResponse:
-        request_id = request_id or str(uuid.uuid4())
-        hard_filters = request.filters
-        plan, planning_metadata = await self._plan(request.query, hard_filters)
+        from src.study.graph import StudyGraphState
 
-        try:
-            retrieval_result = self.planned_retrieval.retrieve(
-                plan,
-                hard_filters=hard_filters,
-                collection=request.scope.collection,
-                limit=request.top_k,
-                rerank=True,
-            )
-            search_response = retrieval_result.search_response
-            filters = retrieval_result.filters_applied
-            collection_schema = retrieval_result.collection_schema
-        except InvalidMetadataFilterError:
-            raise
-        except Exception:
-            logger.exception(
-                "study_retrieval_failed",
-                extra={
-                    "request_id": request_id,
-                    "collection": request.scope.collection,
-                    "planning_status": planning_metadata.status,
-                    "planning_error_category": planning_metadata.error_category,
-                    "planner_version": planning_metadata.planner_version,
-                    "planning_latency_ms": planning_metadata.latency_ms,
-                },
-            )
-            return self._empty_response(
-                request=request,
-                request_id=request_id,
-                answer_status="retrieval_failed",
-                retrieval_status="error",
-                filters=list(hard_filters or []),
-                planning=planning_metadata,
-            )
-
-        if not search_response.results:
-            retrieval_status: RetrievalStatus = "filtered_empty" if filters else "empty"
-            return self._empty_response(
-                request=request,
-                request_id=request_id,
-                answer_status="insufficient_evidence",
-                retrieval_status=retrieval_status,
-                filters=filters,
-                planning=planning_metadata,
-                search_telemetry=retrieval_result.search_telemetry,
-            )
-
-        try:
-            ranked_chunks = [
-                _ranked_chunk(result) for result in search_response.results
-            ]
-            deduped_chunks = dedupe_parent_child(ranked_chunks)
-            packing = pack_chunks(
-                deduped_chunks,
-                budget_tokens=self._context_budget_tokens(),
-                max_single_chunk_tokens=self._max_single_chunk_tokens(),
-                estimator=HeuristicTokenEstimator(),
-            )
-            retrieval = RetrievalMetadata(
-                status="ok",
-                top_k=request.top_k,
-                returned_result_count=len(search_response.results),
-                context_budget_tokens=self._context_budget_tokens(),
-                context_chunk_ids=[packed.chunk.chunk_id for packed in packing.chunks],
-                omitted_chunk_ids=packing.omitted_chunk_ids,
-                truncated_chunk_ids=packing.truncated_chunk_ids,
-                filters_applied=filters,
-                rerank=True,
-                search_telemetry=retrieval_result.search_telemetry,
-            )
-        except Exception:
-            logger.exception(
-                "study_context_build_failed",
-                extra={"request_id": request_id},
-            )
-            retrieval = RetrievalMetadata(
-                status="ok",
-                top_k=request.top_k,
-                returned_result_count=len(search_response.results),
-                context_budget_tokens=self._context_budget_tokens(),
-                context_chunk_ids=[],
-                omitted_chunk_ids=[],
-                truncated_chunk_ids=[],
-                filters_applied=filters,
-                rerank=True,
-                search_telemetry=retrieval_result.search_telemetry,
-            )
-            return self._generation_failed_response(
-                request=request,
-                request_id=request_id,
-                search_response=search_response,
-                retrieval=retrieval,
-                planning=planning_metadata,
-                error_category="context_build_failed",
-                attempt_count=0,
-                generation_result=None,
-            )
-
-        if packing.status == "context_pack_failed":
-            return self._generation_failed_response(
-                request=request,
-                request_id=request_id,
-                search_response=search_response,
-                retrieval=retrieval,
-                planning=planning_metadata,
-                error_category="context_pack_failed",
-                attempt_count=0,
-                generation_result=None,
-            )
-
-        messages = self._prompt.render(
-            query=request.query,
-            retrieval_queries=list(plan.semantic_queries),
-            context_blocks=format_context_blocks(packing.chunks, collection_schema),
-        )
-        generation_request = GenerationRequest(
-            messages=messages,
-            response_schema=(
-                StudyAnswerDraft.model_json_schema()
-                if self.provider.capabilities.json_schema_output
-                else None
-            ),
-            temperature=self.settings.generation.temperature,
-            max_tokens=self._generation_max_output_tokens(),
-            timeout_seconds=self.settings.generation.request_timeout_seconds,
-        )
-
-        generation_result: GenerationResult | None = None
-        draft: StudyAnswerDraft
-        attempt_count = 1
-
-        try:
-            async with asyncio.timeout(
-                self.settings.generation.total_generation_deadline_seconds
-            ):
-                try:
-                    generation_result = await self.provider.generate(generation_request)
-                    draft = _parse_draft(generation_result.raw_content)
-                except ValidationError as exc:
-                    malformed_output = _raw_content_from_result(generation_result)
-                    validation_error_summary = str(exc)
-                    repair_result = None
-                    for _ in range(self.settings.generation.schema_repair_retries):
-                        attempt_count += 1
-                        try:
-                            repair_result = await self._try_repair(
-                                request=generation_request,
-                                malformed_output=malformed_output,
-                                validation_error_summary=validation_error_summary,
-                            )
-                        except PROVIDER_ERRORS as exc:
-                            return self._generation_failed_response(
-                                request=request,
-                                request_id=request_id,
-                                search_response=search_response,
-                                retrieval=retrieval,
-                                planning=planning_metadata,
-                                error_category=_provider_error_category(exc),
-                                attempt_count=attempt_count,
-                                generation_result=generation_result,
-                            )
-                        if repair_result is not None:
-                            break
-                    if repair_result is None:
-                        return self._generation_failed_response(
-                            request=request,
-                            request_id=request_id,
-                            search_response=search_response,
-                            retrieval=retrieval,
-                            planning=planning_metadata,
-                            error_category="schema_validation_failed",
-                            attempt_count=attempt_count,
-                            generation_result=generation_result,
-                        )
-                    generation_result, draft = repair_result
-                except PROVIDER_ERRORS as exc:
-                    return self._generation_failed_response(
-                        request=request,
-                        request_id=request_id,
-                        search_response=search_response,
-                        retrieval=retrieval,
-                        planning=planning_metadata,
-                        error_category=_provider_error_category(exc),
-                        attempt_count=attempt_count,
-                        generation_result=generation_result,
-                    )
-        except TimeoutError:
-            return self._generation_failed_response(
-                request=request,
-                request_id=request_id,
-                search_response=search_response,
-                retrieval=retrieval,
-                planning=planning_metadata,
-                error_category="provider_timeout",
-                attempt_count=attempt_count,
-                generation_result=generation_result,
-            )
-
-        validation = validate_citations(
-            draft,
-            valid_chunk_ids=set(retrieval.context_chunk_ids),
-        )
-        if validation.draft is None:
-            return self._generation_failed_response(
-                request=request,
-                request_id=request_id,
-                search_response=search_response,
-                retrieval=retrieval,
-                planning=planning_metadata,
-                error_category=(
-                    validation.error_category or "citation_validation_cascade_failure"
-                ),
-                attempt_count=attempt_count,
-                citation_drops=validation.citation_drops,
-                generation_result=generation_result,
-            )
-
-        response = self._success_response(
+        initial = StudyGraphState(
             request=request,
-            request_id=request_id,
-            search_response=search_response,
-            retrieval=retrieval,
-            planning=planning_metadata,
-            generation_result=generation_result,
-            validation=validation,
-            attempt_count=attempt_count,
+            request_id=request_id or str(uuid.uuid4()),
+            hard_filters=request.filters,
         )
-        self._log_response(response)
-        return response
+        # ainvoke returns a plain dict for a pydantic state schema, not a model.
+        result = await self._graph.ainvoke(initial)
+        return result["response"]
 
     async def _try_repair(
         self,
@@ -376,17 +148,6 @@ class StudyService:
                 error_category=_planning_error_category(exc),
                 telemetry=None,
                 latency_ms=_elapsed_ms(started),
-            )
-
-        if isinstance(execution, QueryPlan):
-            execution = PlannerExecution(
-                plan=execution,
-                telemetry=ProviderCallTelemetry(
-                    provider="legacy_query_plan",
-                    model="legacy_query_plan",
-                    latency_ms=_elapsed_ms(started),
-                    usage=None,
-                ),
             )
 
         return execution.plan, PlanningMetadata(
@@ -446,7 +207,6 @@ class StudyService:
                 generation_result=None,
             ),
         )
-        self._log_response(response)
         return response
 
     def _generation_failed_response(
@@ -482,7 +242,6 @@ class StudyService:
                 generation_result=generation_result,
             ),
         )
-        self._log_response(response)
         return response
 
     def _success_response(
