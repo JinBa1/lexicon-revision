@@ -48,7 +48,7 @@ def _result(payload: object) -> GenerationResult:
 
 
 def _settings() -> PlanningSettings:
-    return PlanningSettings(prompt_path="prompts/query_planner_v1.yaml")
+    return PlanningSettings(prompt_path="prompts/query_planner_v2.yaml")
 
 
 @pytest.mark.anyio
@@ -66,7 +66,7 @@ async def test_happy_path_builds_server_owned_plan() -> None:
         ],
     )
 
-    assert result.plan.planner_version == "query_planner_v1"
+    assert result.plan.planner_version == "query_planner_v2"
     assert (
         result.plan.original_query == "  2024 paper 2 binary search invariant proofs  "
     )
@@ -189,7 +189,7 @@ async def test_over_40_word_semantic_query_raises_invalid_plan_error() -> None:
 @pytest.mark.anyio
 async def test_request_uses_settings_temperature_and_timeout() -> None:
     settings = PlanningSettings(
-        prompt_path="prompts/query_planner_v1.yaml",
+        prompt_path="prompts/query_planner_v2.yaml",
         temperature=0.25,
         request_timeout_seconds=3.5,
     )

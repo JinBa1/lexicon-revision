@@ -69,8 +69,8 @@ def test_load_study_settings_has_planning_defaults(tmp_path: Path) -> None:
     assert settings.planning.temperature == 0.0
     assert settings.planning.request_timeout_seconds == 15
     assert settings.planning.total_planning_deadline_seconds == 20
-    assert settings.planning.prompt_version == "query_planner_v1"
-    assert settings.planning.prompt_path == "prompts/query_planner_v1.yaml"
+    assert settings.planning.prompt_version == "query_planner_v2"
+    assert settings.planning.prompt_path == "prompts/query_planner_v2.yaml"
 
 
 def test_load_study_settings_applies_planning_env_override(

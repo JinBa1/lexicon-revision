@@ -42,8 +42,8 @@ class PlanningSettings(BaseModel):
     temperature: float = 0.0
     request_timeout_seconds: float = 15
     total_planning_deadline_seconds: float = 20
-    prompt_version: str = "query_planner_v1"
-    prompt_path: str = "prompts/query_planner_v1.yaml"
+    prompt_version: str = "query_planner_v2"
+    prompt_path: str = "prompts/query_planner_v2.yaml"
 
 
 class StudySettings(BaseSettings):
