@@ -155,6 +155,7 @@ class StudyService:
             original_query=execution.plan.original_query,
             semantic_queries=list(execution.plan.semantic_queries),
             error_category=None,
+            intent=execution.plan.intent,
             telemetry=execution.telemetry,
             latency_ms=execution.telemetry.latency_ms,
         )
@@ -315,6 +316,7 @@ class StudyService:
                 "planning_error_category": response.planning.error_category,
                 "planner_version": response.planning.planner_version,
                 "planning_latency_ms": response.planning.latency_ms,
+                "intent": response.planning.intent,
             },
         )
 

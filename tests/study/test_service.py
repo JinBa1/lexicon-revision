@@ -1058,6 +1058,60 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
     assert response.retrieval.filters_applied == filters
 
 
+def _plan() -> QueryPlan:
+    return QueryPlan(
+        original_query="2025 dp",
+        semantic_queries=["dynamic programming recurrence"],
+    )
+
+
+def _retrieval_with_results() -> PlannedRetrievalResult:
+    return PlannedRetrievalResult(
+        search_response=SearchResponse(
+            query="dynamic programming recurrence",
+            collection="c",
+            results=[search_result("a")],
+            total=1,
+        ),
+        executed_queries=["dynamic programming recurrence"],
+        filters_applied=[],
+    )
+
+
+@pytest.mark.anyio
+async def test_orchestrate_surfaces_plan_intent_in_planning_metadata() -> None:
+    plan = QueryPlan(
+        original_query="2025 dp",
+        semantic_queries=["dynamic programming recurrence"],
+        intent="content_retrieval",
+        generation_guidance="emphasise patterns",
+    )
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="2025 dp", scope={"collection": "c"})
+    )
+    assert response.planning.intent == "content_retrieval"
+
+
+@pytest.mark.anyio
+async def test_log_response_includes_intent(caplog) -> None:
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(_plan())),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    with caplog.at_level("INFO"):
+        await service.orchestrate(
+            StudyRequest(query="2025 dp", scope={"collection": "c"})
+        )
+    record = next(r for r in caplog.records if r.message == "study_request")
+    assert getattr(record, "intent", None) == "content_retrieval"
+
+
 @pytest.mark.anyio
 async def test_orchestrate_enforces_runtime_context_and_output_caps() -> None:
     query_planner = FakeQueryPlanner(
