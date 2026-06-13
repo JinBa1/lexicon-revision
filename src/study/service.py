@@ -74,9 +74,10 @@ class StudyService:
         self.runtime_settings = runtime_settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
         # Lazy import to avoid a module import cycle (graph imports this module).
-        from src.study.graph import build_study_graph
+        from src.study.graph import StudyGraphState, build_study_graph
 
         self._graph = build_study_graph(self)
+        self._graph_state_cls = StudyGraphState
 
     async def orchestrate(
         self,
@@ -84,9 +85,7 @@ class StudyService:
         *,
         request_id: str | None = None,
     ) -> StudyResponse:
-        from src.study.graph import StudyGraphState
-
-        initial = StudyGraphState(
+        initial = self._graph_state_cls(
             request=request,
             request_id=request_id or str(uuid.uuid4()),
             hard_filters=request.filters,

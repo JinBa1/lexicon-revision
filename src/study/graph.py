@@ -72,6 +72,13 @@ class StudyGraphState(BaseModel):
     Carries every intermediate the imperative ``orchestrate()`` threaded.
     ``response`` is the terminal value: a terminal-reaching node builds the
     (unlogged) ``StudyResponse`` and the ``respond`` sink logs it once.
+
+    NOTE: ``arbitrary_types_allowed`` lets fields hold non-pydantic objects
+    (e.g. ``SearchExecutionTelemetry``) and the graph compiles with no
+    checkpointer, so state is never serialised today. A later LangGraph
+    checkpointer (e.g. the reflection-loop PR's interrupt/HITL state)
+    serialises this state on every step -- verify all fields round-trip
+    then, or swap heavy objects for IDs plus a side-channel store.
     """
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
@@ -112,7 +119,14 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     request = state.request
     planning = state.planning_metadata
     try:
-        retrieval_result = await _to_thread_retrieve(state, deps)
+        # Synchronous, matching the imperative orchestrate() exactly (parity).
+        retrieval_result = deps.planned_retrieval.retrieve(
+            state.plan,
+            hard_filters=state.hard_filters,
+            collection=request.scope.collection,
+            limit=request.top_k,
+            rerank=True,
+        )
     except InvalidMetadataFilterError:
         raise
     except Exception:
@@ -161,17 +175,6 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
         "collection_schema": retrieval_result.collection_schema,
         "search_telemetry": retrieval_result.search_telemetry,
     }
-
-
-async def _to_thread_retrieve(state: StudyGraphState, deps: StudyService):
-    return await asyncio.to_thread(
-        deps.planned_retrieval.retrieve,
-        state.plan,
-        hard_filters=state.hard_filters,
-        collection=state.request.scope.collection,
-        limit=state.request.top_k,
-        rerank=True,
-    )
 
 
 async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
