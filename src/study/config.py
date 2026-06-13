@@ -30,8 +30,8 @@ class ContextSettings(BaseModel):
 
 
 class PromptSettings(BaseModel):
-    version: str = "study_aid_v2"
-    path: str = "prompts/study_aid_v2.yaml"
+    version: str = "study_aid_v3"
+    path: str = "prompts/study_aid_v3.yaml"
 
 
 class PlanningSettings(BaseModel):

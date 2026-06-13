@@ -18,11 +18,13 @@ class PromptTemplate(BaseModel):
         query: str,
         retrieval_queries: list[str],
         context_blocks: str,
+        generation_guidance: str = "",
     ) -> list[dict[str, str]]:
         user_content = Template(self.user).render(
             query=query,
             retrieval_queries=retrieval_queries,
             context_blocks=context_blocks,
+            generation_guidance=generation_guidance,
         )
         return [
             {"role": "system", "content": self.system.strip()},

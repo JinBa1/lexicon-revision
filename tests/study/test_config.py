@@ -13,8 +13,8 @@ def test_load_study_settings_uses_defaults_when_files_missing(tmp_path: Path) ->
     assert settings.generation.request_timeout_seconds == 60
     assert settings.context.retrieval_top_k_default == 15
     assert settings.context.budget_tokens == 4000
-    assert settings.prompt.version == "study_aid_v2"
-    assert settings.prompt.path == "prompts/study_aid_v2.yaml"
+    assert settings.prompt.version == "study_aid_v3"
+    assert settings.prompt.path == "prompts/study_aid_v3.yaml"
 
 
 def test_load_study_settings_merges_yaml_then_local_then_env(
