@@ -53,7 +53,9 @@ def _settings() -> PlanningSettings:
 
 @pytest.mark.anyio
 async def test_happy_path_builds_server_owned_plan() -> None:
-    provider = FakeProvider({"semantic_queries": ["  binary search  "]})
+    provider = FakeProvider(
+        {"semantic_queries": ["  binary search  "], "intent": "content_retrieval"}
+    )
     planner = LLMQueryPlanner(provider, _settings())
 
     result = await planner.plan(
@@ -92,7 +94,9 @@ user: "{{ raw_query }}"
         prompt_version="query_planner_custom",
         prompt_path=str(prompt_path),
     )
-    provider = FakeProvider({"semantic_queries": ["binary trees"]})
+    provider = FakeProvider(
+        {"semantic_queries": ["binary trees"], "intent": "content_retrieval"}
+    )
     planner = LLMQueryPlanner(provider, settings)
 
     result = await planner.plan("binary trees", None)
@@ -114,7 +118,9 @@ user: "{{ raw_query }}"
         prompt_version="query_planner_wrong",
         prompt_path=str(prompt_path),
     )
-    provider = FakeProvider({"semantic_queries": ["binary trees"]})
+    provider = FakeProvider(
+        {"semantic_queries": ["binary trees"], "intent": "content_retrieval"}
+    )
 
     with pytest.raises(ValueError, match="planning.prompt_version must match"):
         LLMQueryPlanner(provider, settings)
@@ -122,7 +128,9 @@ user: "{{ raw_query }}"
 
 @pytest.mark.anyio
 async def test_sends_draft_schema_when_provider_supports_json_schema() -> None:
-    provider = FakeProvider({"semantic_queries": ["recursion trees"]})
+    provider = FakeProvider(
+        {"semantic_queries": ["recursion trees"], "intent": "content_retrieval"}
+    )
     planner = LLMQueryPlanner(provider, _settings())
 
     await planner.plan("recursion trees", None)
@@ -149,7 +157,9 @@ async def test_invalid_json_raises_validation_error() -> None:
 
 @pytest.mark.anyio
 async def test_empty_semantic_query_raises_invalid_plan_error() -> None:
-    provider = FakeProvider({"semantic_queries": ["   "]})
+    provider = FakeProvider(
+        {"semantic_queries": ["   "], "intent": "content_retrieval"}
+    )
     planner = LLMQueryPlanner(provider, _settings())
 
     with pytest.raises(InvalidPlanError):
@@ -165,7 +175,10 @@ async def test_empty_semantic_query_raises_invalid_plan_error() -> None:
 @pytest.mark.anyio
 async def test_over_40_word_semantic_query_raises_invalid_plan_error() -> None:
     provider = FakeProvider(
-        {"semantic_queries": [" ".join(f"word{i}" for i in range(41))]}
+        {
+            "semantic_queries": [" ".join(f"word{i}" for i in range(41))],
+            "intent": "content_retrieval",
+        }
     )
     planner = LLMQueryPlanner(provider, _settings())
 
@@ -180,7 +193,9 @@ async def test_request_uses_settings_temperature_and_timeout() -> None:
         temperature=0.25,
         request_timeout_seconds=3.5,
     )
-    provider = FakeProvider({"semantic_queries": ["graph search"]})
+    provider = FakeProvider(
+        {"semantic_queries": ["graph search"], "intent": "content_retrieval"}
+    )
     planner = LLMQueryPlanner(provider, settings)
 
     await planner.plan("graph search", None)
@@ -194,7 +209,12 @@ async def test_request_uses_settings_temperature_and_timeout() -> None:
 @pytest.mark.anyio
 async def test_prompt_messages_include_raw_query_and_filters() -> None:
     raw_query = "2025 Databases paper 3 relational algebra joins"
-    provider = FakeProvider({"semantic_queries": ["relational algebra joins"]})
+    provider = FakeProvider(
+        {
+            "semantic_queries": ["relational algebra joins"],
+            "intent": "content_retrieval",
+        }
+    )
     planner = LLMQueryPlanner(provider, _settings())
 
     await planner.plan(
@@ -224,7 +244,9 @@ async def test_prompt_messages_include_raw_query_and_filters() -> None:
 
 @pytest.mark.anyio
 async def test_raw_query_planner_returns_raw_query_without_provider_call() -> None:
-    provider = FakeProvider({"semantic_queries": ["unused"]})
+    provider = FakeProvider(
+        {"semantic_queries": ["unused"], "intent": "content_retrieval"}
+    )
     planner = RawQueryPlanner()
 
     result = await planner.plan(
