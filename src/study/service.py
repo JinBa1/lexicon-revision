@@ -395,6 +395,10 @@ class StudyService:
                 "planning_latency_ms": response.planning.latency_ms,
                 "intent": response.planning.intent,
                 "generation_guidance": response.planning.generation_guidance,
+                "reflection_graded": response.retrieval.reflection_graded,
+                "requery_attempted": response.retrieval.requery_attempted,
+                "graded_chunk_count": response.retrieval.graded_chunk_count,
+                "reflection_critique": response.retrieval.reflection_critique,
             },
         )
 

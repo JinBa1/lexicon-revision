@@ -1424,6 +1424,12 @@ def _generation_telemetry(response: StudyResponse):
 
 
 def _study_outcome(response: StudyResponse) -> str:
+    # ORDER IS LOAD-BEARING: a reflection abstain also has
+    # answer_status="insufficient_evidence", so this must precede the membership
+    # check below or it would silently report outcome="ok". The one place outcome
+    # is not a pure function of answer_status.
+    if response.retrieval.status == "low_relevance":
+        return "reflection_abstained"
     if response.answer_status in {"ok", "partial", "insufficient_evidence"}:
         return "ok"
     if response.answer_status == "no_corpus_answer":

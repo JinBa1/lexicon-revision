@@ -249,6 +249,8 @@ async def test_orchestrate_prune_then_answer() -> None:
 
 
 async def test_orchestrate_abstains_when_grade_rejects_and_reflect_declines() -> None:
+    from src.main import _study_outcome
+
     provider = FakeProvider([_grade_json([], critique="off topic"), _reflect_json("")])
     service = _service(provider)
     response = await service.orchestrate(
@@ -257,6 +259,9 @@ async def test_orchestrate_abstains_when_grade_rejects_and_reflect_declines() ->
     assert response.answer_status == "insufficient_evidence"
     assert response.retrieval.status == "low_relevance"
     assert response.retrieval.requery_attempted is True
+    # Ordering in _study_outcome is load-bearing: low_relevance must win over the
+    # insufficient_evidence -> "ok" mapping.
+    assert _study_outcome(response) == "reflection_abstained"
 
 
 async def test_orchestrate_requery_then_answer() -> None:
