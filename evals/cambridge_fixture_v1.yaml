@@ -211,3 +211,71 @@ cases:
     notes: >
       Included because inspected OOP question-level chunks have has_code=true
       and visible Java code-like text.
+
+  # --- PR3 negative-query cases (must ABSTAIN) -------------------------------
+  # The fixture corpus has no off-domain chunks, so vector search still returns
+  # CS results for these. Abstention must therefore be GRADER-driven, not
+  # threshold-driven -- a threshold-only system cannot pass them. Each carries
+  # expected_answer_status: insufficient_evidence and no expected chunks.
+  - id: off-topic-geography
+    query: what is the capital city of France
+    filters: []
+    expected:
+      any_chunk_ids: []
+      expected_answer_status: insufficient_evidence
+      top_k: 5
+    notes: >
+      Completely off-domain. Grader must reject all retrieved CS chunks.
+
+  - id: off-topic-oxford-ppe
+    query: Oxford PPE essay on Rawlsian distributive justice
+    filters: []
+    expected:
+      any_chunk_ids: []
+      expected_answer_status: insufficient_evidence
+      top_k: 5
+    notes: >
+      Wrong institution and subject; embedding may match philosophy terms but no
+      CS Tripos chunk is relevant.
+
+  - id: off-topic-dissertation-admin
+    query: how do I format references in my final-year dissertation
+    filters: []
+    expected:
+      any_chunk_ids: []
+      expected_answer_status: insufficient_evidence
+      top_k: 5
+    notes: >
+      Academic-writing admin, not a past-paper topic.
+
+  - id: off-topic-organic-chemistry
+    query: organic chemistry synthesis of aspirin reaction mechanism
+    filters: []
+    expected:
+      any_chunk_ids: []
+      expected_answer_status: insufficient_evidence
+      top_k: 5
+    notes: >
+      Unrelated science domain; grader must reject CS chunks.
+
+  - id: off-topic-current-events
+    query: who won the most recent general election
+    filters: []
+    expected:
+      any_chunk_ids: []
+      expected_answer_status: insufficient_evidence
+      top_k: 5
+    notes: >
+      Current-events general knowledge, outside the corpus.
+
+  - id: off-topic-near-miss-vocab
+    query: binary search for a bug in my python side project
+    filters: []
+    expected:
+      any_chunk_ids: []
+      expected_answer_status: insufficient_evidence
+      top_k: 5
+    notes: >
+      Near-miss: uses a real CS term ("binary search") in a non-past-paper,
+      personal-debugging context. Guards against a grader that abstains on
+      vocabulary distance rather than topical/exam relevance.
