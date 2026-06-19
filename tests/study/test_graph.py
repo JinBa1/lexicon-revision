@@ -19,6 +19,7 @@ from src.study.config import (
     GenerationSettings,
     PlanningSettings,
     PromptSettings,
+    ReflectionSettings,
     StudySettings,
 )
 from src.study.graph import StudyGraphState, _direct_response_node
@@ -272,6 +273,7 @@ async def test_generation_deadline_breach_returns_provider_timeout() -> None:
             prompt_version="query_planner_v1",
             prompt_path="prompts/query_planner_v1.yaml",
         ),
+        reflection=ReflectionSettings(enabled=False),
     )
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
     provider.delay = 0.5

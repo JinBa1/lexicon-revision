@@ -19,6 +19,7 @@ from src.study.config import (
     GenerationSettings,
     PlanningSettings,
     PromptSettings,
+    ReflectionSettings,
     StudySettings,
 )
 from src.study.models import StudyResponse
@@ -34,7 +35,7 @@ class FakeStudyService:
     def __init__(self) -> None:
         self.requests = []
 
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         return StudyResponse(
             request_id=request_id or "00000000-0000-4000-8000-000000000000",
@@ -76,7 +77,7 @@ class FakeStudyService:
 
 
 class TelemetryStudyService(FakeStudyService):
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         return StudyResponse(
             request_id=request_id or "00000000-0000-4000-8000-000000000001",
@@ -142,7 +143,7 @@ class RequestIdEchoStudyService(FakeStudyService):
         super().__init__()
         self.request_ids: list[str | None] = []
 
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         self.request_ids.append(request_id)
         return StudyResponse(
@@ -185,7 +186,7 @@ class RequestIdEchoStudyService(FakeStudyService):
 
 
 class InvalidFilterStudyService(FakeStudyService):
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         del request_id
         raise InvalidMetadataFilterError(
@@ -282,7 +283,7 @@ class CountingHealthProvider:
 
 
 class SlowStudyService:
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         del request
         del request_id
         await httpx.AsyncClient().aclose()
@@ -291,7 +292,7 @@ class SlowStudyService:
 
 
 class ExplodingStudyService(FakeStudyService):
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         del request_id
         raise RuntimeError("generation provider exploded")
@@ -388,6 +389,7 @@ def _study_settings() -> StudySettings:
             prompt_version="query_planner_v1",
             prompt_path="prompts/query_planner_v1.yaml",
         ),
+        reflection=ReflectionSettings(enabled=False),
     )
 
 
