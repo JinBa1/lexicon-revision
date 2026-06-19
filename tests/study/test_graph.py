@@ -21,8 +21,13 @@ from src.study.config import (
     PromptSettings,
     StudySettings,
 )
+from src.study.graph import StudyGraphState, _direct_response_node
 from src.study.models import PackingResult, StudyRequest, StudyResponse
-from src.study.planning.models import PlannedRetrievalResult, QueryPlan
+from src.study.planning.models import (
+    PlannedRetrievalResult,
+    PlanningMetadata,
+    QueryPlan,
+)
 from src.study.providers.base import ProviderConnectionError
 from tests.study.test_service import (
     FakePlannedRetrieval,
@@ -290,3 +295,27 @@ async def test_provider_error_returns_generation_failed() -> None:
     response = await service.orchestrate(StudyRequest(**_request()))
     assert response.answer_status == "generation_failed"
     assert response.generation.error_category == "provider_unreachable"
+
+
+async def test_direct_response_node_falls_back_when_plan_is_none() -> None:
+    # PR3 defensive guard: a None plan must not AttributeError on plan.intent.
+    # Unreachable under current routing (_route_after_plan coerces None ->
+    # content_retrieval -> retrieve), so this exercises the node directly.
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(_plan())),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    state = StudyGraphState(
+        request=StudyRequest(**_request()),
+        request_id="req-1",
+        plan=None,
+        planning_metadata=PlanningMetadata(
+            planner_version="query_planner_v2",
+            original_query="2025 dp",
+            semantic_queries=["2025 dp"],
+            latency_ms=1,
+        ),
+    )
+    result = await _direct_response_node(state, service)
+    assert result["response"].answer_status == "no_corpus_answer"

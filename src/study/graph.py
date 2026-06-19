@@ -117,11 +117,19 @@ async def _plan_node(state: StudyGraphState, deps: StudyService) -> dict:
 
 
 async def _direct_response_node(state: StudyGraphState, deps: StudyService) -> dict:
+    # Defensive: _route_after_plan already coerces a None plan to
+    # content_retrieval (-> retrieve), so direct_response is unreachable with a
+    # None plan today. The guard hardens this node against the larger routing
+    # surface PR3 adds, since _direct_response dereferences plan.intent.
+    plan = state.plan or QueryPlan(
+        original_query=state.request.query,
+        semantic_queries=[state.request.query],
+    )
     return {
         "response": deps._direct_response(
             request=state.request,
             request_id=state.request_id,
-            plan=state.plan,
+            plan=plan,
             planning=state.planning_metadata,
         )
     }
