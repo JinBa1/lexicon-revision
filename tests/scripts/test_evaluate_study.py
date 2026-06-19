@@ -87,9 +87,13 @@ def _response(
     context_chunk_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
     planning: PlanningMetadata | None = None,
+    retrieval_status: str = "ok",
+    reflection_graded: bool = False,
+    requery_attempted: bool = False,
+    graded_chunk_count: int = 0,
 ) -> StudyResponse:
-    context_chunk_ids = context_chunk_ids or ["chunk-1"]
-    source_ids = source_ids or ["chunk-1"]
+    context_chunk_ids = ["chunk-1"] if context_chunk_ids is None else context_chunk_ids
+    source_ids = ["chunk-1"] if source_ids is None else source_ids
     return StudyResponse(
         request_id=f"request-{query}",
         query=query,
@@ -119,7 +123,7 @@ def _response(
             for chunk_id in source_ids
         ],
         retrieval=RetrievalMetadata(
-            status="ok",
+            status=retrieval_status,  # type: ignore[arg-type]
             top_k=15,
             returned_result_count=len(context_chunk_ids),
             context_budget_tokens=4000,
@@ -128,6 +132,9 @@ def _response(
             truncated_chunk_ids=[],
             filters_applied=[],
             rerank=True,
+            reflection_graded=reflection_graded,
+            requery_attempted=requery_attempted,
+            graded_chunk_count=graded_chunk_count,
         ),
         planning=planning
         or PlanningMetadata(
@@ -573,6 +580,121 @@ def test_render_markdown_accepts_inspect_study_generation_shape() -> None:
 
     assert "citation drops `2`" in markdown
     assert "error `none`" in markdown
+
+
+def test_reflection_aggregates_recall_and_non_regression(tmp_path: Path) -> None:
+    """A negative case that abstains + a content case that hits drive PR3 metrics."""
+    collection = "cam-cs-tripos-fixture"
+    spec = load_study_eval_spec(
+        _write_eval(
+            tmp_path,
+            {
+                "name": "reflection_probe",
+                "collection": collection,
+                "default_top_k": 9,
+                "cases": [
+                    {
+                        "id": "off-topic",
+                        "expected": {
+                            "any_chunk_ids": [],
+                            "expected_answer_status": "insufficient_evidence",
+                        },
+                        "variants": [{"id": "v", "query": "capital of France"}],
+                    },
+                    {
+                        "id": "content",
+                        "expected": {"any_chunk_ids": ["chunk-1"]},
+                        "variants": [{"id": "v", "query": "dp recurrences"}],
+                    },
+                ],
+            },
+        )
+    )
+    service = ToolTestFakeStudyService(
+        {
+            "capital of France": _response(
+                query="capital of France",
+                collection=collection,
+                answer_status="insufficient_evidence",
+                retrieval_status="low_relevance",
+                reflection_graded=True,
+                requery_attempted=True,
+                context_chunk_ids=[],
+                source_ids=[],
+            ),
+            "dp recurrences": _response(
+                query="dp recurrences",
+                collection=collection,
+                context_chunk_ids=["chunk-1"],
+                source_ids=["chunk-1"],
+                reflection_graded=True,
+                graded_chunk_count=1,
+            ),
+        }
+    )
+
+    report = evaluate_study_cases(
+        service=service,  # type: ignore[arg-type]
+        spec=spec,
+        collection=collection,
+        top_k=9,
+        case_ids=None,
+        variant_ids=None,
+    )
+
+    assert report["abstain_recall"] == 1.0
+    assert report["abstain_false_positive_rate"] == 0.0
+    assert report["non_regression_content_hit_rate"] == 1.0
+    assert report["requery_rate"] == 0.5
+    assert report["negative_requery_attempts"] == 1
+
+
+def test_reflection_false_abstain_counted_against_content_case(tmp_path: Path) -> None:
+    """A content case wrongly abstained (low_relevance) raises the FP rate."""
+    collection = "cam-cs-tripos-fixture"
+    spec = load_study_eval_spec(
+        _write_eval(
+            tmp_path,
+            {
+                "name": "reflection_fp",
+                "collection": collection,
+                "default_top_k": 9,
+                "cases": [
+                    {
+                        "id": "content",
+                        "expected": {"any_chunk_ids": ["chunk-1"]},
+                        "variants": [{"id": "v", "query": "dp recurrences"}],
+                    }
+                ],
+            },
+        )
+    )
+    service = ToolTestFakeStudyService(
+        {
+            "dp recurrences": _response(
+                query="dp recurrences",
+                collection=collection,
+                answer_status="insufficient_evidence",
+                retrieval_status="low_relevance",
+                reflection_graded=True,
+                context_chunk_ids=[],
+                source_ids=[],
+            )
+        }
+    )
+
+    report = evaluate_study_cases(
+        service=service,  # type: ignore[arg-type]
+        spec=spec,
+        collection=collection,
+        top_k=9,
+        case_ids=None,
+        variant_ids=None,
+    )
+
+    assert report["abstain_false_positive_rate"] == 1.0
+    assert report["non_regression_content_hit_rate"] == 0.0
+    assert report["abstain_recall"] is None  # no negative cases
 
 
 def _write_eval(tmp_path: Path, payload: dict[str, Any]) -> Path:

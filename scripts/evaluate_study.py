@@ -56,6 +56,9 @@ class StudyEvalCase:
     any_chunk_ids: list[str]
     any_topics: list[str]
     variants: list[StudyVariant]
+    # PR3: when set (e.g. "insufficient_evidence"), the case is a negative case
+    # that SHOULD abstain; None means a normal content case (non-regression set).
+    expected_answer_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -229,6 +232,10 @@ def _parse_case(raw_case: Any) -> StudyEvalCase:
             f"case '{case_id}' expected.any_topics",
         ),
         variants=variants,
+        expected_answer_status=_optional_string(
+            expected.get("expected_answer_status"),
+            f"case '{case_id}' expected.expected_answer_status",
+        ),
     )
 
 
@@ -326,6 +333,7 @@ def evaluate_study_cases(
         "planner_fallback_rate": (
             len(fallbacks) / variant_count if variant_count > 0 else 0
         ),
+        **_reflection_aggregates(case_reports),
         "cases": case_reports,
     }
 
@@ -353,6 +361,7 @@ async def _evaluate_case(
         "expected": {
             "any_chunk_ids": case.any_chunk_ids,
             "any_topics": case.any_topics,
+            "expected_answer_status": case.expected_answer_status,
         },
         "variants": variant_reports,
     }
@@ -393,6 +402,7 @@ async def _evaluate_variant(
             "expected_in_context": _any_expected_chunk(
                 context_chunk_ids, case.any_chunk_ids
             ),
+            **_reflection_retrieval_fields(response),
         },
         "planning": {
             "status": response.planning.status,
@@ -420,6 +430,7 @@ async def _evaluate_variant(
             "expected_topic_in_sources": bool(
                 set(case.any_topics) & set(source_topics)
             ),
+            **_abstain_validation_fields(case, response),
         },
         "answer": response_dump["answer"],
         "sources": response_dump["sources"],
@@ -431,6 +442,64 @@ def _any_expected_chunk(actual_ids: list[str], expected_ids: list[str]) -> bool:
     if not expected_ids:
         return False
     return bool(set(actual_ids) & set(expected_ids))
+
+
+def _reflection_retrieval_fields(response: Any) -> dict[str, Any]:
+    return {
+        "reflection_graded": response.retrieval.reflection_graded,
+        "requery_attempted": response.retrieval.requery_attempted,
+        "graded_chunk_count": response.retrieval.graded_chunk_count,
+    }
+
+
+def _abstain_validation_fields(case: StudyEvalCase, response: Any) -> dict[str, Any]:
+    expected = case.expected_answer_status
+    return {
+        "abstain_expected": expected is not None,
+        "abstain_correct": (
+            response.answer_status == expected if expected is not None else None
+        ),
+    }
+
+
+def _reflection_aggregates(case_reports: list[dict[str, Any]]) -> dict[str, Any]:
+    """PR3 abstention + non-regression aggregates over all variants.
+
+    Negative cases (expected_answer_status set) drive abstain_recall; content
+    cases (no expected status) drive the false-abstain and non-regression rates.
+    """
+    pairs = [
+        (case["expected"].get("expected_answer_status"), v)
+        for case in case_reports
+        for v in case["variants"]
+    ]
+    total = len(pairs)
+    negative = [v for expected, v in pairs if expected is not None]
+    content = [v for expected, v in pairs if expected is None]
+
+    abstain_correct = [
+        v for v in negative if v["validation"].get("abstain_correct") is True
+    ]
+    false_abstains = [
+        v for v in content if v["retrieval"].get("status") == "low_relevance"
+    ]
+    content_hits = [v for v in content if v["retrieval"].get("expected_in_context")]
+    requeried = sum(1 for _, v in pairs if v["retrieval"].get("requery_attempted"))
+    negative_requeries = sum(
+        1 for v in negative if v["retrieval"].get("requery_attempted")
+    )
+
+    return {
+        "abstain_recall": (len(abstain_correct) / len(negative) if negative else None),
+        "abstain_false_positive_rate": (
+            len(false_abstains) / len(content) if content else None
+        ),
+        "non_regression_content_hit_rate": (
+            len(content_hits) / len(content) if content else None
+        ),
+        "requery_rate": (requeried / total if total else 0),
+        "negative_requery_attempts": negative_requeries,
+    }
 
 
 def render_json(report: dict[str, Any]) -> str:
@@ -447,6 +516,13 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
         f"- Top-k: `{report['top_k']}`",
         f"- Cases: `{report['case_count']}`",
         f"- Variants: `{report['variant_count']}`",
+        f"- Planner fallback rate: `{report.get('planner_fallback_rate')}`",
+        f"- Abstain recall: `{report.get('abstain_recall')}`",
+        f"- Abstain false-positive rate: `{report.get('abstain_false_positive_rate')}`",
+        "- Non-regression content hit rate: "
+        f"`{report.get('non_regression_content_hit_rate')}`",
+        f"- Re-query rate: `{report.get('requery_rate')}`",
+        f"- Negative re-query attempts: `{report.get('negative_requery_attempts')}`",
     ]
     if report.get("description"):
         lines.extend(["", report["description"]])
@@ -644,6 +720,7 @@ async def _evaluate_real_cases(
                             payload["retrieval"]["context_chunk_ids"],
                             case.any_chunk_ids,
                         ),
+                        **_reflection_retrieval_fields(response),
                     },
                     "planning": {
                         "status": response.planning.status,
@@ -671,6 +748,7 @@ async def _evaluate_real_cases(
                                 if source.get("metadata", {}).get("topic")
                             }
                         ),
+                        **_abstain_validation_fields(case, response),
                     },
                     "answer": payload["answer"],
                     "sources": payload["sources"],
@@ -687,6 +765,7 @@ async def _evaluate_real_cases(
                 "expected": {
                     "any_chunk_ids": case.any_chunk_ids,
                     "any_topics": case.any_topics,
+                    "expected_answer_status": case.expected_answer_status,
                 },
                 "variants": variant_reports,
             }
@@ -708,6 +787,7 @@ async def _evaluate_real_cases(
         "planner_fallback_rate": (
             len(fallbacks) / variant_count if variant_count > 0 else 0
         ),
+        **_reflection_aggregates(case_reports),
         "cases": case_reports,
     }
 
