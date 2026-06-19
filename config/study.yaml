@@ -13,6 +13,12 @@ context:
   budget_tokens: 4000
   max_single_chunk_tokens: 1200
 
+# NOTE: this pin is the runtime source of truth and overrides the code default
+# (PromptSettings -> study_aid_v3 in src/study/config.py). It is intentionally
+# still v1: study_aid_v3 is what consumes the planner's `generation_guidance`,
+# but flipping it changes live generation behaviour and must be re-validated on
+# its own (re-run the Tier-3 study eval with v3 before activating). Until then
+# generation_guidance is plumbed end-to-end but inert. See PR #38 follow-up.
 prompt:
   version: study_aid_v1
   path: prompts/study_aid_v1.yaml

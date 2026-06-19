@@ -30,6 +30,9 @@ class ContextSettings(BaseModel):
 
 
 class PromptSettings(BaseModel):
+    # Default is study_aid_v3 (the guidance-aware prompt), but config/study.yaml
+    # currently pins study_aid_v1 and that YAML wins at runtime — see the note
+    # there. Do not assume v3 is live just because it is the default here.
     version: str = "study_aid_v3"
     path: str = "prompts/study_aid_v3.yaml"
 
