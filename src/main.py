@@ -810,6 +810,10 @@ def create_app(
                 response = await service.orchestrate(
                     payload,
                     request_id=_request_id(request),
+                    # Reuse the absolute deadline already computed for the
+                    # wall-clock asyncio.timeout; the reflection loop budget-gates
+                    # its re-query against it. Do not recompute (would drift past it).
+                    deadline_monotonic=deadline,
                 )
             _log_usage_best_effort(
                 request,

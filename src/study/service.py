@@ -107,11 +107,13 @@ class StudyService:
         request: StudyRequest,
         *,
         request_id: str | None = None,
+        deadline_monotonic: float | None = None,
     ) -> StudyResponse:
         initial = self._graph_state_cls(
             request=request,
             request_id=request_id or str(uuid.uuid4()),
             hard_filters=request.filters,
+            deadline_monotonic=deadline_monotonic,
         )
         # ainvoke returns a plain dict for a pydantic state schema, not a model.
         result = await self._graph.ainvoke(initial)

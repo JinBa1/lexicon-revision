@@ -37,6 +37,7 @@ from src.search.pg_service import SearchExecutionTelemetry
 from src.study.models import (
     GenerationRequest,
     GenerationResult,
+    RankedChunk,
     RetrievalMetadata,
     RetrievalStatus,
     StudyAnswerDraft,
@@ -105,6 +106,17 @@ class StudyGraphState(BaseModel):
     draft: StudyAnswerDraft | None = None
     generation_result: GenerationResult | None = None
     attempt_count: int = 0
+
+    # PR3 reflection loop
+    graded_chunks: list[RankedChunk] | None = None
+    reflection_graded: bool = False
+    critique: str = ""
+    requery_semantic: list[str] | None = None
+    requery_count: int = 0
+    seen_chunk_ids: list[str] = []
+    # Absolute wall-clock deadline (loop.time()); threaded from main.py. None in
+    # unit tests / eval -> grade & reflect skip their budget gates.
+    deadline_monotonic: float | None = None
 
     # validation + terminal
     validation: ValidationResult | None = None
