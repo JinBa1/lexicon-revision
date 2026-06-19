@@ -73,6 +73,31 @@ def test_load_study_settings_has_planning_defaults(tmp_path: Path) -> None:
     assert settings.planning.prompt_path == "prompts/query_planner_v2.yaml"
 
 
+def test_load_study_settings_has_reflection_defaults(tmp_path: Path) -> None:
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.reflection.enabled is True
+    assert settings.reflection.step_timeout_seconds == 6.0
+    assert settings.reflection.requery_min_remaining_seconds == 28.0
+    assert settings.reflection.grader_prompt_version == "relevance_grader_v1"
+    assert settings.reflection.grader_prompt_path == "prompts/relevance_grader_v1.yaml"
+    assert settings.reflection.reflect_prompt_version == "reflect_query_v1"
+    assert settings.reflection.reflect_prompt_path == "prompts/reflect_query_v1.yaml"
+
+
+def test_load_study_settings_applies_reflection_env_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("REFLECTION__ENABLED", "false")
+    monkeypatch.setenv("REFLECTION__STEP_TIMEOUT_SECONDS", "5")
+
+    settings = load_study_settings(config_dir=tmp_path)
+
+    assert settings.reflection.enabled is False
+    assert settings.reflection.step_timeout_seconds == 5
+
+
 def test_load_study_settings_applies_planning_env_override(
     tmp_path: Path,
     monkeypatch,
