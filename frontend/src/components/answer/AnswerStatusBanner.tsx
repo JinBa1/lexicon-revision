@@ -31,7 +31,7 @@ const bannerVariants: Record<Exclude<StudyAnswerStatus, "ok">, BannerVariant> = 
   no_corpus_answer: {
     className: "bg-paper-raised border border-rule border-l-4 border-l-rule text-ink",
     title: "No answer from the corpus",
-    body: "See the note above for what to try next.",
+    body: "See the note below for what to try next.",
   },
 };
 
