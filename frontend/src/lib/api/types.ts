@@ -163,7 +163,7 @@ export type StudyAnswerStatus =
   | "no_corpus_answer";
 
 export type StudyRetrieval = {
-  status: "ok" | "empty" | "filtered_empty" | "error" | "skipped";
+  status: "ok" | "empty" | "filtered_empty" | "error" | "skipped" | "low_relevance";
   top_k: number;
   returned_result_count: number;
   context_budget_tokens: number;
@@ -172,6 +172,12 @@ export type StudyRetrieval = {
   truncated_chunk_ids: string[];
   filters_applied: FilterCondition[];
   rerank: boolean;
+  // PR3 reflection loop (additive/optional; backend defaults preserve old shape).
+  reflection_graded?: boolean;
+  requery_attempted?: boolean;
+  graded_chunk_count?: number;
+  grader_pruned_chunk_ids?: string[];
+  reflection_critique?: string;
 };
 
 export type StudyPlanning = {

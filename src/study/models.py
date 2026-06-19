@@ -20,7 +20,9 @@ AnswerStatus = Literal[
     "retrieval_failed",
     "no_corpus_answer",
 ]
-RetrievalStatus = Literal["ok", "empty", "filtered_empty", "error", "skipped"]
+RetrievalStatus = Literal[
+    "ok", "empty", "filtered_empty", "error", "skipped", "low_relevance"
+]
 ErrorCategory = Literal[
     "provider_unreachable",
     "provider_timeout",
@@ -121,6 +123,12 @@ class RetrievalMetadata(BaseModel):
     truncated_chunk_ids: list[str] = Field(default_factory=list)
     filters_applied: list[FilterCondition]
     rerank: bool
+    # PR3 reflection loop (all additive; default to the pre-PR3 behaviour).
+    reflection_graded: bool = False
+    requery_attempted: bool = False
+    graded_chunk_count: int = Field(default=0, ge=0)
+    grader_pruned_chunk_ids: list[str] = Field(default_factory=list)
+    reflection_critique: str = ""
     search_telemetry: SearchExecutionTelemetry | None = Field(
         default=None,
         exclude=True,
