@@ -13,12 +13,12 @@ context:
   budget_tokens: 4000
   max_single_chunk_tokens: 1200
 
-# NOTE: this pin is the runtime source of truth and overrides the code default
-# (PromptSettings -> study_aid_v3 in src/study/config.py). It is intentionally
-# still v1: study_aid_v3 is what consumes the planner's `generation_guidance`,
-# but flipping it changes live generation behaviour and must be re-validated on
-# its own (re-run the Tier-3 study eval with v3 before activating). Until then
-# generation_guidance is plumbed end-to-end but inert. See PR #38 follow-up.
+# Runtime study prompt. study_aid_v3 consumes the planner's
+# `generation_guidance` and the rewritten retrieval query; matches the
+# PromptSettings default in src/study/config.py. study_aid_v1 is the prior
+# production prompt, retained as the rollback target (set version+path back to
+# v1 to disable guidance). Changing this changes live generation behaviour —
+# re-run the Tier-3 study eval on the new prompt before shipping.
 prompt:
-  version: study_aid_v1
-  path: prompts/study_aid_v1.yaml
+  version: study_aid_v3
+  path: prompts/study_aid_v3.yaml

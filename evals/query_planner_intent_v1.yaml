@@ -40,3 +40,15 @@ cases:
     variants:
       - id: messy
         query: what is the capital of France
+  # Adversarial edge cases: a topic/metadata token must not pull a non-content
+  # query into content_retrieval.
+  - id: out-of-scope-logistics
+    expected_intent: out_of_scope
+    variants:
+      - id: messy
+        query: where is the exam hall for paper 3 this year
+  - id: ambiguous-with-topic
+    expected_intent: ambiguous
+    variants:
+      - id: messy
+        query: algorithms i guess, just help me figure out what to revise

@@ -426,6 +426,18 @@ def test_study_response_excludes_internal_telemetry_from_serialization() -> None
     assert "telemetry" not in payload["planning"]
     assert "search_telemetry" not in payload["retrieval"]
     assert "usage" not in payload["generation"]
+    # Lock the serialized planning surface so any future field addition forces
+    # an intentional expose/exclude decision (telemetry stays excluded above).
+    assert set(payload["planning"].keys()) == {
+        "status",
+        "planner_version",
+        "original_query",
+        "semantic_queries",
+        "error_category",
+        "intent",
+        "generation_guidance",
+        "latency_ms",
+    }
 
 
 def test_study_response_requires_planning_field() -> None:
@@ -511,6 +523,28 @@ def test_no_corpus_answer_is_a_valid_answer_status() -> None:
     )
     assert response.answer_status == "no_corpus_answer"
     assert response.retrieval.status == "skipped"
+
+
+def test_planning_metadata_carries_generation_guidance() -> None:
+    meta = PlanningMetadata(
+        planner_version="query_planner_v2",
+        original_query="vm paging",
+        semantic_queries=["virtual memory paging"],
+        intent="content_retrieval",
+        generation_guidance="Emphasise recurring exam patterns.",
+        latency_ms=5,
+    )
+    assert meta.generation_guidance == "Emphasise recurring exam patterns."
+
+
+def test_planning_metadata_generation_guidance_defaults_empty() -> None:
+    meta = PlanningMetadata(
+        planner_version="query_planner_v2",
+        original_query="vm paging",
+        semantic_queries=["virtual memory paging"],
+        latency_ms=5,
+    )
+    assert meta.generation_guidance == ""
 
 
 def test_support_models_are_constructible() -> None:

@@ -117,6 +117,12 @@ def _build_plan(
                 f"semantic query exceeds {_MAX_SEMANTIC_QUERY_WORDS} word limit"
             )
     guidance = draft.generation_guidance.strip()
+    if draft.intent != "content_retrieval":
+        # Guidance only steers the retrieval-workflow answer; non-content
+        # intents short-circuit to a canned response, so never carry it (and
+        # never surface stale guidance in PlanningMetadata/logs if the model
+        # ignores the prompt's "empty string" instruction).
+        guidance = ""
     if len(guidance.split()) > _MAX_GUIDANCE_WORDS:
         raise InvalidPlanError(
             f"generation_guidance exceeds {_MAX_GUIDANCE_WORDS} word limit"

@@ -180,6 +180,7 @@ export type StudyPlanning = {
   original_query: string;
   semantic_queries: string[];
   intent: "content_retrieval" | "corpus_analytics" | "ambiguous" | "out_of_scope";
+  generation_guidance?: string;
   error_category:
     | "provider_unreachable"
     | "provider_timeout"

@@ -1,3 +1,8 @@
+# DEPRECATED: never wired to runtime. study_aid_v1 was the production prompt
+# until 2026-06; study_aid_v3 (guidance-aware) is live now. v2 is an abandoned
+# intermediate, kept only because tests load it (tests/study/test_prompts.py,
+# test_api.py fixtures). Do not select it in config; delete it together with
+# those tests if removing.
 version: study_aid_v2
 system: |
   You are a study-aid synthesiser for university past exam papers.

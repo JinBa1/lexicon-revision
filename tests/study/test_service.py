@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -346,6 +347,47 @@ async def test_orchestrate_happy_path_records_planning_and_uses_planned_query() 
     user_prompt = provider.calls[0].messages[1]["content"]
     assert "Original student query: 2025 dp" in user_prompt
     assert "dynamic programming recurrence" in user_prompt
+
+
+@pytest.mark.anyio
+async def test_orchestrate_surfaces_generation_guidance(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    plan = QueryPlan(
+        original_query="vm paging",
+        semantic_queries=["virtual memory paging"],
+        generation_guidance="Emphasise recurring exam patterns.",
+    )
+    query_planner = FakeQueryPlanner(planner_execution(plan))
+    planned_retrieval = FakePlannedRetrieval(
+        PlannedRetrievalResult(
+            search_response=SearchResponse(
+                query="virtual memory paging",
+                collection="cam-cs-tripos",
+                results=[search_result("a")],
+                total=1,
+            ),
+            executed_queries=["virtual memory paging"],
+            filters_applied=[],
+            search_telemetry=None,
+        )
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=query_planner,
+        planned_retrieval=planned_retrieval,
+        provider=provider,
+    )
+
+    with caplog.at_level(logging.INFO):
+        response = await service.orchestrate(
+            StudyRequest(query="vm paging", scope={"collection": "cam-cs-tripos"})
+        )
+
+    assert response.planning.generation_guidance == "Emphasise recurring exam patterns."
+    log_records = [r for r in caplog.records if r.getMessage() == "study_request"]
+    assert log_records
+    assert log_records[-1].generation_guidance == "Emphasise recurring exam patterns."
 
 
 @pytest.mark.anyio

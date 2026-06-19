@@ -146,6 +146,7 @@ class StudyService:
                 original_query=fallback_plan.original_query,
                 semantic_queries=list(fallback_plan.semantic_queries),
                 error_category=_planning_error_category(exc),
+                generation_guidance=fallback_plan.generation_guidance,
                 telemetry=None,
                 latency_ms=_elapsed_ms(started),
             )
@@ -157,6 +158,7 @@ class StudyService:
             semantic_queries=list(execution.plan.semantic_queries),
             error_category=None,
             intent=execution.plan.intent,
+            generation_guidance=execution.plan.generation_guidance,
             telemetry=execution.telemetry,
             latency_ms=execution.telemetry.latency_ms,
         )
@@ -356,6 +358,7 @@ class StudyService:
                 "planner_version": response.planning.planner_version,
                 "planning_latency_ms": response.planning.latency_ms,
                 "intent": response.planning.intent,
+                "generation_guidance": response.planning.generation_guidance,
             },
         )
 

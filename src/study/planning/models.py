@@ -53,6 +53,7 @@ class PlanningMetadata(BaseModel):
     semantic_queries: list[str] = Field(min_length=1)
     error_category: PlanningErrorCategory | None = None
     intent: IntentLiteral = "content_retrieval"
+    generation_guidance: str = ""
     telemetry: ProviderCallTelemetry | None = Field(default=None, exclude=True)
     latency_ms: int = Field(ge=0)
 

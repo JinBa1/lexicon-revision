@@ -272,14 +272,29 @@ def _draft_payload(**over: object) -> dict[str, object]:
 @pytest.mark.anyio
 async def test_build_plan_propagates_intent_and_guidance() -> None:
     provider = FakeProvider(
+        _draft_payload(intent="content_retrieval", generation_guidance="be concise")
+    )
+    planner = LLMQueryPlanner(provider, _settings())
+
+    result = await planner.plan("dynamic programming recurrences", None)
+
+    assert result.plan.intent == "content_retrieval"
+    assert result.plan.generation_guidance == "be concise"
+
+
+@pytest.mark.anyio
+async def test_build_plan_clears_guidance_for_non_content_intent() -> None:
+    provider = FakeProvider(
         _draft_payload(intent="corpus_analytics", generation_guidance="be concise")
     )
     planner = LLMQueryPlanner(provider, _settings())
 
     result = await planner.plan("how many db questions since 2019", None)
 
+    # Guidance only steers the retrieval-workflow answer; non-content intents
+    # short-circuit, so the planner clears it regardless of what the model emits.
     assert result.plan.intent == "corpus_analytics"
-    assert result.plan.generation_guidance == "be concise"
+    assert result.plan.generation_guidance == ""
 
 
 @pytest.mark.anyio
