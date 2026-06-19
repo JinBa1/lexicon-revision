@@ -156,10 +156,26 @@ def _route_after_plan(state: StudyGraphState) -> str:
 async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     request = state.request
     planning = state.planning_metadata
+    # On a reflection re-query, swap in the reformulated query via an ephemeral
+    # plan (state.plan is never mutated). Sync retrieve is kept as-is (parity);
+    # an async/cancellable retrieve is the "Async database access" backlog item.
+    effective_plan = state.plan
+    if state.requery_semantic is not None:
+        assert len(state.requery_semantic) == 1, (
+            "PR3 single-query invariant: requery_semantic must hold exactly one "
+            "query (PR4 must raise QueryPlan.semantic_queries max_length first)"
+        )
+        effective_plan = QueryPlan(
+            planner_version=state.plan.planner_version,
+            original_query=state.plan.original_query,
+            semantic_queries=list(state.requery_semantic),
+            intent=state.plan.intent,
+            generation_guidance=state.plan.generation_guidance,
+        )
     try:
         # Synchronous, matching the imperative orchestrate() exactly (parity).
         retrieval_result = deps.planned_retrieval.retrieve(
-            state.plan,
+            effective_plan,
             hard_filters=state.hard_filters,
             collection=request.scope.collection,
             limit=request.top_k,
