@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 from src.metadata_schema.models import FilterCondition
 from src.search.models import SearchResponse
+from src.study.planning.intent import IntentLiteral  # noqa: F401  (used below)
 from src.study.planning.models import (
     InvalidPlanError,
     PlannedRetrievalResult,
@@ -30,9 +31,42 @@ def test_filter_condition_accepts_scalar_values() -> None:
 
 def test_query_plan_draft_rejects_empty_or_multi() -> None:
     with pytest.raises(ValidationError):
-        QueryPlanDraft(semantic_queries=[])
+        QueryPlanDraft(semantic_queries=[], intent="content_retrieval")
     with pytest.raises(ValidationError):
-        QueryPlanDraft(semantic_queries=["a", "b"])
+        QueryPlanDraft(semantic_queries=["a", "b"], intent="content_retrieval")
+
+
+def test_query_plan_draft_requires_intent() -> None:
+    with pytest.raises(ValidationError):
+        QueryPlanDraft(semantic_queries=["binary search"])  # missing intent
+
+
+def test_query_plan_draft_accepts_intent_and_guidance() -> None:
+    draft = QueryPlanDraft(
+        semantic_queries=["binary search"],
+        intent="content_retrieval",
+        generation_guidance="Emphasise recurring exam patterns.",
+    )
+    assert draft.intent == "content_retrieval"
+    assert draft.generation_guidance == "Emphasise recurring exam patterns."
+
+
+def test_query_plan_defaults_intent_to_content_retrieval() -> None:
+    plan = QueryPlan(original_query="q", semantic_queries=["q"])
+    assert plan.intent == "content_retrieval"
+    assert plan.generation_guidance == ""
+
+
+def test_planning_metadata_defaults_intent_to_content_retrieval() -> None:
+    meta = PlanningMetadata(
+        status="ok",
+        planner_version="query_planner_v2",
+        original_query="q",
+        semantic_queries=["q"],
+        error_category=None,
+        latency_ms=5,
+    )
+    assert meta.intent == "content_retrieval"
 
 
 def test_query_plan_server_fields_default() -> None:

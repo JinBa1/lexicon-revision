@@ -160,14 +160,25 @@ async def test_context_pack_failed_uses_nondegraded_metadata(monkeypatch) -> Non
         "retrieval_failed",
         "provider_error",
         "context_build_failed",
+        "corpus_analytics",
+        "ambiguous",
+        "out_of_scope",
     ],
 )
 async def test_log_response_called_exactly_once(monkeypatch, scenario) -> None:
     # Covers all three terminal-builder families so a self-logging builder
     # (double-log) or a missing respond-sink log (zero-log) is caught.
     provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    plan_override: QueryPlan | None = None
     if scenario == "success":
         retrieval = FakePlannedRetrieval(_retrieval_with_results())
+    elif scenario in {"corpus_analytics", "ambiguous", "out_of_scope"}:
+        retrieval = FakePlannedRetrieval(_retrieval_with_results())
+        plan_override = QueryPlan(
+            original_query="2025 dp",
+            semantic_queries=["dynamic programming recurrence"],
+            intent=scenario,
+        )
     elif scenario == "insufficient_evidence":
         retrieval = FakePlannedRetrieval(
             PlannedRetrievalResult(
@@ -191,7 +202,9 @@ async def test_log_response_called_exactly_once(monkeypatch, scenario) -> None:
         monkeypatch.setattr("src.study.graph.pack_chunks", _raise)
 
     service = make_service(
-        query_planner=FakeQueryPlanner(planner_execution(_plan())),
+        query_planner=FakeQueryPlanner(
+            planner_execution(plan_override if plan_override is not None else _plan())
+        ),
         planned_retrieval=retrieval,
         provider=provider,
     )
@@ -247,7 +260,7 @@ async def test_generation_deadline_breach_returns_provider_timeout() -> None:
             schema_repair_retries=1,
         ),
         context=ContextSettings(budget_tokens=4000, max_single_chunk_tokens=1200),
-        prompt=PromptSettings(version="study_aid_v2", path="prompts/study_aid_v2.yaml"),
+        prompt=PromptSettings(version="study_aid_v3", path="prompts/study_aid_v3.yaml"),
         planning=PlanningSettings(
             request_timeout_seconds=5,
             total_planning_deadline_seconds=10,

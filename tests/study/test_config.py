@@ -13,8 +13,8 @@ def test_load_study_settings_uses_defaults_when_files_missing(tmp_path: Path) ->
     assert settings.generation.request_timeout_seconds == 60
     assert settings.context.retrieval_top_k_default == 15
     assert settings.context.budget_tokens == 4000
-    assert settings.prompt.version == "study_aid_v2"
-    assert settings.prompt.path == "prompts/study_aid_v2.yaml"
+    assert settings.prompt.version == "study_aid_v3"
+    assert settings.prompt.path == "prompts/study_aid_v3.yaml"
 
 
 def test_load_study_settings_merges_yaml_then_local_then_env(
@@ -69,8 +69,8 @@ def test_load_study_settings_has_planning_defaults(tmp_path: Path) -> None:
     assert settings.planning.temperature == 0.0
     assert settings.planning.request_timeout_seconds == 15
     assert settings.planning.total_planning_deadline_seconds == 20
-    assert settings.planning.prompt_version == "query_planner_v1"
-    assert settings.planning.prompt_path == "prompts/query_planner_v1.yaml"
+    assert settings.planning.prompt_version == "query_planner_v2"
+    assert settings.planning.prompt_path == "prompts/query_planner_v2.yaml"
 
 
 def test_load_study_settings_applies_planning_env_override(

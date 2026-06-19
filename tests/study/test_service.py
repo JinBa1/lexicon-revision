@@ -163,8 +163,8 @@ def study_settings() -> StudySettings:
         ),
         context=ContextSettings(budget_tokens=4000, max_single_chunk_tokens=1200),
         prompt=PromptSettings(
-            version="study_aid_v2",
-            path="prompts/study_aid_v2.yaml",
+            version="study_aid_v3",
+            path="prompts/study_aid_v3.yaml",
         ),
         planning=PlanningSettings(
             request_timeout_seconds=5,
@@ -1058,6 +1058,60 @@ async def test_orchestrate_category_filtering_passed_to_planner_and_retrieval() 
     assert response.retrieval.filters_applied == filters
 
 
+def _plan() -> QueryPlan:
+    return QueryPlan(
+        original_query="2025 dp",
+        semantic_queries=["dynamic programming recurrence"],
+    )
+
+
+def _retrieval_with_results() -> PlannedRetrievalResult:
+    return PlannedRetrievalResult(
+        search_response=SearchResponse(
+            query="dynamic programming recurrence",
+            collection="c",
+            results=[search_result("a")],
+            total=1,
+        ),
+        executed_queries=["dynamic programming recurrence"],
+        filters_applied=[],
+    )
+
+
+@pytest.mark.anyio
+async def test_orchestrate_surfaces_plan_intent_in_planning_metadata() -> None:
+    plan = QueryPlan(
+        original_query="2025 dp",
+        semantic_queries=["dynamic programming recurrence"],
+        intent="content_retrieval",
+        generation_guidance="emphasise patterns",
+    )
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="2025 dp", scope={"collection": "c"})
+    )
+    assert response.planning.intent == "content_retrieval"
+
+
+@pytest.mark.anyio
+async def test_log_response_includes_intent(caplog) -> None:
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(_plan())),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    with caplog.at_level("INFO"):
+        await service.orchestrate(
+            StudyRequest(query="2025 dp", scope={"collection": "c"})
+        )
+    record = next(r for r in caplog.records if r.message == "study_request")
+    assert getattr(record, "intent", None) == "content_retrieval"
+
+
 @pytest.mark.anyio
 async def test_orchestrate_enforces_runtime_context_and_output_caps() -> None:
     query_planner = FakeQueryPlanner(
@@ -1095,3 +1149,86 @@ async def test_orchestrate_enforces_runtime_context_and_output_caps() -> None:
 
     assert response.retrieval.context_budget_tokens == 40
     assert provider.calls[0].max_tokens == 120
+
+
+@pytest.mark.parametrize(
+    "intent,kind_fragment",
+    [
+        ("corpus_analytics", "statistics"),
+        ("ambiguous", "a bit broad"),
+        ("out_of_scope", "outside this past-paper collection"),
+    ],
+)
+@pytest.mark.anyio
+async def test_direct_response_intents_short_circuit(intent, kind_fragment) -> None:
+    plan = QueryPlan(original_query="x", semantic_queries=["x"], intent=intent)
+    retrieval = FakePlannedRetrieval(_retrieval_with_results())
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=retrieval,
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="x", scope={"collection": "c"})
+    )
+
+    assert response.answer_status == "no_corpus_answer"
+    assert response.retrieval.status == "skipped"
+    assert response.planning.intent == intent
+    assert kind_fragment in response.answer.overview
+    # retrieval + generation are skipped entirely
+    assert retrieval.calls == []
+    assert service.provider.calls == []  # type: ignore[attr-defined]
+
+
+@pytest.mark.anyio
+async def test_content_retrieval_routes_through_retrieval_workflow() -> None:
+    # Misrouting guard (routing-deterministic half): content_retrieval must run
+    # retrieval/generation and never produce no_corpus_answer.
+    plan = QueryPlan(
+        original_query="2025 dp", semantic_queries=["dynamic programming recurrence"]
+    )
+    retrieval = FakePlannedRetrieval(_retrieval_with_results())
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=retrieval,
+        provider=FakeProvider(valid_generation_result(chunk_id="a")),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="2025 dp", scope={"collection": "c"})
+    )
+    assert response.answer_status != "no_corpus_answer"
+    assert retrieval.calls  # retrieval actually ran
+
+
+@pytest.mark.anyio
+async def test_generation_guidance_reaches_the_prompt() -> None:
+    plan = QueryPlan(
+        original_query="paging",
+        semantic_queries=["virtual memory paging"],
+        intent="content_retrieval",
+        generation_guidance="Emphasise recurring patterns.",
+    )
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(plan)),
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=provider,
+    )
+    await service.orchestrate(StudyRequest(query="paging", scope={"collection": "c"}))
+    user_msg = provider.calls[0].messages[1]["content"]
+    assert "Emphasise recurring patterns." in user_msg
+
+
+@pytest.mark.anyio
+async def test_empty_guidance_adds_no_guidance_block() -> None:
+    provider = FakeProvider(valid_generation_result(chunk_id="a"))
+    service = make_service(
+        query_planner=FakeQueryPlanner(
+            planner_execution(_plan())
+        ),  # guidance defaults ""
+        planned_retrieval=FakePlannedRetrieval(_retrieval_with_results()),
+        provider=provider,
+    )
+    await service.orchestrate(StudyRequest(query="2025 dp", scope={"collection": "c"}))
+    assert "Guidance for this answer" not in provider.calls[0].messages[1]["content"]

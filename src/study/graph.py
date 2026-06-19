@@ -50,6 +50,7 @@ from src.study.packing import (
     format_context_blocks,
     pack_chunks,
 )
+from src.study.planning.intent import INTENT_REGISTRY
 from src.study.planning.models import PlanningMetadata, QueryPlan
 from src.study.service import (
     PROVIDER_ERRORS,
@@ -113,6 +114,23 @@ class StudyGraphState(BaseModel):
 async def _plan_node(state: StudyGraphState, deps: StudyService) -> dict:
     plan, planning_metadata = await deps._plan(state.request.query, state.hard_filters)
     return {"plan": plan, "planning_metadata": planning_metadata}
+
+
+async def _direct_response_node(state: StudyGraphState, deps: StudyService) -> dict:
+    return {
+        "response": deps._direct_response(
+            request=state.request,
+            request_id=state.request_id,
+            plan=state.plan,
+            planning=state.planning_metadata,
+        )
+    }
+
+
+def _route_after_plan(state: StudyGraphState) -> str:
+    intent = state.plan.intent if state.plan is not None else "content_retrieval"
+    workflow = INTENT_REGISTRY[intent].workflow
+    return "retrieve" if workflow == "retrieval" else "direct_response"
 
 
 async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
@@ -255,6 +273,7 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
         query=request.query,
         retrieval_queries=list(state.plan.semantic_queries),
         context_blocks=format_context_blocks(packing.chunks, state.collection_schema),
+        generation_guidance=state.plan.generation_guidance,
     )
     generation_request = GenerationRequest(
         messages=messages,
@@ -416,6 +435,7 @@ def build_study_graph(deps: StudyService):
     """Compile the study graph bound to a ``StudyService`` (its deps)."""
     builder = StateGraph(StudyGraphState)
     builder.add_node("plan", _bind(_plan_node, deps))
+    builder.add_node("direct_response", _bind(_direct_response_node, deps))
     builder.add_node("retrieve", _bind(_retrieve_node, deps))
     builder.add_node("pack", _bind(_pack_node, deps))
     builder.add_node("generate", _bind(_generate_node, deps))
@@ -423,7 +443,12 @@ def build_study_graph(deps: StudyService):
     builder.add_node("respond", _bind(_respond_node, deps))
 
     builder.add_edge(START, "plan")
-    builder.add_edge("plan", "retrieve")
+    builder.add_conditional_edges(
+        "plan",
+        _route_after_plan,
+        {"retrieve": "retrieve", "direct_response": "direct_response"},
+    )
+    builder.add_edge("direct_response", "respond")
     builder.add_conditional_edges(
         "retrieve", _route_after_retrieve, {"pack": "pack", "respond": "respond"}
     )

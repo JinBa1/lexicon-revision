@@ -470,6 +470,49 @@ def test_study_response_requires_planning_field() -> None:
     raise AssertionError("planning field should be required")
 
 
+def test_no_corpus_answer_is_a_valid_answer_status() -> None:
+    response = StudyResponse(
+        request_id="r1",
+        query="q",
+        scope={"collection": "c"},
+        answer_status="no_corpus_answer",
+        answer={"overview": "msg", "patterns": [], "limitations": []},
+        sources=[],
+        retrieval=RetrievalMetadata(
+            status="skipped",
+            top_k=15,
+            returned_result_count=0,
+            context_budget_tokens=4000,
+            context_chunk_ids=[],
+            omitted_chunk_ids=[],
+            truncated_chunk_ids=[],
+            filters_applied=[],
+            rerank=True,
+        ),
+        planning={
+            "status": "ok",
+            "planner_version": "query_planner_v2",
+            "original_query": "q",
+            "semantic_queries": ["q"],
+            "error_category": None,
+            "intent": "out_of_scope",
+            "latency_ms": 1,
+        },
+        generation={
+            "provider": "p",
+            "model": "m",
+            "prompt_version": "study_aid_v3",
+            "temperature": 0.1,
+            "attempt_count": 0,
+            "citation_drops": 0,
+            "error_category": None,
+            "latency_ms": 0,
+        },
+    )
+    assert response.answer_status == "no_corpus_answer"
+    assert response.retrieval.status == "skipped"
+
+
 def test_support_models_are_constructible() -> None:
     ranked = RankedChunk(
         chunk_id="cam-2023-p2-q4",

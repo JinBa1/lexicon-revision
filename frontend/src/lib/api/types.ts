@@ -159,10 +159,11 @@ export type StudyAnswerStatus =
   | "partial"
   | "insufficient_evidence"
   | "generation_failed"
-  | "retrieval_failed";
+  | "retrieval_failed"
+  | "no_corpus_answer";
 
 export type StudyRetrieval = {
-  status: "ok" | "empty" | "filtered_empty" | "error";
+  status: "ok" | "empty" | "filtered_empty" | "error" | "skipped";
   top_k: number;
   returned_result_count: number;
   context_budget_tokens: number;
@@ -178,6 +179,7 @@ export type StudyPlanning = {
   planner_version: string;
   original_query: string;
   semantic_queries: string[];
+  intent: "content_retrieval" | "corpus_analytics" | "ambiguous" | "out_of_scope";
   error_category:
     | "provider_unreachable"
     | "provider_timeout"

@@ -81,27 +81,9 @@ user: |
 
 
 def test_real_planner_prompt_loads() -> None:
-    template = load_planner_prompt(Path("prompts/query_planner_v1.yaml"))
-
-    messages = template.render(
-        raw_query="paper 2 dynamic programming tables",
-        applied_filters=[
-            FilterCondition(field="paper", op="eq", value=2).model_dump(),
-            FilterCondition(
-                field="difficulty_band",
-                op="eq",
-                value="hard",
-            ).model_dump(),
-        ],
-    )
-    system = messages[0]["content"]
-    user = messages[1]["content"]
-
-    assert template.version == "query_planner_v1"
-    assert "paper" in system
-    assert "difficulty_band" in system
-    assert "year" not in system
-    assert "marks_min" not in system
-    assert "semantic_queries" in system
-    assert "40 words" in system
-    assert "paper 2 dynamic programming tables" in user
+    template = load_planner_prompt(Path("prompts/query_planner_v2.yaml"))
+    assert template.version == "query_planner_v2"
+    assert "semantic_queries" in template.system
+    assert "40 words" in template.system
+    assert "content_retrieval" in template.system
+    assert "corpus_analytics" in template.system

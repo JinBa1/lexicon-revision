@@ -28,6 +28,11 @@ const bannerVariants: Record<Exclude<StudyAnswerStatus, "ok">, BannerVariant> = 
     title: "Retrieval failed",
     body: "Try broadening your filters or switching collection.",
   },
+  no_corpus_answer: {
+    className: "bg-paper-raised border border-rule border-l-4 border-l-rule text-ink",
+    title: "No answer from the corpus",
+    body: "See the note below for what to try next.",
+  },
 };
 
 export function AnswerStatusBanner({ status }: { status: StudyAnswerStatus }) {

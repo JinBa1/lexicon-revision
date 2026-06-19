@@ -125,3 +125,25 @@ def test_study_aid_prompt_handles_limited_mixed_evidence() -> None:
     assert (
         "Never write that retrieved sources do not directly address the query" in system
     )
+
+
+def test_render_includes_generation_guidance_when_present() -> None:
+    template = load_prompt_template(Path("prompts/study_aid_v3.yaml"))
+    messages = template.render(
+        query="paging",
+        retrieval_queries=["virtual memory paging"],
+        context_blocks="[ctx]",
+        generation_guidance="Emphasise recurring patterns.",
+    )
+    assert "Emphasise recurring patterns." in messages[1]["content"]
+
+
+def test_render_omits_guidance_block_when_empty() -> None:
+    template = load_prompt_template(Path("prompts/study_aid_v3.yaml"))
+    messages = template.render(
+        query="paging",
+        retrieval_queries=["virtual memory paging"],
+        context_blocks="[ctx]",
+        generation_guidance="",
+    )
+    assert "Guidance for this answer" not in messages[1]["content"]

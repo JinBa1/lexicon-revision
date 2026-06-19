@@ -1422,6 +1422,8 @@ def _generation_telemetry(response: StudyResponse):
 def _study_outcome(response: StudyResponse) -> str:
     if response.answer_status in {"ok", "partial", "insufficient_evidence"}:
         return "ok"
+    if response.answer_status == "no_corpus_answer":
+        return "no_corpus_answer"
     if response.answer_status == "generation_failed":
         return response.generation.error_category or "generation_failed"
     if response.answer_status == "retrieval_failed":

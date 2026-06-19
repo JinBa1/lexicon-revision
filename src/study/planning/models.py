@@ -12,6 +12,7 @@ from src.metadata_schema.models import CollectionMetadataSchema, FilterCondition
 from src.runtime.telemetry import ProviderCallTelemetry
 from src.search.models import SearchResponse
 from src.search.pg_service import SearchExecutionTelemetry
+from src.study.planning.intent import IntentLiteral
 
 PlanningStatus = Literal["ok", "fallback"]
 PlanningErrorCategory = Literal[
@@ -29,6 +30,8 @@ class QueryPlanDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     semantic_queries: list[str] = Field(min_length=1, max_length=1)
+    intent: IntentLiteral
+    generation_guidance: str = ""
 
 
 class QueryPlan(BaseModel):
@@ -37,6 +40,8 @@ class QueryPlan(BaseModel):
     planner_version: str = Field(default="query_planner_v1", min_length=1)
     original_query: str = Field(min_length=1)
     semantic_queries: list[str] = Field(min_length=1, max_length=1)
+    intent: IntentLiteral = "content_retrieval"
+    generation_guidance: str = ""
 
 
 class PlanningMetadata(BaseModel):
@@ -47,6 +52,7 @@ class PlanningMetadata(BaseModel):
     original_query: str = Field(min_length=1)
     semantic_queries: list[str] = Field(min_length=1)
     error_category: PlanningErrorCategory | None = None
+    intent: IntentLiteral = "content_retrieval"
     telemetry: ProviderCallTelemetry | None = Field(default=None, exclude=True)
     latency_ms: int = Field(ge=0)
 

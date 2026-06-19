@@ -30,8 +30,11 @@ class ContextSettings(BaseModel):
 
 
 class PromptSettings(BaseModel):
-    version: str = "study_aid_v2"
-    path: str = "prompts/study_aid_v2.yaml"
+    # Default is study_aid_v3 (the guidance-aware prompt), but config/study.yaml
+    # currently pins study_aid_v1 and that YAML wins at runtime — see the note
+    # there. Do not assume v3 is live just because it is the default here.
+    version: str = "study_aid_v3"
+    path: str = "prompts/study_aid_v3.yaml"
 
 
 class PlanningSettings(BaseModel):
@@ -42,8 +45,8 @@ class PlanningSettings(BaseModel):
     temperature: float = 0.0
     request_timeout_seconds: float = 15
     total_planning_deadline_seconds: float = 20
-    prompt_version: str = "query_planner_v1"
-    prompt_path: str = "prompts/query_planner_v1.yaml"
+    prompt_version: str = "query_planner_v2"
+    prompt_path: str = "prompts/query_planner_v2.yaml"
 
 
 class StudySettings(BaseSettings):

@@ -1,0 +1,352 @@
+{
+  "aggregate": {
+    "content_retrieval_misroutes": [],
+    "fallback_rate": 0.0,
+    "hit_delta_sum": 0,
+    "intent_accuracy": 1.0,
+    "variant_count": 6
+  },
+  "cases": [
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": [
+          "Databases"
+        ]
+      },
+      "filters": [],
+      "id": "control-databases/messy",
+      "planned": {
+        "expected_intent": "content_retrieval",
+        "hit": true,
+        "intent": "content_retrieval",
+        "intent_match": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "databases outer join",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2024-p3-q1-b",
+          "cam-2023-p3-q2-a",
+          "cam-2025-p3-q1-a",
+          "cam-2023-p3-q2",
+          "cam-2024-p3-q1-a",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q1",
+          "cam-2023-p3-q2-b",
+          "cam-2023-p3-q1-b",
+          "cam-2023-p3-q1-e",
+          "cam-2024-p3-q2-b"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "2025 paper 3 databases outer join thing",
+        "top_ids": [
+          "cam-2025-p3-q1-c",
+          "cam-2025-p3-q1",
+          "cam-2023-p3-q2-a",
+          "cam-2024-p3-q1-b",
+          "cam-2025-p3-q1-a",
+          "cam-2023-p3-q2",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1-a",
+          "cam-2024-p3-q1",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q1",
+          "cam-2023-p3-q2-b",
+          "cam-2023-p3-q1-b",
+          "cam-2023-p3-q1-e",
+          "cam-2024-p3-q2"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": [
+          "Operating Systems"
+        ]
+      },
+      "filters": [],
+      "id": "control-virtual-memory/messy",
+      "planned": {
+        "expected_intent": "content_retrieval",
+        "hit": true,
+        "intent": "content_retrieval",
+        "intent_match": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "VM paging page table PTE",
+        "top_ids": [
+          "cam-2025-p2-q4",
+          "cam-2025-p2-q4-b",
+          "cam-2025-p2-q4-d",
+          "cam-2023-p2-q3-c",
+          "cam-2024-p2-q4-d",
+          "cam-2023-p2-q3",
+          "cam-2023-p2-q3-b",
+          "cam-2024-p2-q4",
+          "cam-2025-p2-q4-c",
+          "cam-2024-p2-q4-b",
+          "cam-2025-p2-q4-a",
+          "cam-2024-p2-q4-a",
+          "cam-2025-p1-q8-d",
+          "cam-2023-p1-q2-b",
+          "cam-2025-p2-q3-a"
+        ]
+      },
+      "raw": {
+        "hit": true,
+        "query": "questions about VM paging and page table PTE stuff",
+        "top_ids": [
+          "cam-2025-p2-q4",
+          "cam-2025-p2-q4-d",
+          "cam-2025-p2-q4-b",
+          "cam-2023-p2-q3-c",
+          "cam-2023-p2-q3",
+          "cam-2024-p2-q4-d",
+          "cam-2024-p2-q4",
+          "cam-2023-p2-q3-b",
+          "cam-2025-p2-q4-c",
+          "cam-2024-p2-q4-b",
+          "cam-2025-p2-q4-a",
+          "cam-2024-p2-q4-a",
+          "cam-2024-p2-q4-c",
+          "cam-2023-p1-q10-c",
+          "cam-2025-p1-q8-d"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": []
+      },
+      "filters": [],
+      "id": "analytics-counts/messy",
+      "planned": {
+        "expected_intent": "corpus_analytics",
+        "hit": false,
+        "intent": "corpus_analytics",
+        "intent_match": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "database questions",
+        "top_ids": [
+          "cam-2023-p3-q2-d",
+          "cam-2023-p3-q1-e",
+          "cam-2024-p3-q2-b",
+          "cam-2024-p3-q1-d",
+          "cam-2023-p3-q2-a",
+          "cam-2023-p3-q1-d",
+          "cam-2023-p3-q1-b",
+          "cam-2023-p3-q1-c",
+          "cam-2024-p3-q2-c",
+          "cam-2025-p3-q2-b",
+          "cam-2024-p3-q2-a",
+          "cam-2024-p3-q1-b",
+          "cam-2024-p3-q2",
+          "cam-2023-p3-q1",
+          "cam-2023-p3-q2-b"
+        ]
+      },
+      "raw": {
+        "hit": false,
+        "query": "how many database questions have there been since 2019",
+        "top_ids": [
+          "cam-2024-p3-q1-d",
+          "cam-2023-p3-q1-e",
+          "cam-2023-p3-q2-d",
+          "cam-2024-p3-q1-b",
+          "cam-2023-p3-q1-d",
+          "cam-2024-p3-q2-c",
+          "cam-2023-p3-q1-c",
+          "cam-2025-p3-q2-b",
+          "cam-2024-p3-q2-b",
+          "cam-2023-p3-q2-a",
+          "cam-2023-p3-q1-b",
+          "cam-2024-p3-q9-d",
+          "cam-2024-p3-q2-a",
+          "cam-2024-p3-q1",
+          "cam-2023-p3-q2-b"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": []
+      },
+      "filters": [],
+      "id": "analytics-trend/messy",
+      "planned": {
+        "expected_intent": "corpus_analytics",
+        "hit": false,
+        "intent": "corpus_analytics",
+        "intent_match": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "most commonly examined topic paper 3",
+        "top_ids": [
+          "cam-2023-p3-q8-e",
+          "cam-2025-p3-q8-c",
+          "cam-2023-p3-q8",
+          "cam-2025-p3-q8-b",
+          "cam-2023-p3-q8-c",
+          "cam-2023-p3-q1-e",
+          "cam-2023-p2-q5-c",
+          "cam-2023-p1-q3-b",
+          "cam-2025-p3-q8-a",
+          "cam-2025-p3-q8-d",
+          "cam-2023-p3-q8-d",
+          "cam-2024-p1-q6-e",
+          "cam-2023-p1-q3-c",
+          "cam-2023-p1-q10-a",
+          "cam-2025-p3-q3-b"
+        ]
+      },
+      "raw": {
+        "hit": false,
+        "query": "what is the most commonly examined topic in paper 3",
+        "top_ids": [
+          "cam-2023-p3-q8-e",
+          "cam-2025-p3-q8-c",
+          "cam-2023-p1-q3-b",
+          "cam-2025-p3-q8-b",
+          "cam-2023-p3-q1-e",
+          "cam-2023-p3-q8",
+          "cam-2023-p3-q9-d",
+          "cam-2023-p1-q3-c",
+          "cam-2025-p3-q3-b",
+          "cam-2023-p3-q8-c",
+          "cam-2025-p3-q3-c",
+          "cam-2023-p3-q8-d",
+          "cam-2025-p3-q8-d",
+          "cam-2023-p3-q9-c",
+          "cam-2023-p1-q10-a"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": []
+      },
+      "filters": [],
+      "id": "ambiguous-revise/messy",
+      "planned": {
+        "expected_intent": "ambiguous",
+        "hit": false,
+        "intent": "ambiguous",
+        "intent_match": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "revision",
+        "top_ids": [
+          "cam-2023-p1-q1-a",
+          "cam-2023-p2-q5-b",
+          "cam-2025-p1-q2-d",
+          "cam-2025-p3-q5-e",
+          "cam-2023-p2-q5-c",
+          "cam-2023-p2-q4-a",
+          "cam-2025-p1-q5-b",
+          "cam-2023-p1-q1-c",
+          "cam-2024-p2-q6-c",
+          "cam-2023-p1-q7-d",
+          "cam-2023-p3-q1-d",
+          "cam-2025-p1-q5-a",
+          "cam-2025-p1-q4-a",
+          "cam-2024-p2-q9-b",
+          "cam-2023-p1-q7-c"
+        ]
+      },
+      "raw": {
+        "hit": false,
+        "query": "help me revise the hard ones",
+        "top_ids": [
+          "cam-2025-p2-q8",
+          "cam-2024-p2-q7",
+          "cam-2023-p1-q1-a",
+          "cam-2023-p2-q8",
+          "cam-2023-p1-q7-e",
+          "cam-2025-p3-q9-f",
+          "cam-2025-p2-q7-b",
+          "cam-2023-p2-q6-d",
+          "cam-2024-p1-q9-a",
+          "cam-2025-p2-q9",
+          "cam-2024-p2-q4-d",
+          "cam-2024-p1-q7-b",
+          "cam-2023-p1-q9-a",
+          "cam-2023-p1-q10-c",
+          "cam-2025-p2-q7"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "any_chunk_ids": [],
+        "any_topics": []
+      },
+      "filters": [],
+      "id": "out-of-scope-general/messy",
+      "planned": {
+        "expected_intent": "out_of_scope",
+        "hit": false,
+        "intent": "out_of_scope",
+        "intent_match": true,
+        "planning_error": null,
+        "planning_status": "ok",
+        "query": "capital of France",
+        "top_ids": [
+          "cam-2024-p1-q1-c",
+          "cam-2025-p1-q2-b",
+          "cam-2025-p2-q10-b",
+          "cam-2025-p1-q2-a",
+          "cam-2023-p2-q5-a",
+          "cam-2025-p3-q9-e",
+          "cam-2023-p1-q10-c",
+          "cam-2025-p2-q9-b",
+          "cam-2025-p3-q9-c",
+          "cam-2025-p1-q1-b",
+          "cam-2025-p3-q9-a",
+          "cam-2025-p3-q9-b",
+          "cam-2025-p1-q5-e",
+          "cam-2025-p3-q9-f",
+          "cam-2023-p1-q1-b"
+        ]
+      },
+      "raw": {
+        "hit": false,
+        "query": "what is the capital of France",
+        "top_ids": [
+          "cam-2024-p1-q1-c",
+          "cam-2025-p1-q2-b",
+          "cam-2025-p2-q10-b",
+          "cam-2023-p2-q5-a",
+          "cam-2025-p1-q2-a",
+          "cam-2025-p3-q9-e",
+          "cam-2025-p3-q9-c",
+          "cam-2025-p1-q1-b",
+          "cam-2023-p1-q1-b",
+          "cam-2025-p2-q9-b",
+          "cam-2025-p3-q9-b",
+          "cam-2025-p3-q9-f",
+          "cam-2025-p1-q5-e",
+          "cam-2023-p2-q5-c",
+          "cam-2025-p3-q9-a"
+        ]
+      }
+    }
+  ],
+  "collection": "cam-cs-tripos-fixture",
+  "name": "query_planner_intent_v1",
+  "providers": {
+    "embedding_model_id": "voyage-4-lite",
+    "rerank_model_id": null
+  },
+  "top_k": 15
+}

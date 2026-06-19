@@ -18,8 +18,9 @@ AnswerStatus = Literal[
     "insufficient_evidence",
     "generation_failed",
     "retrieval_failed",
+    "no_corpus_answer",
 ]
-RetrievalStatus = Literal["ok", "empty", "filtered_empty", "error"]
+RetrievalStatus = Literal["ok", "empty", "filtered_empty", "error", "skipped"]
 ErrorCategory = Literal[
     "provider_unreachable",
     "provider_timeout",
