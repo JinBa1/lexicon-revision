@@ -17,6 +17,7 @@ from src.study.config import (
     GenerationSettings,
     PlanningSettings,
     PromptSettings,
+    ReflectionSettings,
     StudySettings,
 )
 from src.study.models import GenerationRequest, GenerationResult, StudyRequest
@@ -155,7 +156,10 @@ def search_result(
     )
 
 
-def study_settings() -> StudySettings:
+def study_settings(reflection: ReflectionSettings | None = None) -> StudySettings:
+    # Reflection defaults OFF in tests so the existing suite stays a true
+    # non-reflection parity baseline (grade adds a provider call when enabled).
+    # Reflection-on behaviour is covered by the dedicated grade/reflect tests.
     return StudySettings(
         generation=GenerationSettings(
             request_timeout_seconds=5,
@@ -173,6 +177,7 @@ def study_settings() -> StudySettings:
             prompt_version="query_planner_v1",
             prompt_path="prompts/query_planner_v1.yaml",
         ),
+        reflection=reflection or ReflectionSettings(enabled=False),
     )
 
 

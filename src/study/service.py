@@ -47,6 +47,10 @@ from src.study.providers.base import (
     ProviderHTTPError,
     ProviderTimeoutError,
 )
+from src.study.reflection import (
+    load_grading_prompt,
+    load_reformulation_prompt,
+)
 
 logger = logging.getLogger(__name__)
 PROVIDER_ERRORS = (
@@ -74,6 +78,24 @@ class StudyService:
         self.settings = settings
         self.runtime_settings = runtime_settings
         self._prompt = load_prompt_template(Path(settings.prompt.path))
+        self._grading_prompt = load_grading_prompt(
+            Path(settings.reflection.grader_prompt_path)
+        )
+        if self._grading_prompt.version != settings.reflection.grader_prompt_version:
+            raise ValueError(
+                "reflection.grader_prompt_version must match grader prompt template "
+                f"version: {settings.reflection.grader_prompt_version!r} != "
+                f"{self._grading_prompt.version!r}"
+            )
+        self._reflect_prompt = load_reformulation_prompt(
+            Path(settings.reflection.reflect_prompt_path)
+        )
+        if self._reflect_prompt.version != settings.reflection.reflect_prompt_version:
+            raise ValueError(
+                "reflection.reflect_prompt_version must match reflect prompt template "
+                f"version: {settings.reflection.reflect_prompt_version!r} != "
+                f"{self._reflect_prompt.version!r}"
+            )
         # Lazy import to avoid a module import cycle (graph imports this module).
         from src.study.graph import StudyGraphState, build_study_graph
 
@@ -85,11 +107,13 @@ class StudyService:
         request: StudyRequest,
         *,
         request_id: str | None = None,
+        deadline_monotonic: float | None = None,
     ) -> StudyResponse:
         initial = self._graph_state_cls(
             request=request,
             request_id=request_id or str(uuid.uuid4()),
             hard_filters=request.filters,
+            deadline_monotonic=deadline_monotonic,
         )
         # ainvoke returns a plain dict for a pydantic state schema, not a model.
         result = await self._graph.ainvoke(initial)
@@ -173,12 +197,21 @@ class StudyService:
         filters: list[FilterCondition],
         planning: PlanningMetadata,
         search_telemetry: SearchExecutionTelemetry | None = None,
+        limitations: list[str] | None = None,
+        reflection_graded: bool = False,
+        requery_attempted: bool = False,
+        graded_chunk_count: int = 0,
+        reflection_critique: str = "",
+        reflection_reformulated_query: str = "",
     ) -> StudyResponse:
-        limitation = (
-            "Retrieval failed before any past questions could be selected."
-            if answer_status == "retrieval_failed"
-            else "No past questions matched the query."
-        )
+        # limitations=None keeps the status-derived default; a non-None list
+        # replaces it (the reflection-abstain path passes custom copy).
+        if limitations is None:
+            limitations = [
+                "Retrieval failed before any past questions could be selected."
+                if answer_status == "retrieval_failed"
+                else "No past questions matched the query."
+            ]
         response = StudyResponse(
             request_id=request_id,
             query=request.query,
@@ -187,7 +220,7 @@ class StudyService:
             answer=StudyAnswer(
                 overview="",
                 patterns=[],
-                limitations=[limitation],
+                limitations=limitations,
             ),
             sources=[],
             retrieval=RetrievalMetadata(
@@ -200,6 +233,11 @@ class StudyService:
                 truncated_chunk_ids=[],
                 filters_applied=filters,
                 rerank=True,
+                reflection_graded=reflection_graded,
+                requery_attempted=requery_attempted,
+                graded_chunk_count=graded_chunk_count,
+                reflection_critique=reflection_critique,
+                reflection_reformulated_query=reflection_reformulated_query,
                 search_telemetry=search_telemetry,
             ),
             planning=planning,
@@ -359,6 +397,10 @@ class StudyService:
                 "planning_latency_ms": response.planning.latency_ms,
                 "intent": response.planning.intent,
                 "generation_guidance": response.planning.generation_guidance,
+                "reflection_graded": response.retrieval.reflection_graded,
+                "requery_attempted": response.retrieval.requery_attempted,
+                "graded_chunk_count": response.retrieval.graded_chunk_count,
+                "reflection_critique": response.retrieval.reflection_critique[:200],
             },
         )
 

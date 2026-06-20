@@ -8,7 +8,13 @@ import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ENV_OVERRIDE_NAMESPACES = {"generation", "context", "prompt", "planning"}
+ENV_OVERRIDE_NAMESPACES = {
+    "generation",
+    "context",
+    "prompt",
+    "planning",
+    "reflection",
+}
 
 
 class GenerationSettings(BaseModel):
@@ -48,6 +54,24 @@ class PlanningSettings(BaseModel):
     prompt_path: str = "prompts/query_planner_v2.yaml"
 
 
+class ReflectionSettings(BaseModel):
+    # Reflection loop. enabled=False makes _grade_node accept all chunks
+    # and route straight to pack (zero grader/reflect LLM calls).
+    enabled: bool = True
+    # Caps EACH reflection-loop LLM call (grade, reflect) on both the
+    # asyncio.timeout wrapper and the GenerationRequest httpx timeout.
+    step_timeout_seconds: float = 6.0
+    # Chars of each chunk shown to the grader (cost vs. judgement lever).
+    grader_excerpt_chars: int = 600
+    # Re-query (reflect + second retrieve + second grade + generate) only fires
+    # when the remaining wall-clock budget is at least this; otherwise abstain.
+    requery_min_remaining_seconds: float = 28.0
+    grader_prompt_version: str = "relevance_grader_v1"
+    grader_prompt_path: str = "prompts/relevance_grader_v1.yaml"
+    reflect_prompt_version: str = "reflect_query_v1"
+    reflect_prompt_path: str = "prompts/reflect_query_v1.yaml"
+
+
 class StudySettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",
@@ -59,6 +83,7 @@ class StudySettings(BaseSettings):
     context: ContextSettings = Field(default_factory=ContextSettings)
     prompt: PromptSettings = Field(default_factory=PromptSettings)
     planning: PlanningSettings = Field(default_factory=PlanningSettings)
+    reflection: ReflectionSettings = Field(default_factory=ReflectionSettings)
 
 
 def load_study_settings(config_dir: Path = Path("config")) -> StudySettings:

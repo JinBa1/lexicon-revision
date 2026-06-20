@@ -37,6 +37,7 @@ from src.search.pg_service import SearchExecutionTelemetry
 from src.study.models import (
     GenerationRequest,
     GenerationResult,
+    RankedChunk,
     RetrievalMetadata,
     RetrievalStatus,
     StudyAnswerDraft,
@@ -52,6 +53,7 @@ from src.study.packing import (
 )
 from src.study.planning.intent import INTENT_REGISTRY
 from src.study.planning.models import PlanningMetadata, QueryPlan
+from src.study.reflection import QueryReformulationDraft, RelevanceGradingDraft
 from src.study.service import (
     PROVIDER_ERRORS,
     _parse_draft,
@@ -106,6 +108,17 @@ class StudyGraphState(BaseModel):
     generation_result: GenerationResult | None = None
     attempt_count: int = 0
 
+    # Reflection loop
+    graded_chunks: list[RankedChunk] | None = None
+    reflection_graded: bool = False
+    critique: str = ""
+    requery_semantic: list[str] | None = None
+    requery_count: int = 0
+    seen_chunk_ids: list[str] = []
+    # Absolute wall-clock deadline (loop.time()); threaded from main.py. None in
+    # unit tests / eval -> grade & reflect skip their budget gates.
+    deadline_monotonic: float | None = None
+
     # validation + terminal
     validation: ValidationResult | None = None
     response: StudyResponse | None = None
@@ -117,11 +130,19 @@ async def _plan_node(state: StudyGraphState, deps: StudyService) -> dict:
 
 
 async def _direct_response_node(state: StudyGraphState, deps: StudyService) -> dict:
+    # Defensive: _route_after_plan already coerces a None plan to
+    # content_retrieval (-> retrieve), so direct_response is unreachable with a
+    # None plan today. The guard hardens this node against the larger routing
+    # surface the reflection loop adds, since _direct_response reads plan.intent.
+    plan = state.plan or QueryPlan(
+        original_query=state.request.query,
+        semantic_queries=[state.request.query],
+    )
     return {
         "response": deps._direct_response(
             request=state.request,
             request_id=state.request_id,
-            plan=state.plan,
+            plan=plan,
             planning=state.planning_metadata,
         )
     }
@@ -136,10 +157,30 @@ def _route_after_plan(state: StudyGraphState) -> str:
 async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     request = state.request
     planning = state.planning_metadata
+    # On a reflection re-query, swap in the reformulated query via an ephemeral
+    # plan (state.plan is never mutated). Sync retrieve is kept as-is (parity);
+    # an async/cancellable retrieve is the "Async database access" backlog item.
+    effective_plan = state.plan
+    if state.requery_semantic is not None:
+        if len(state.requery_semantic) != 1:
+            # Single-query invariant (not an assert: must hold under `python -O`).
+            # Multi-query support must first raise QueryPlan.semantic_queries
+            # max_length before emitting more than one reformulation.
+            raise ValueError(
+                "requery_semantic must hold exactly one query in the current "
+                "single-query retrieval design"
+            )
+        effective_plan = QueryPlan(
+            planner_version=state.plan.planner_version,
+            original_query=state.plan.original_query,
+            semantic_queries=list(state.requery_semantic),
+            intent=state.plan.intent,
+            generation_guidance=state.plan.generation_guidance,
+        )
     try:
         # Synchronous, matching the imperative orchestrate() exactly (parity).
         retrieval_result = deps.planned_retrieval.retrieve(
-            state.plan,
+            effective_plan,
             hard_filters=state.hard_filters,
             collection=request.scope.collection,
             limit=request.top_k,
@@ -195,6 +236,188 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     }
 
 
+_MAX_REQUERY_WORDS = 40
+_REFLECTION_ABSTAIN_LIMITATION = (
+    "No retrieved questions were sufficiently relevant to your query. "
+    "Try rephrasing or broadening your topic."
+)
+
+
+def _remaining_budget(state: StudyGraphState) -> float | None:
+    if state.deadline_monotonic is None:
+        return None
+    return state.deadline_monotonic - asyncio.get_running_loop().time()
+
+
+def _reflection_abstain(
+    state: StudyGraphState, deps: StudyService, *, critique: str = ""
+) -> StudyResponse:
+    return deps._empty_response(
+        request=state.request,
+        request_id=state.request_id,
+        answer_status="insufficient_evidence",
+        retrieval_status="low_relevance",
+        filters=list(state.filters_applied),
+        planning=state.planning_metadata,
+        search_telemetry=state.search_telemetry,
+        limitations=[_REFLECTION_ABSTAIN_LIMITATION],
+        reflection_graded=True,
+        requery_attempted=state.requery_count > 0,
+        graded_chunk_count=0,
+        reflection_critique=critique or state.critique,
+        # Preserve the reformulation even when the second pass still abstains.
+        reflection_reformulated_query=(
+            state.requery_semantic[0] if state.requery_semantic else ""
+        ),
+    )
+
+
+async def _grade_node(state: StudyGraphState, deps: StudyService) -> dict:
+    """LLM-grade retrieved chunks: prune, re-query (via reflect), or abstain."""
+    settings = deps.settings.reflection
+    results = state.search_response.results
+
+    # Kill switch: accept everything, no grader call.
+    if not settings.enabled:
+        return {
+            "graded_chunks": [_ranked_chunk(r) for r in results],
+            "reflection_graded": False,
+        }
+
+    remaining = _remaining_budget(state)
+
+    # No-new-evidence guard (second pass only): if the re-query surfaced no
+    # unseen chunks, abstain without spending a second grade call.
+    if state.requery_count == 1:
+        seen = set(state.seen_chunk_ids)
+        if all(r.chunk_id in seen for r in results):
+            return {"response": _reflection_abstain(state, deps)}
+
+    step_cap = settings.step_timeout_seconds
+    if remaining is not None:
+        step_cap = min(step_cap, max(remaining, 0.0))
+
+    chunks = [
+        {"chunk_id": r.chunk_id, "excerpt": r.text[: settings.grader_excerpt_chars]}
+        for r in results
+    ]
+    grader_request = GenerationRequest(
+        messages=deps._grading_prompt.render(query=state.request.query, chunks=chunks),
+        response_schema=(
+            RelevanceGradingDraft.model_json_schema()
+            if deps.provider.capabilities.json_schema_output
+            else None
+        ),
+        temperature=0.0,
+        max_tokens=None,
+        timeout_seconds=step_cap,
+    )
+    try:
+        async with asyncio.timeout(step_cap):
+            grade_result = await deps.provider.generate(grader_request)
+        draft = RelevanceGradingDraft.model_validate_json(grade_result.raw_content)
+        logger.info(
+            "study_reflection_grade",
+            extra={
+                "request_id": state.request_id,
+                "pass": state.requery_count + 1,
+                "provider": grade_result.provider,
+                "model": grade_result.model,
+                "latency_ms": grade_result.latency_ms,
+                "finish_reason": grade_result.finish_reason,
+                "accepted_count": len(draft.accepted_chunk_ids),
+                "retrieved_count": len(results),
+            },
+        )
+    except (TimeoutError, ValidationError, *PROVIDER_ERRORS):
+        logger.warning("study_grade_failed", extra={"request_id": state.request_id})
+        # Fail safe: accept all chunks and proceed as if grading were disabled.
+        return {
+            "graded_chunks": [_ranked_chunk(r) for r in results],
+            "reflection_graded": False,
+        }
+
+    valid_ids = {r.chunk_id for r in results}
+    accepted = {cid for cid in draft.accepted_chunk_ids if cid in valid_ids}
+    graded = [_ranked_chunk(r) for r in results if r.chunk_id in accepted]
+
+    if graded:
+        return {"graded_chunks": graded, "reflection_graded": True}
+
+    # Recompute remaining AFTER the grader call so the gate reflects time the
+    # call actually consumed (the entry-time value at line 280 is stale here).
+    remaining = _remaining_budget(state)
+    can_requery = state.requery_count == 0 and (
+        remaining is None or remaining >= settings.requery_min_remaining_seconds
+    )
+    if can_requery:
+        # Hand the failure to the reflect node (routing keys on requery_semantic
+        # still being None here). seen_chunk_ids arms the no-new-evidence guard.
+        return {
+            "critique": draft.critique.strip()
+            or "Retrieved chunks did not address the query.",
+            "requery_count": 1,
+            "reflection_graded": True,
+            "seen_chunk_ids": [r.chunk_id for r in results],
+        }
+    return {
+        "response": _reflection_abstain(state, deps, critique=draft.critique.strip())
+    }
+
+
+async def _reflect_node(state: StudyGraphState, deps: StudyService) -> dict:
+    """Design one different retrieval query from the grader critique, or abstain."""
+    settings = deps.settings.reflection
+    remaining = _remaining_budget(state)
+    if remaining is not None and remaining < settings.requery_min_remaining_seconds:
+        return {"response": _reflection_abstain(state, deps)}
+
+    step_cap = settings.step_timeout_seconds
+    if remaining is not None:
+        step_cap = min(step_cap, max(remaining, 0.0))
+
+    reflect_request = GenerationRequest(
+        messages=deps._reflect_prompt.render(
+            query=state.plan.original_query,
+            critique=state.critique,
+        ),
+        response_schema=(
+            QueryReformulationDraft.model_json_schema()
+            if deps.provider.capabilities.json_schema_output
+            else None
+        ),
+        temperature=0.0,
+        max_tokens=None,
+        timeout_seconds=step_cap,
+    )
+    try:
+        async with asyncio.timeout(step_cap):
+            reflect_result = await deps.provider.generate(reflect_request)
+        draft = QueryReformulationDraft.model_validate_json(reflect_result.raw_content)
+        logger.info(
+            "study_reflection_reflect",
+            extra={
+                "request_id": state.request_id,
+                "provider": reflect_result.provider,
+                "model": reflect_result.model,
+                "latency_ms": reflect_result.latency_ms,
+                "finish_reason": reflect_result.finish_reason,
+                "declined": not draft.reformulated_query.strip(),
+            },
+        )
+    except (TimeoutError, ValidationError, *PROVIDER_ERRORS):
+        logger.warning("study_reflect_failed", extra={"request_id": state.request_id})
+        # No chunks to fall back to -> abstain honestly (unlike grade).
+        return {"response": _reflection_abstain(state, deps)}
+
+    reformulated = " ".join(draft.reformulated_query.split()[:_MAX_REQUERY_WORDS])
+    original = state.plan.original_query.strip().lower()
+    if not reformulated or reformulated.strip().lower() == original:
+        # Declined or trivially identical -> abstain (chunk-set guard is backstop).
+        return {"response": _reflection_abstain(state, deps)}
+    return {"requery_semantic": [reformulated]}
+
+
 async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
     request = state.request
     search_response = state.search_response
@@ -202,8 +425,31 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
     planning = state.planning_metadata
     budget_tokens = deps._context_budget_tokens()
 
-    try:
+    # Source the grader's pruned set when it ran; else all retrieved chunks.
+    if state.graded_chunks is not None:
+        ranked_chunks = state.graded_chunks
+    else:
         ranked_chunks = [_ranked_chunk(result) for result in search_response.results]
+    graded_ids = {chunk.chunk_id for chunk in ranked_chunks}
+    pruned_ids = [
+        r.chunk_id for r in search_response.results if r.chunk_id not in graded_ids
+    ]
+    # The answer LLM should see the query that actually retrieved these chunks.
+    effective_queries = state.requery_semantic or list(state.plan.semantic_queries)
+    reflection_fields: dict = {
+        "reflection_graded": state.reflection_graded,
+        "requery_attempted": state.requery_count > 0,
+        # Count only when the grader actually ran (kill-switch/fail-safe set
+        # graded_chunks to all chunks but did NOT grade).
+        "graded_chunk_count": len(ranked_chunks) if state.reflection_graded else 0,
+        "grader_pruned_chunk_ids": pruned_ids,
+        "reflection_critique": state.critique,
+        "reflection_reformulated_query": (
+            state.requery_semantic[0] if state.requery_semantic else ""
+        ),
+    }
+
+    try:
         deduped_chunks = dedupe_parent_child(ranked_chunks)
         packing = pack_chunks(
             deduped_chunks,
@@ -222,6 +468,7 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
             filters_applied=filters,
             rerank=True,
             search_telemetry=state.search_telemetry,
+            **reflection_fields,
         )
     except Exception:
         logger.exception(
@@ -239,6 +486,7 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
             filters_applied=filters,
             rerank=True,
             search_telemetry=state.search_telemetry,
+            **reflection_fields,
         )
         return {
             "retrieval_metadata": degraded,
@@ -271,7 +519,7 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
 
     messages = deps._prompt.render(
         query=request.query,
-        retrieval_queries=list(state.plan.semantic_queries),
+        retrieval_queries=effective_queries,
         context_blocks=format_context_blocks(packing.chunks, state.collection_schema),
         generation_guidance=state.plan.generation_guidance,
     )
@@ -413,7 +661,24 @@ async def _respond_node(state: StudyGraphState, deps: StudyService) -> dict:
 
 
 def _route_after_retrieve(state: StudyGraphState) -> str:
-    return "respond" if state.response is not None else "pack"
+    return "respond" if state.response is not None else "grade"
+
+
+def _route_after_grade(state: StudyGraphState) -> str:
+    # LangGraph merges the node's returned dict into state BEFORE the router
+    # runs, so these read the just-updated state. Timing-independent: routing
+    # keys on WHICH fields grade wrote, not on a counter's transient value.
+    if state.response is not None:  # abstain/fail terminal already written
+        return "respond"
+    if state.graded_chunks is not None:  # >=1 accepted (or fail-safe accept-all)
+        return "pack"
+    if state.requery_semantic is None:  # first pass, all rejected -> reformulate
+        return "reflect"
+    return "pack"  # safety net (unreachable: 2nd-pass grade always sets a signal)
+
+
+def _route_after_reflect(state: StudyGraphState) -> str:
+    return "respond" if state.response is not None else "retrieve"
 
 
 def _route_after_pack(state: StudyGraphState) -> str:
@@ -437,6 +702,8 @@ def build_study_graph(deps: StudyService):
     builder.add_node("plan", _bind(_plan_node, deps))
     builder.add_node("direct_response", _bind(_direct_response_node, deps))
     builder.add_node("retrieve", _bind(_retrieve_node, deps))
+    builder.add_node("grade", _bind(_grade_node, deps))
+    builder.add_node("reflect", _bind(_reflect_node, deps))
     builder.add_node("pack", _bind(_pack_node, deps))
     builder.add_node("generate", _bind(_generate_node, deps))
     builder.add_node("validate", _bind(_validate_node, deps))
@@ -450,7 +717,17 @@ def build_study_graph(deps: StudyService):
     )
     builder.add_edge("direct_response", "respond")
     builder.add_conditional_edges(
-        "retrieve", _route_after_retrieve, {"pack": "pack", "respond": "respond"}
+        "retrieve", _route_after_retrieve, {"grade": "grade", "respond": "respond"}
+    )
+    builder.add_conditional_edges(
+        "grade",
+        _route_after_grade,
+        {"pack": "pack", "reflect": "reflect", "respond": "respond"},
+    )
+    builder.add_conditional_edges(
+        "reflect",
+        _route_after_reflect,
+        {"retrieve": "retrieve", "respond": "respond"},
     )
     builder.add_conditional_edges(
         "pack", _route_after_pack, {"generate": "generate", "respond": "respond"}

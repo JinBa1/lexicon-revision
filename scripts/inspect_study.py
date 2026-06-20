@@ -59,6 +59,10 @@ def _classify_schema(schema: dict[str, object] | None) -> str:
     title = schema.get("title") if isinstance(schema, dict) else None
     if isinstance(title, str) and title == "QueryPlanDraft":
         return "planner"
+    if isinstance(title, str) and title == "RelevanceGradingDraft":
+        return "grader"
+    if isinstance(title, str) and title == "QueryReformulationDraft":
+        return "reflect"
     return "generation"
 
 

@@ -19,6 +19,7 @@ from src.study.config import (
     GenerationSettings,
     PlanningSettings,
     PromptSettings,
+    ReflectionSettings,
     StudySettings,
 )
 from src.study.models import StudyResponse
@@ -34,7 +35,7 @@ class FakeStudyService:
     def __init__(self) -> None:
         self.requests = []
 
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         return StudyResponse(
             request_id=request_id or "00000000-0000-4000-8000-000000000000",
@@ -76,7 +77,7 @@ class FakeStudyService:
 
 
 class TelemetryStudyService(FakeStudyService):
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         return StudyResponse(
             request_id=request_id or "00000000-0000-4000-8000-000000000001",
@@ -142,7 +143,7 @@ class RequestIdEchoStudyService(FakeStudyService):
         super().__init__()
         self.request_ids: list[str | None] = []
 
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         self.request_ids.append(request_id)
         return StudyResponse(
@@ -185,7 +186,7 @@ class RequestIdEchoStudyService(FakeStudyService):
 
 
 class InvalidFilterStudyService(FakeStudyService):
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         del request_id
         raise InvalidMetadataFilterError(
@@ -282,7 +283,7 @@ class CountingHealthProvider:
 
 
 class SlowStudyService:
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         del request
         del request_id
         await httpx.AsyncClient().aclose()
@@ -291,7 +292,7 @@ class SlowStudyService:
 
 
 class ExplodingStudyService(FakeStudyService):
-    async def orchestrate(self, request, request_id=None):
+    async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
         self.requests.append(request)
         del request_id
         raise RuntimeError("generation provider exploded")
@@ -388,6 +389,7 @@ def _study_settings() -> StudySettings:
             prompt_version="query_planner_v1",
             prompt_path="prompts/query_planner_v1.yaml",
         ),
+        reflection=ReflectionSettings(enabled=False),
     )
 
 
@@ -454,6 +456,59 @@ async def test_post_study_returns_response() -> None:
     assert response.json()["schema_version"] == "study_answer_v2"
     assert "planning" in response.json()
     assert study_service.requests[0].query == "dynamic programming"
+
+
+@pytest.mark.anyio
+async def test_post_study_serialises_low_relevance_reflection_abstain() -> None:
+    class LowRelevanceStudyService(FakeStudyService):
+        async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
+            self.requests.append(request)
+            base = await FakeStudyService.orchestrate(
+                self, request, request_id=request_id
+            )
+            return base.model_copy(
+                update={
+                    "retrieval": base.retrieval.model_copy(
+                        update={
+                            "status": "low_relevance",
+                            "reflection_graded": True,
+                            "requery_attempted": True,
+                            "graded_chunk_count": 0,
+                            "reflection_critique": "off-topic for the corpus",
+                            "reflection_reformulated_query": "",
+                        }
+                    )
+                }
+            )
+
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=LowRelevanceStudyService(),
+        generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
+        allow_unauthorized_test_mode=True,
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "capital of France", "scope": {"collection": "cam"}},
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["schema_version"] == "study_answer_v2"  # additive, unchanged
+    retrieval = body["retrieval"]
+    assert retrieval["status"] == "low_relevance"
+    assert retrieval["reflection_graded"] is True
+    assert retrieval["requery_attempted"] is True
+    assert retrieval["graded_chunk_count"] == 0
+    assert retrieval["reflection_critique"] == "off-topic for the corpus"
+    assert "reflection_reformulated_query" in retrieval
 
 
 @pytest.mark.anyio
