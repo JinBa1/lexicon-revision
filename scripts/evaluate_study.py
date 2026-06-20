@@ -495,7 +495,15 @@ def _reflection_aggregates(case_reports: list[dict[str, Any]]) -> dict[str, Any]
     false_abstains = [
         v for v in content if v["retrieval"].get("status") == "low_relevance"
     ]
-    content_hits = [v for v in content if v["retrieval"].get("expected_in_context")]
+    # Hit = expected chunk in packed context OR expected topic in cited sources,
+    # matching the PR2 Tier-3 "topic|chunk" baseline this gate compares against
+    # (exact-chunk-id alone undercounts on-topic answers that cite neighbours).
+    content_hits = [
+        v
+        for v in content
+        if v["retrieval"].get("expected_in_context")
+        or v["validation"].get("expected_topic_in_sources")
+    ]
     requeried = sum(1 for _, v in pairs if v["retrieval"].get("requery_attempted"))
     negative_requeries = sum(
         1 for v in negative if v["retrieval"].get("requery_attempted")

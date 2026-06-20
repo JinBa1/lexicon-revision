@@ -748,6 +748,56 @@ def test_negative_case_declined_via_no_corpus_answer_counts_as_abstain(
     assert report["abstain_recall"] == 1.0  # no_corpus_answer is a valid decline
 
 
+def test_non_regression_counts_topic_hit_without_exact_chunk(tmp_path: Path) -> None:
+    """A content case whose exact expected chunk is absent but whose expected
+    TOPIC is cited still counts as a non-regression hit (PR2 topic|chunk rule)."""
+    collection = "cam-cs-tripos-fixture"
+    spec = load_study_eval_spec(
+        _write_eval(
+            tmp_path,
+            {
+                "name": "topic_hit",
+                "collection": collection,
+                "default_top_k": 9,
+                "cases": [
+                    {
+                        "id": "content-topic",
+                        "expected": {
+                            "any_chunk_ids": ["chunk-absent"],
+                            "any_topics": ["Algorithms"],
+                        },
+                        "variants": [{"id": "v", "query": "dp recurrences"}],
+                    }
+                ],
+            },
+        )
+    )
+    # context has a non-expected chunk; sources cite a chunk whose metadata
+    # topic == "Algorithms" (the _response helper sets that topic).
+    service = ToolTestFakeStudyService(
+        {
+            "dp recurrences": _response(
+                query="dp recurrences",
+                collection=collection,
+                context_chunk_ids=["chunk-other"],
+                source_ids=["chunk-other"],
+            )
+        }
+    )
+    report = evaluate_study_cases(
+        service=service,  # type: ignore[arg-type]
+        spec=spec,
+        collection=collection,
+        top_k=9,
+        case_ids=None,
+        variant_ids=None,
+    )
+    v = report["cases"][0]["variants"][0]
+    assert v["retrieval"]["expected_in_context"] is False  # exact chunk absent
+    assert v["validation"]["expected_topic_in_sources"] is True  # topic present
+    assert report["non_regression_content_hit_rate"] == 1.0
+
+
 def _write_eval(tmp_path: Path, payload: dict[str, Any]) -> Path:
     path = tmp_path / "study-eval.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
