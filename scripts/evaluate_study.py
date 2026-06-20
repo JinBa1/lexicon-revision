@@ -449,6 +449,9 @@ def _reflection_retrieval_fields(response: Any) -> dict[str, Any]:
         "reflection_graded": response.retrieval.reflection_graded,
         "requery_attempted": response.retrieval.requery_attempted,
         "graded_chunk_count": response.retrieval.graded_chunk_count,
+        # Observable agentic trace (the point of the dedicated reflect step).
+        "critique": response.retrieval.reflection_critique,
+        "reformulated_query": response.retrieval.reflection_reformulated_query,
     }
 
 
@@ -557,6 +560,14 @@ def render_markdown(report: dict[str, Any], *, max_text_chars: int = 500) -> str
                     f"error `{planning['error_category'] or 'none'}`; "
                     f"semantic_queries=`{planning['semantic_queries']}`; "
                     f"latency `{planning['latency_ms']}ms`"
+                )
+            if retrieval.get("reflection_graded") or retrieval.get("requery_attempted"):
+                lines.append(
+                    f"Reflection: graded `{retrieval.get('reflection_graded')}`; "
+                    f"kept `{retrieval.get('graded_chunk_count')}`; "
+                    f"requery `{retrieval.get('requery_attempted')}`; "
+                    f"critique `{(retrieval.get('critique') or '')[:max_text_chars]}`; "
+                    f"reformulated `{retrieval.get('reformulated_query') or 'none'}`"
                 )
             lines.extend(
                 [

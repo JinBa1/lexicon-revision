@@ -398,7 +398,7 @@ class StudyService:
                 "reflection_graded": response.retrieval.reflection_graded,
                 "requery_attempted": response.retrieval.requery_attempted,
                 "graded_chunk_count": response.retrieval.graded_chunk_count,
-                "reflection_critique": response.retrieval.reflection_critique,
+                "reflection_critique": response.retrieval.reflection_critique[:200],
             },
         )
 

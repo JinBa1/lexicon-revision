@@ -178,6 +178,7 @@ export type StudyRetrieval = {
   graded_chunk_count?: number;
   grader_pruned_chunk_ids?: string[];
   reflection_critique?: string;
+  reflection_reformulated_query?: string;
 };
 
 export type StudyPlanning = {

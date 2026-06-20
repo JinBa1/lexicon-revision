@@ -324,6 +324,9 @@ async def _grade_node(state: StudyGraphState, deps: StudyService) -> dict:
     if graded:
         return {"graded_chunks": graded, "reflection_graded": True}
 
+    # Recompute remaining AFTER the grader call so the gate reflects time the
+    # call actually consumed (the entry-time value at line 280 is stale here).
+    remaining = _remaining_budget(state)
     can_requery = state.requery_count == 0 and (
         remaining is None or remaining >= settings.requery_min_remaining_seconds
     )
@@ -400,17 +403,20 @@ async def _pack_node(state: StudyGraphState, deps: StudyService) -> dict:
     pruned_ids = [
         r.chunk_id for r in search_response.results if r.chunk_id not in graded_ids
     ]
+    # The answer LLM should see the query that actually retrieved these chunks.
+    effective_queries = state.requery_semantic or list(state.plan.semantic_queries)
     reflection_fields: dict = {
         "reflection_graded": state.reflection_graded,
         "requery_attempted": state.requery_count > 0,
-        "graded_chunk_count": len(ranked_chunks)
-        if state.graded_chunks is not None
-        else 0,
+        # Count only when the grader actually ran (kill-switch/fail-safe set
+        # graded_chunks to all chunks but did NOT grade).
+        "graded_chunk_count": len(ranked_chunks) if state.reflection_graded else 0,
         "grader_pruned_chunk_ids": pruned_ids,
         "reflection_critique": state.critique,
+        "reflection_reformulated_query": (
+            state.requery_semantic[0] if state.requery_semantic else ""
+        ),
     }
-    # The answer LLM should see the query that actually retrieved these chunks.
-    effective_queries = state.requery_semantic or list(state.plan.semantic_queries)
 
     try:
         deduped_chunks = dedupe_parent_child(ranked_chunks)

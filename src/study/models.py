@@ -129,6 +129,7 @@ class RetrievalMetadata(BaseModel):
     graded_chunk_count: int = Field(default=0, ge=0)
     grader_pruned_chunk_ids: list[str] = Field(default_factory=list)
     reflection_critique: str = ""
+    reflection_reformulated_query: str = ""
     search_telemetry: SearchExecutionTelemetry | None = Field(
         default=None,
         exclude=True,
