@@ -294,3 +294,58 @@ async def test_orchestrate_requery_then_answer() -> None:
     )
     assert response.answer_status == "ok"
     assert response.retrieval.requery_attempted is True
+    assert response.retrieval.reflection_reformulated_query == (
+        "balanced search tree rotations"
+    )
+
+
+async def test_orchestrate_requery_logs_response_exactly_once(monkeypatch) -> None:
+    # The re-query path traverses retrieve->grade->reflect->retrieve->grade->...
+    # but must still log exactly once at the single respond sink.
+    pass1 = _retrieval_with_results()
+    pass2 = pass1.model_copy(
+        update={
+            "search_response": pass1.search_response.model_copy(
+                update={"results": [search_result("b")]}
+            )
+        }
+    )
+    provider = FakeProvider(
+        [
+            _grade_json([], critique="too narrow"),
+            _reflect_json("balanced search tree rotations"),
+            _grade_json(["b"]),
+            valid_generation_result(chunk_id="b"),
+        ]
+    )
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(_plan())),
+        planned_retrieval=FakePlannedRetrieval([pass1, pass2]),
+        provider=provider,
+        settings=study_settings(reflection=_on()),
+    )
+    calls: list[object] = []
+    original = service._log_response
+    monkeypatch.setattr(
+        service, "_log_response", lambda r: (calls.append(r), original(r))[1]
+    )
+    await service.orchestrate(
+        StudyRequest(query="binary search trees", scope={"collection": "c"})
+    )
+    assert len(calls) == 1
+
+
+async def test_orchestrate_budget_gate_skips_requery() -> None:
+    # With an effectively-expired deadline, grade rejects but the budget gate
+    # blocks the re-query -> abstain, requery never attempted.
+    import asyncio
+
+    provider = FakeProvider([_grade_json([], critique="off topic")])
+    service = _service(provider, reflection=_on(requery_min_remaining_seconds=28.0))
+    response = await service.orchestrate(
+        StudyRequest(query="binary search trees", scope={"collection": "c"}),
+        deadline_monotonic=asyncio.get_running_loop().time() + 1.0,
+    )
+    assert response.retrieval.status == "low_relevance"
+    assert response.retrieval.requery_attempted is False
+    assert provider.calls and len(provider.calls) == 1  # grade only, no reflect

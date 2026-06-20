@@ -459,6 +459,59 @@ async def test_post_study_returns_response() -> None:
 
 
 @pytest.mark.anyio
+async def test_post_study_serialises_low_relevance_reflection_abstain() -> None:
+    class LowRelevanceStudyService(FakeStudyService):
+        async def orchestrate(self, request, request_id=None, deadline_monotonic=None):
+            self.requests.append(request)
+            base = await FakeStudyService.orchestrate(
+                self, request, request_id=request_id
+            )
+            return base.model_copy(
+                update={
+                    "retrieval": base.retrieval.model_copy(
+                        update={
+                            "status": "low_relevance",
+                            "reflection_graded": True,
+                            "requery_attempted": True,
+                            "graded_chunk_count": 0,
+                            "reflection_critique": "off-topic for the corpus",
+                            "reflection_reformulated_query": "",
+                        }
+                    )
+                }
+            )
+
+    from src.main import create_app
+
+    app = create_app(
+        search_service=FakeSearchService(),
+        study_service=LowRelevanceStudyService(),
+        generation_provider=FakeProvider(),
+        rate_limiter=FakeCostRateLimiter(),
+        allow_unauthorized_test_mode=True,
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/study",
+            json={"query": "capital of France", "scope": {"collection": "cam"}},
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["schema_version"] == "study_answer_v2"  # additive, unchanged
+    retrieval = body["retrieval"]
+    assert retrieval["status"] == "low_relevance"
+    assert retrieval["reflection_graded"] is True
+    assert retrieval["requery_attempted"] is True
+    assert retrieval["graded_chunk_count"] == 0
+    assert retrieval["reflection_critique"] == "off-topic for the corpus"
+    assert "reflection_reformulated_query" in retrieval
+
+
+@pytest.mark.anyio
 async def test_post_study_blocked_by_cost_limiter_returns_429_and_skips_service() -> (
     None
 ):
