@@ -232,7 +232,7 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     }
 
 
-_GRADER_EXCERPT_CHARS = 200
+_GRADER_EXCERPT_CHARS = 600
 _MAX_REQUERY_WORDS = 40
 _REFLECTION_ABSTAIN_LIMITATION = (
     "No retrieved questions were sufficiently relevant to your query. "

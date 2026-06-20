@@ -455,12 +455,21 @@ def _reflection_retrieval_fields(response: Any) -> dict[str, Any]:
     }
 
 
+# A negative case is correctly handled if the system declines via EITHER honest
+# mechanism: PR2 intent routing (no_corpus_answer) or PR3 reflection abstain
+# (insufficient_evidence + retrieval.status=low_relevance). Both avoid fabricating
+# an answer for an out-of-scope query.
+_DECLINE_STATUSES = {"insufficient_evidence", "no_corpus_answer"}
+
+
 def _abstain_validation_fields(case: StudyEvalCase, response: Any) -> dict[str, Any]:
     expected = case.expected_answer_status
     return {
         "abstain_expected": expected is not None,
         "abstain_correct": (
-            response.answer_status == expected if expected is not None else None
+            response.answer_status in _DECLINE_STATUSES
+            if expected is not None
+            else None
         ),
     }
 

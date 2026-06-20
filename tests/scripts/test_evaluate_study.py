@@ -697,6 +697,57 @@ def test_reflection_false_abstain_counted_against_content_case(tmp_path: Path) -
     assert report["abstain_recall"] is None  # no negative cases
 
 
+def test_negative_case_declined_via_no_corpus_answer_counts_as_abstain(
+    tmp_path: Path,
+) -> None:
+    """An off-topic query the planner declines (no_corpus_answer) is a correct
+    abstention, not a recall miss — counts the same as a reflection abstain."""
+    collection = "cam-cs-tripos-fixture"
+    spec = load_study_eval_spec(
+        _write_eval(
+            tmp_path,
+            {
+                "name": "neg_intent_decline",
+                "collection": collection,
+                "default_top_k": 9,
+                "cases": [
+                    {
+                        "id": "off-topic-intent",
+                        "expected": {
+                            "any_chunk_ids": [],
+                            "expected_answer_status": "insufficient_evidence",
+                        },
+                        "variants": [{"id": "v", "query": "who are you"}],
+                    }
+                ],
+            },
+        )
+    )
+    service = ToolTestFakeStudyService(
+        {
+            "who are you": _response(
+                query="who are you",
+                collection=collection,
+                answer_status="no_corpus_answer",
+                retrieval_status="skipped",
+                context_chunk_ids=[],
+                source_ids=[],
+            )
+        }
+    )
+
+    report = evaluate_study_cases(
+        service=service,  # type: ignore[arg-type]
+        spec=spec,
+        collection=collection,
+        top_k=9,
+        case_ids=None,
+        variant_ids=None,
+    )
+
+    assert report["abstain_recall"] == 1.0  # no_corpus_answer is a valid decline
+
+
 def _write_eval(tmp_path: Path, payload: dict[str, Any]) -> Path:
     path = tmp_path / "study-eval.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
