@@ -108,7 +108,7 @@ class StudyGraphState(BaseModel):
     generation_result: GenerationResult | None = None
     attempt_count: int = 0
 
-    # PR3 reflection loop
+    # Reflection loop
     graded_chunks: list[RankedChunk] | None = None
     reflection_graded: bool = False
     critique: str = ""
@@ -133,7 +133,7 @@ async def _direct_response_node(state: StudyGraphState, deps: StudyService) -> d
     # Defensive: _route_after_plan already coerces a None plan to
     # content_retrieval (-> retrieve), so direct_response is unreachable with a
     # None plan today. The guard hardens this node against the larger routing
-    # surface PR3 adds, since _direct_response dereferences plan.intent.
+    # surface the reflection loop adds, since _direct_response reads plan.intent.
     plan = state.plan or QueryPlan(
         original_query=state.request.query,
         semantic_queries=[state.request.query],
@@ -163,8 +163,8 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     effective_plan = state.plan
     if state.requery_semantic is not None:
         assert len(state.requery_semantic) == 1, (
-            "PR3 single-query invariant: requery_semantic must hold exactly one "
-            "query (PR4 must raise QueryPlan.semantic_queries max_length first)"
+            "single-query invariant: requery_semantic must hold exactly one query "
+            "(multi-query support must raise QueryPlan.semantic_queries max_length)"
         )
         effective_plan = QueryPlan(
             planner_version=state.plan.planner_version,
@@ -311,7 +311,7 @@ async def _grade_node(state: StudyGraphState, deps: StudyService) -> dict:
         draft = RelevanceGradingDraft.model_validate_json(grade_result.raw_content)
     except (TimeoutError, ValidationError, *PROVIDER_ERRORS):
         logger.warning("study_grade_failed", extra={"request_id": state.request_id})
-        # Fail safe: accept all chunks and proceed exactly as pre-PR3.
+        # Fail safe: accept all chunks and proceed as if grading were disabled.
         return {
             "graded_chunks": [_ranked_chunk(r) for r in results],
             "reflection_graded": False,

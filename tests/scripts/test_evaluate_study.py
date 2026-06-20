@@ -583,7 +583,7 @@ def test_render_markdown_accepts_inspect_study_generation_shape() -> None:
 
 
 def test_reflection_aggregates_recall_and_non_regression(tmp_path: Path) -> None:
-    """A negative case that abstains + a content case that hits drive PR3 metrics."""
+    """A negative case that abstains + a content case that hits drive the metrics."""
     collection = "cam-cs-tripos-fixture"
     spec = load_study_eval_spec(
         _write_eval(
@@ -750,7 +750,7 @@ def test_negative_case_declined_via_no_corpus_answer_counts_as_abstain(
 
 def test_non_regression_counts_topic_hit_without_exact_chunk(tmp_path: Path) -> None:
     """A content case whose exact expected chunk is absent but whose expected
-    TOPIC is cited still counts as a non-regression hit (PR2 topic|chunk rule)."""
+    TOPIC is cited still counts as a non-regression hit (topic|chunk rule)."""
     collection = "cam-cs-tripos-fixture"
     spec = load_study_eval_spec(
         _write_eval(

@@ -55,7 +55,7 @@ class PlanningSettings(BaseModel):
 
 
 class ReflectionSettings(BaseModel):
-    # PR3 reflection loop. enabled=False makes _grade_node accept all chunks
+    # Reflection loop. enabled=False makes _grade_node accept all chunks
     # and route straight to pack (zero grader/reflect LLM calls).
     enabled: bool = True
     # Caps EACH reflection-loop LLM call (grade, reflect) on both the

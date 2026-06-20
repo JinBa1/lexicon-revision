@@ -1,4 +1,4 @@
-"""Node + orchestrate tests for the PR3 reflection loop (grade / reflect).
+"""Node + orchestrate tests for the reflection loop (grade / reflect).
 
 The broad parity suite (tests/study/test_service.py, test_graph.py) runs with
 reflection DISABLED. These tests explicitly ENABLE it and drive the grade and

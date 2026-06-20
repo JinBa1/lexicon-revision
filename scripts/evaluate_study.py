@@ -56,7 +56,7 @@ class StudyEvalCase:
     any_chunk_ids: list[str]
     any_topics: list[str]
     variants: list[StudyVariant]
-    # PR3: when set (e.g. "insufficient_evidence"), the case is a negative case
+    # When set (e.g. "insufficient_evidence"), the case is a negative case
     # that SHOULD abstain; None means a normal content case (non-regression set).
     expected_answer_status: str | None = None
 
@@ -456,7 +456,7 @@ def _reflection_retrieval_fields(response: Any) -> dict[str, Any]:
 
 
 # A negative case is correctly handled if the system declines via EITHER honest
-# mechanism: PR2 intent routing (no_corpus_answer) or PR3 reflection abstain
+# mechanism: intent routing (no_corpus_answer) or reflection abstain
 # (insufficient_evidence + retrieval.status=low_relevance). Both avoid fabricating
 # an answer for an out-of-scope query.
 _DECLINE_STATUSES = {"insufficient_evidence", "no_corpus_answer"}
@@ -475,7 +475,7 @@ def _abstain_validation_fields(case: StudyEvalCase, response: Any) -> dict[str, 
 
 
 def _reflection_aggregates(case_reports: list[dict[str, Any]]) -> dict[str, Any]:
-    """PR3 abstention + non-regression aggregates over all variants.
+    """Abstention + non-regression aggregates over all variants.
 
     Negative cases (expected_answer_status set) drive abstain_recall; content
     cases (no expected status) drive the false-abstain and non-regression rates.
@@ -496,7 +496,7 @@ def _reflection_aggregates(case_reports: list[dict[str, Any]]) -> dict[str, Any]
         v for v in content if v["retrieval"].get("status") == "low_relevance"
     ]
     # Hit = expected chunk in packed context OR expected topic in cited sources,
-    # matching the PR2 Tier-3 "topic|chunk" baseline this gate compares against
+    # matching the prior Tier-3 "topic|chunk" baseline this gate compares against
     # (exact-chunk-id alone undercounts on-topic answers that cite neighbours).
     content_hits = [
         v

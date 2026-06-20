@@ -300,7 +300,7 @@ async def test_provider_error_returns_generation_failed() -> None:
 
 
 async def test_direct_response_node_falls_back_when_plan_is_none() -> None:
-    # PR3 defensive guard: a None plan must not AttributeError on plan.intent.
+    # Defensive guard: a None plan must not AttributeError on plan.intent.
     # Unreachable under current routing (_route_after_plan coerces None ->
     # content_retrieval -> retrieve), so this exercises the node directly.
     service = make_service(

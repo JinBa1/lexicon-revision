@@ -172,7 +172,7 @@ export type StudyRetrieval = {
   truncated_chunk_ids: string[];
   filters_applied: FilterCondition[];
   rerank: boolean;
-  // PR3 reflection loop (additive/optional; backend defaults preserve old shape).
+  // Reflection loop (additive/optional; backend defaults preserve old shape).
   reflection_graded?: boolean;
   requery_attempted?: boolean;
   graded_chunk_count?: number;

@@ -123,7 +123,7 @@ class RetrievalMetadata(BaseModel):
     truncated_chunk_ids: list[str] = Field(default_factory=list)
     filters_applied: list[FilterCondition]
     rerank: bool
-    # PR3 reflection loop (all additive; default to the pre-PR3 behaviour).
+    # Reflection loop (all additive; default to the prior behaviour).
     reflection_graded: bool = False
     requery_attempted: bool = False
     graded_chunk_count: int = Field(default=0, ge=0)

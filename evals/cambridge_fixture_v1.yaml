@@ -212,7 +212,7 @@ cases:
       Included because inspected OOP question-level chunks have has_code=true
       and visible Java code-like text.
 
-  # --- PR3 negative-query cases (must ABSTAIN) -------------------------------
+  # --- negative-query cases (must ABSTAIN) -----------------------------------
   # The fixture corpus has no off-domain chunks, so vector search still returns
   # CS results for these. Abstention must therefore be GRADER-driven, not
   # threshold-driven -- a threshold-only system cannot pass them. Each carries
