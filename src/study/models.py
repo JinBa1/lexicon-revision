@@ -126,6 +126,7 @@ class RetrievalMetadata(BaseModel):
     # Reflection loop (all additive; default to the prior behaviour).
     reflection_graded: bool = False
     requery_attempted: bool = False
+    # Count of chunks the grader ACCEPTED (kept), not the number evaluated.
     graded_chunk_count: int = Field(default=0, ge=0)
     grader_pruned_chunk_ids: list[str] = Field(default_factory=list)
     reflection_critique: str = ""

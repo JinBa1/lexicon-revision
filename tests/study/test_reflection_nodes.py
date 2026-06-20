@@ -264,6 +264,41 @@ async def test_orchestrate_abstains_when_grade_rejects_and_reflect_declines() ->
     assert _study_outcome(response) == "reflection_abstained"
 
 
+async def test_orchestrate_requery_then_abstain_preserves_reformulation() -> None:
+    # pass1 rejects -> reflect produces a new query -> pass2 returns an unseen
+    # chunk that the grader ALSO rejects -> abstain. The reformulated query must
+    # survive on the abstain response (observability), not be dropped.
+    pass1 = _retrieval_with_results()
+    pass2 = pass1.model_copy(
+        update={
+            "search_response": pass1.search_response.model_copy(
+                update={"results": [search_result("b")]}
+            )
+        }
+    )
+    provider = FakeProvider(
+        [
+            _grade_json([], critique="too narrow"),
+            _reflect_json("balanced search tree rotations"),
+            _grade_json([], critique="still off"),
+        ]
+    )
+    service = make_service(
+        query_planner=FakeQueryPlanner(planner_execution(_plan())),
+        planned_retrieval=FakePlannedRetrieval([pass1, pass2]),
+        provider=provider,
+        settings=study_settings(reflection=_on()),
+    )
+    response = await service.orchestrate(
+        StudyRequest(query="binary search trees", scope={"collection": "c"})
+    )
+    assert response.retrieval.status == "low_relevance"
+    assert response.retrieval.requery_attempted is True
+    assert response.retrieval.reflection_reformulated_query == (
+        "balanced search tree rotations"
+    )
+
+
 async def test_orchestrate_requery_then_answer() -> None:
     # pass1 returns "a" (rejected) -> reflect -> pass2 returns the UNSEEN "b"
     # (so the no-new-evidence guard does not fire) -> grade accepts "b" -> answer.

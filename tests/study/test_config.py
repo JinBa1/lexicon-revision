@@ -78,6 +78,7 @@ def test_load_study_settings_has_reflection_defaults(tmp_path: Path) -> None:
 
     assert settings.reflection.enabled is True
     assert settings.reflection.step_timeout_seconds == 6.0
+    assert settings.reflection.grader_excerpt_chars == 600
     assert settings.reflection.requery_min_remaining_seconds == 28.0
     assert settings.reflection.grader_prompt_version == "relevance_grader_v1"
     assert settings.reflection.grader_prompt_path == "prompts/relevance_grader_v1.yaml"

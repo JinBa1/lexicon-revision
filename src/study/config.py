@@ -61,6 +61,8 @@ class ReflectionSettings(BaseModel):
     # Caps EACH reflection-loop LLM call (grade, reflect) on both the
     # asyncio.timeout wrapper and the GenerationRequest httpx timeout.
     step_timeout_seconds: float = 6.0
+    # Chars of each chunk shown to the grader (cost vs. judgement lever).
+    grader_excerpt_chars: int = 600
     # Re-query (reflect + second retrieve + second grade + generate) only fires
     # when the remaining wall-clock budget is at least this; otherwise abstain.
     requery_min_remaining_seconds: float = 28.0

@@ -202,6 +202,7 @@ class StudyService:
         requery_attempted: bool = False,
         graded_chunk_count: int = 0,
         reflection_critique: str = "",
+        reflection_reformulated_query: str = "",
     ) -> StudyResponse:
         # limitations=None keeps the status-derived default; a non-None list
         # replaces it (the reflection-abstain path passes custom copy).
@@ -236,6 +237,7 @@ class StudyService:
                 requery_attempted=requery_attempted,
                 graded_chunk_count=graded_chunk_count,
                 reflection_critique=reflection_critique,
+                reflection_reformulated_query=reflection_reformulated_query,
                 search_telemetry=search_telemetry,
             ),
             planning=planning,

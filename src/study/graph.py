@@ -162,10 +162,14 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     # an async/cancellable retrieve is the "Async database access" backlog item.
     effective_plan = state.plan
     if state.requery_semantic is not None:
-        assert len(state.requery_semantic) == 1, (
-            "single-query invariant: requery_semantic must hold exactly one query "
-            "(multi-query support must raise QueryPlan.semantic_queries max_length)"
-        )
+        if len(state.requery_semantic) != 1:
+            # Single-query invariant (not an assert: must hold under `python -O`).
+            # Multi-query support must first raise QueryPlan.semantic_queries
+            # max_length before emitting more than one reformulation.
+            raise ValueError(
+                "requery_semantic must hold exactly one query in the current "
+                "single-query retrieval design"
+            )
         effective_plan = QueryPlan(
             planner_version=state.plan.planner_version,
             original_query=state.plan.original_query,
@@ -232,7 +236,6 @@ async def _retrieve_node(state: StudyGraphState, deps: StudyService) -> dict:
     }
 
 
-_GRADER_EXCERPT_CHARS = 600
 _MAX_REQUERY_WORDS = 40
 _REFLECTION_ABSTAIN_LIMITATION = (
     "No retrieved questions were sufficiently relevant to your query. "
@@ -262,6 +265,10 @@ def _reflection_abstain(
         requery_attempted=state.requery_count > 0,
         graded_chunk_count=0,
         reflection_critique=critique or state.critique,
+        # Preserve the reformulation even when the second pass still abstains.
+        reflection_reformulated_query=(
+            state.requery_semantic[0] if state.requery_semantic else ""
+        ),
     )
 
 
@@ -291,7 +298,7 @@ async def _grade_node(state: StudyGraphState, deps: StudyService) -> dict:
         step_cap = min(step_cap, max(remaining, 0.0))
 
     chunks = [
-        {"chunk_id": r.chunk_id, "excerpt": r.text[:_GRADER_EXCERPT_CHARS]}
+        {"chunk_id": r.chunk_id, "excerpt": r.text[: settings.grader_excerpt_chars]}
         for r in results
     ]
     grader_request = GenerationRequest(
@@ -309,6 +316,19 @@ async def _grade_node(state: StudyGraphState, deps: StudyService) -> dict:
         async with asyncio.timeout(step_cap):
             grade_result = await deps.provider.generate(grader_request)
         draft = RelevanceGradingDraft.model_validate_json(grade_result.raw_content)
+        logger.info(
+            "study_reflection_grade",
+            extra={
+                "request_id": state.request_id,
+                "pass": state.requery_count + 1,
+                "provider": grade_result.provider,
+                "model": grade_result.model,
+                "latency_ms": grade_result.latency_ms,
+                "finish_reason": grade_result.finish_reason,
+                "accepted_count": len(draft.accepted_chunk_ids),
+                "retrieved_count": len(results),
+            },
+        )
     except (TimeoutError, ValidationError, *PROVIDER_ERRORS):
         logger.warning("study_grade_failed", extra={"request_id": state.request_id})
         # Fail safe: accept all chunks and proceed as if grading were disabled.
@@ -374,6 +394,17 @@ async def _reflect_node(state: StudyGraphState, deps: StudyService) -> dict:
         async with asyncio.timeout(step_cap):
             reflect_result = await deps.provider.generate(reflect_request)
         draft = QueryReformulationDraft.model_validate_json(reflect_result.raw_content)
+        logger.info(
+            "study_reflection_reflect",
+            extra={
+                "request_id": state.request_id,
+                "provider": reflect_result.provider,
+                "model": reflect_result.model,
+                "latency_ms": reflect_result.latency_ms,
+                "finish_reason": reflect_result.finish_reason,
+                "declined": not draft.reformulated_query.strip(),
+            },
+        )
     except (TimeoutError, ValidationError, *PROVIDER_ERRORS):
         logger.warning("study_reflect_failed", extra={"request_id": state.request_id})
         # No chunks to fall back to -> abstain honestly (unlike grade).
@@ -641,9 +672,9 @@ def _route_after_grade(state: StudyGraphState) -> str:
         return "respond"
     if state.graded_chunks is not None:  # >=1 accepted (or fail-safe accept-all)
         return "pack"
-    if state.requery_semantic is None:  # grade chose to reflect; reflect not run
+    if state.requery_semantic is None:  # first pass, all rejected -> reformulate
         return "reflect"
-    return "pack"  # safety net (unreachable)
+    return "pack"  # safety net (unreachable: 2nd-pass grade always sets a signal)
 
 
 def _route_after_reflect(state: StudyGraphState) -> str:
